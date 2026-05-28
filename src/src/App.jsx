@@ -1,39 +1,36 @@
 import { useState, useEffect, createContext, useContext, useCallback } from "react";
+import Financeiro from "./Financeiro.jsx";
 
 const C = {
-  lima:"#8FA715",verde:"#497A5D",azul:"#1A4F71",
-  terra:"#C4502B",off:"#F2EBD8",bg:"#0F0F0F",
-  card:"#181818",card2:"#202020",borda:"#2A2A2A",
+  lima:"#8FA715",verde:"#497A5D",azul:"#1A4F71",terra:"#C4502B",
+  off:"#F2EBD8",bg:"#0F0F0F",card:"#181818",card2:"#202020",borda:"#2A2A2A",
   texto:"#E8E0CC",muted:"#666",cinza:"#2A2A2A",
 };
 
 const SUPABASE_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
 
-function createClient(url, key) {
-  const headers = {"apikey":key,"Content-Type":"application/json"};
-  const authHeaders = (token) => ({...headers,"Authorization":`Bearer ${token||key}`});
-  return {
-    auth: {
-      signIn: async (email,password) => {
-        const r = await fetch(`${url}/auth/v1/token?grant_type=password`,{method:"POST",headers,body:JSON.stringify({email,password})});
-        return r.json();
-      },
-      signOut: async (token) => { await fetch(`${url}/auth/v1/logout`,{method:"POST",headers:authHeaders(token)}); },
+function createClient(url,key){
+  const headers={"apikey":key,"Content-Type":"application/json"};
+  const authHeaders=(token)=>({...headers,"Authorization":`Bearer ${token||key}`});
+  return{
+    auth:{
+      signIn:async(email,password)=>{const r=await fetch(`${url}/auth/v1/token?grant_type=password`,{method:"POST",headers,body:JSON.stringify({email,password})});return r.json();},
+      signOut:async(token)=>{await fetch(`${url}/auth/v1/logout`,{method:"POST",headers:authHeaders(token)});},
     },
-    from: (table) => ({
-      select: async (cols="*",token) => { const r = await fetch(`${url}/rest/v1/${table}?select=${cols}&order=created_at.desc`,{headers:authHeaders(token)}); return r.json(); },
-      insert: async (data,token) => { const r = await fetch(`${url}/rest/v1/${table}`,{method:"POST",headers:{...authHeaders(token),"Prefer":"return=representation"},body:JSON.stringify(data)}); return r.json(); },
-      delete: async (id,token) => { await fetch(`${url}/rest/v1/${table}?id=eq.${id}`,{method:"DELETE",headers:authHeaders(token)}); },
+    from:(table)=>({
+      select:async(cols="*",token)=>{const r=await fetch(`${url}/rest/v1/${table}?select=${cols}&order=created_at.desc`,{headers:authHeaders(token)});return r.json();},
+      insert:async(data,token)=>{const r=await fetch(`${url}/rest/v1/${table}`,{method:"POST",headers:{...authHeaders(token),"Prefer":"return=representation"},body:JSON.stringify(data)});return r.json();},
+      delete:async(id,token)=>{await fetch(`${url}/rest/v1/${table}?id=eq.${id}`,{method:"DELETE",headers:authHeaders(token)});},
     })
   };
 }
 
-const AppCtx = createContext(null);
-const useApp = () => useContext(AppCtx);
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+const AppCtx=createContext(null);
+const useApp=()=>useContext(AppCtx);
+const db=createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const S = {
+const S={
   app:{fontFamily:"'Barlow Condensed','Barlow',sans-serif",background:C.bg,minHeight:"100vh",color:C.texto},
   card:{background:C.card,border:`1px solid ${C.borda}`,borderRadius:8,padding:16},
   input:{background:"#1e1e1e",border:`1px solid ${C.borda}`,borderRadius:6,color:C.texto,fontFamily:"inherit",fontSize:14,padding:"10px 13px",width:"100%",boxSizing:"border-box",outline:"none"},
@@ -45,7 +42,7 @@ const S = {
 function Logo({small}){const s=small?28:40;return(<div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"center"}}><svg width={s} height={s*1.3} viewBox="0 0 44 56" fill="none"><ellipse cx="22" cy="28" rx="19" ry="26" stroke={C.lima} strokeWidth="2"/><path d="M16 16 Q21 13 26 17 Q30 21 26 27 Q22 32 18 37 Q15 41 20 44 Q24 46 28 43" stroke={C.lima} strokeWidth="2" fill="none" strokeLinecap="round"/><ellipse cx="20" cy="13" rx="3.5" ry="2" stroke={C.lima} strokeWidth="1.4" fill="none" transform="rotate(-20 20 13)"/></svg><div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:small?16:22,fontWeight:800,letterSpacing:".1em",color:C.off}}>ZESTE</div>{!small&&<div style={{fontSize:10,color:C.muted,letterSpacing:".1em"}}>SISTEMA UNIFICADO</div>}</div></div>);}
 
 function LoginScreen({onLogin}){
-  const [email,setEmail]=useState("");const [senha,setSenha]=useState("");const [err,setErr]=useState("");const [loading,setLoad]=useState(false);
+  const[email,setEmail]=useState("");const[senha,setSenha]=useState("");const[err,setErr]=useState("");const[loading,setLoad]=useState(false);
   const login=async()=>{if(!email||!senha)return;setLoad(true);setErr("");const data=await db.auth.signIn(email,senha);if(data.access_token)onLogin(data.access_token,data.user);else setErr("E-mail ou senha incorretos");setLoad(false);};
   return(<div style={{...S.app,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}><div style={{width:"100%",maxWidth:340}}><Logo/><div style={{...S.card,marginTop:24}}><div style={{marginBottom:14}}><label style={S.label}>E-mail</label><input style={S.input} type="email" placeholder="seu@email.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()}/></div><div style={{marginBottom:20}}><label style={S.label}>Senha</label><input style={S.input} type="password" placeholder="••••••••" value={senha} onChange={e=>setSenha(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()}/></div>{err&&<div style={{fontSize:12,color:C.terra,marginBottom:12}}>{err}</div>}<button style={{...S.btn(),width:"100%"}} onClick={login} disabled={loading}>{loading?"ENTRANDO…":"ENTRAR"}</button></div><div style={{fontSize:11,color:C.muted,textAlign:"center",marginTop:16}}>Zeste Consultoria Gastronômica · Sistema Interno</div></div></div>);
 }
@@ -58,16 +55,15 @@ function PageHeader({title,sub,action}){return(<div style={{display:"flex",justi
 function Field({label,value,onChange,type="text"}){return(<div><label style={S.label}>{label}</label><input style={S.input} type={type} value={value} onChange={e=>onChange(e.target.value)}/></div>);}
 
 function Dashboard(){
-  const {token}=useApp();const [stats,setStats]=useState({clientes:0,ativos:0,leads:0,posts_mes:0});const [clientes,setClientes]=useState([]);const [loading,setLoad]=useState(true);
+  const{token}=useApp();const[stats,setStats]=useState({clientes:0,ativos:0,leads:0,posts_mes:0});const[clientes,setClientes]=useState([]);const[loading,setLoad]=useState(true);
   useEffect(()=>{(async()=>{const cl=await db.from("clientes").select("id,nome,status,created_at",token);const posts=await db.from("marketing_posts").select("id,status,data_planejada",token);const mes=new Date().toISOString().slice(0,7);if(Array.isArray(cl)){setStats({clientes:cl.length,ativos:cl.filter(c=>c.status==="Ativo").length,leads:cl.filter(c=>c.status==="Lead").length,posts_mes:Array.isArray(posts)?posts.filter(p=>p.data_planejada?.startsWith(mes)).length:0});setClientes(cl.slice(0,6));}setLoad(false);})();},[]);
   const statusColor=s=>({"Lead":C.muted,"Proposta":"#5b9fd4","Ativo":C.lima,"Pausado":C.terra,"Concluído":C.verde}[s]||C.muted);
   return(<div style={{padding:24}}><PageHeader title="Dashboard" sub="Visão geral do negócio"/><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:24}}>{[["Total Clientes",stats.clientes,C.azul],["Ativos",stats.ativos,C.lima],["Leads",stats.leads,C.verde],["Posts este mês",stats.posts_mes,C.terra]].map(([l,v,c])=>(<div key={l} style={{...S.card,borderLeft:`3px solid ${c}`}}><div style={{fontSize:10,fontWeight:700,letterSpacing:".09em",textTransform:"uppercase",color:C.muted,marginBottom:4}}>{l}</div><div style={{fontSize:28,fontWeight:800,color:c,lineHeight:1}}>{loading?"…":v}</div></div>))}</div><div style={S.card}><div style={{fontSize:11,fontWeight:700,letterSpacing:".09em",textTransform:"uppercase",color:C.muted,marginBottom:14}}>Clientes recentes</div>{clientes.length===0&&!loading&&<div style={{color:C.muted,fontSize:13}}>Nenhum cliente ainda.</div>}{clientes.map(c=>(<div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.borda}`}}><div style={{fontSize:14,fontWeight:600,color:C.off}}>{c.nome}</div><span style={S.tag(statusColor(c.status))}>{c.status}</span></div>))}</div></div>);
 }
 
 function CRM(){
-  const {token}=useApp();const [clientes,setClientes]=useState([]);const [showForm,setShowForm]=useState(false);const [form,setForm]=useState({nome:"",status:"Lead",email:"",telefone:"",responsavel:"Amanda",valor_contrato:"",notas:""});const [saving,setSaving]=useState(false);
-  const COLUNAS=["Lead","Proposta","Ativo","Pausado","Concluído"];
-  const statusColor=s=>({"Lead":C.muted,"Proposta":"#5b9fd4","Ativo":C.lima,"Pausado":C.terra,"Concluído":C.verde}[s]||C.muted);
+  const{token}=useApp();const[clientes,setClientes]=useState([]);const[showForm,setShowForm]=useState(false);const[form,setForm]=useState({nome:"",status:"Lead",email:"",telefone:"",responsavel:"Amanda",valor_contrato:"",notas:""});const[saving,setSaving]=useState(false);
+  const COLUNAS=["Lead","Proposta","Ativo","Pausado","Concluído"];const statusColor=s=>({"Lead":C.muted,"Proposta":"#5b9fd4","Ativo":C.lima,"Pausado":C.terra,"Concluído":C.verde}[s]||C.muted);
   const load=useCallback(async()=>{const data=await db.from("clientes").select("*",token);if(Array.isArray(data))setClientes(data);},[token]);
   useEffect(()=>{load();},[load]);
   const save=async()=>{setSaving(true);const payload={...form,valor_contrato:form.valor_contrato?parseFloat(form.valor_contrato):null};await db.from("clientes").insert(payload,token);setForm({nome:"",status:"Lead",email:"",telefone:"",responsavel:"Amanda",valor_contrato:"",notas:""});setShowForm(false);await load();setSaving(false);};
@@ -77,10 +73,39 @@ function CRM(){
 function Placeholder({icon,title,desc,fase}){return(<div style={{padding:24,display:"flex",alignItems:"center",justifyContent:"center",minHeight:400}}><div style={{textAlign:"center",maxWidth:320}}><div style={{fontSize:48,marginBottom:16}}>{icon}</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:800,color:C.off,marginBottom:8}}>{title}</div><div style={{fontSize:13,color:C.muted,marginBottom:20,lineHeight:1.6}}>{desc}</div><span style={S.tag(C.terra)}>Fase {fase}</span></div></div>);}
 
 export default function ZesteSistema(){
-  const [session,setSession]=useState(null);const [modulo,setModulo]=useState("dashboard");const [collapsed,setCollapsed]=useState(false);
+  const[session,setSession]=useState(null);const[modulo,setModulo]=useState("dashboard");const[collapsed,setCollapsed]=useState(false);
   const handleLogout=async()=>{if(session?.token)await db.auth.signOut(session.token);setSession(null);};
   if(!session)return <LoginScreen onLogin={(token,user)=>setSession({token,user})}/>;
   const ctx={token:session.token,user:session.user};
-  const renderModulo=()=>{switch(modulo){case "dashboard":return <Dashboard/>;case "crm":return <CRM/>;case "financeiro":return <Placeholder icon="💰" title="Financeiro" fase="2" desc="Fluxo de caixa, DRE e importação Excel."/>;case "drive":return <Placeholder icon="📁" title="Drive Interno" fase="3" desc="Upload de documentos por cliente."/>;case "fichas":return <Placeholder icon="🍽️" title="Fichas Técnicas" fase="3" desc="Central de receitas e CMV."/>;case "marketing":return <Placeholder icon="📱" title="Marketing" fase="4" desc="Calendário editorial Instagram."/>;default:return <Dashboard/>;}};
-  return(<AppCtx.Provider value={ctx}><style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&display=swap');*{box-sizing:border-box;margin:0;padding:0;}select option{background:#181818;}`}</style><div style={{...S.app,display:"flex"}}><Sidebar modulo={modulo} setModulo={setModulo} user={session.user} onLogout={handleLogout} collapsed={collapsed} setCollapsed={setCollapsed}/><main style={{flex:1,overflowY:"auto",minHeight:"100vh"}}>{renderModulo()}</main></div></AppCtx.Provider>);
+
+  // Financeiro renderiza em tela cheia (tem seu próprio layout)
+  if(modulo==="financeiro"){
+    return(
+      <AppCtx.Provider value={ctx}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&display=swap');*{box-sizing:border-box;margin:0;padding:0;}select option{background:#181818;}`}</style>
+        <Financeiro onBack={()=>setModulo("dashboard")}/>
+      </AppCtx.Provider>
+    );
+  }
+
+  const renderModulo=()=>{
+    switch(modulo){
+      case"dashboard":return <Dashboard/>;
+      case"crm":return <CRM/>;
+      case"drive":return <Placeholder icon="📁" title="Drive Interno" fase="3" desc="Upload de documentos por cliente."/>;
+      case"fichas":return <Placeholder icon="🍽️" title="Fichas Técnicas" fase="3" desc="Central de receitas e CMV."/>;
+      case"marketing":return <Placeholder icon="📱" title="Marketing" fase="4" desc="Calendário editorial Instagram."/>;
+      default:return <Dashboard/>;
+    }
+  };
+
+  return(
+    <AppCtx.Provider value={ctx}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&display=swap');*{box-sizing:border-box;margin:0;padding:0;}select option{background:#181818;}`}</style>
+      <div style={{...S.app,display:"flex"}}>
+        <Sidebar modulo={modulo} setModulo={setModulo} user={session.user} onLogout={handleLogout} collapsed={collapsed} setCollapsed={setCollapsed}/>
+        <main style={{flex:1,overflowY:"auto",minHeight:"100vh"}}>{renderModulo()}</main>
+      </div>
+    </AppCtx.Provider>
+  );
 }
