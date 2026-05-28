@@ -78,8 +78,20 @@ const mc=c=>{if(!c)return'—';const[y,m]=c.split('-');return`${MS[+m-1]}/${y}`}
 
 async function compressImg(file){if(!file.type.startsWith('image/')){return new Promise(r=>{const fr=new FileReader();fr.onload=e=>r({type:'pdf',data:e.target.result,name:file.name});fr.readAsDataURL(file);});}return new Promise(r=>{const fr=new FileReader();fr.onload=e=>{const img=new Image();img.onload=()=>{const MAX=800;let{width:w,height:h}=img;if(w>MAX){h=h*MAX/w;w=MAX;}if(h>MAX){w=w*MAX/h;h=MAX;}const c=document.createElement('canvas');c.width=Math.round(w);c.height=Math.round(h);c.getContext('2d').drawImage(img,0,0,c.width,c.height);r({type:'image',data:c.toDataURL('image/jpeg',.72),name:file.name});};img.src=e.target.result;};fr.readAsDataURL(file);});}
 
-const SK='zeste_fin_v4';
-function loadData(){try{const v=localStorage.getItem(SK);if(v)return JSON.parse(v);}catch{}return INIT;}
+const SK='zeste_financeiro';
+function loadData(){
+  // Migração automática de versões antigas
+  try{
+    const main=localStorage.getItem(SK);
+    if(main)return JSON.parse(main);
+    // tenta migrar de versões anteriores
+    for(const old of ['zeste_fin_v4','zeste_fin_v3','zeste_fin_v2']){
+      const v=localStorage.getItem(old);
+      if(v){const d=JSON.parse(v);persistData(d);return d;}
+    }
+  }catch{}
+  return INIT;
+}
 function persistData(d){try{localStorage.setItem(SK,JSON.stringify(d));}catch{}}
 
 async function exportExcel(lancamentos,filename='zeste_lancamentos'){
@@ -133,6 +145,7 @@ const INIT={
     {id:uid(),status:'PAGO',tipo:'DESPESA',natureza:'DESPESA VARIÁVEL',dataDoc:'2025-01-08',categoria:'SERV. TERCEIROS',subcategoria:'DESIGN / DIAGRAMAÇÃO',descricao:'Arte cadernos operacionais',clienteFornecedor:'Freela Design',projeto:'440 – Setup Op',competencia:'2025-01',forma:'PIX',vlrBruto:800,taxaPct:0,vlrTaxa:0,vlrLiquido:800,dataPrevista:'2025-01-08',vlrPago:800,dataPago:'2025-01-08',pagador:'AMANDA',reembolso:'PENDENTE',obs:'',anexos:[]},
     {id:uid(),status:'PAGO',tipo:'DESPESA',natureza:'DESPESA FIXA',dataDoc:'2025-01-15',categoria:'SOFTWARES',subcategoria:'ASSINATURA',descricao:'Canva Pro',clienteFornecedor:'Canva',projeto:'Zeste Interno',competencia:'2025-01',forma:'CRÉDITO 1X',vlrBruto:90,taxaPct:.026,vlrTaxa:2.34,vlrLiquido:90,dataPrevista:'2025-01-15',vlrPago:90,dataPago:'2025-01-15',pagador:'BRUNA',reembolso:'CONCLUÍDO',obs:'',anexos:[]},
   ],
+  lixeira:[],
   clientes:[{id:uid(),cliente:'Bianca Bueno',estabelecimento:'440 Restaurante & Café',projeto:'Setup Operacional Completo',inicio:'2024-10-01',prazo:'2025-02-28',statusProjeto:'CONCLUÍDO',vlrContratado:8500,vlrRecebido:8500,forma:'PIX',obs:'',anexos:[]}],
 };
 
@@ -159,7 +172,7 @@ function FormL({init,onSave,onClose}){
   const catVal=CATS.includes(f.categoria)?f.categoria:'__custom';
   const pagVal=PAGADORES.includes(f.pagador)?f.pagador:'__custom';
   const submit=e=>{e.preventDefault();onSave({...f,id:f.id||uid()});};
-  const needReembolso=f.tipo==='DESPESA'&&(f.pagador==='AMANDA'||f.pagador==='BRUNA');
+  const needReembolso=f.tipo==='DESPESA';
   return(<form onSubmit={submit}><div className="fg">
     <Fld label="Tipo" h><select value={f.tipo} onChange={e=>S('tipo',e.target.value)}><option>RECEITA</option><option>DESPESA</option></select></Fld>
     <Fld label="Status" h><select value={f.status} onChange={e=>S('status',e.target.value)}>{(f.tipo==='RECEITA'?SR:SD).map(s=><option key={s}>{s}</option>)}</select></Fld>
@@ -237,6 +250,26 @@ function ImportarExcel({onImport,onClose}){
   </div>);
 }
 
+
+// ─── LIXEIRA ──────────────────────────────────────────────────────
+function LixeiraModal({lixeira,onRestore,onPurge,onClose}){
+  return(<Modal title={`Lixeira (${lixeira.length})`} onClose={onClose}>
+    {lixeira.length===0&&<div style={{textAlign:'center',padding:32,color:'var(--cinzaE)',fontStyle:'italic'}}>Lixeira vazia</div>}
+    {lixeira.map(l=>{const vlr=+(l.vlrPago||l.vlrLiquido||l.vlrBruto)||0;const isR=l.tipo==='RECEITA';return(<div key={l.id} style={{padding:'12px 0',borderBottom:'1px solid var(--cinzaF)',display:'flex',alignItems:'center',gap:10}}>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:13,fontWeight:700,color:'var(--preto)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.descricao}</div>
+        <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:2}}>{dbr(l.dataDoc)} · {l.categoria} · <span style={{color:isR?'var(--verde)':'var(--coral)',fontWeight:700}}>{isR?'+':'-'}{brl(vlr)}</span></div>
+        <div style={{fontSize:10,color:'var(--cinzaE)',marginTop:1}}>Deletado em {new Date(l.deletedAt).toLocaleDateString('pt-BR')}</div>
+      </div>
+      <div style={{display:'flex',gap:6,flexShrink:0}}>
+        <button onClick={()=>onRestore(l.id)} style={{background:'#ECFDF5',border:'1.5px solid #10B981',borderRadius:6,padding:'6px 10px',fontSize:12,fontWeight:600,color:'#065F46',cursor:'pointer'}}>↩ Restaurar</button>
+        <button onClick={()=>onPurge(l.id)} style={{background:'#FFF5F5',border:'1.5px solid var(--coral)',borderRadius:6,padding:'6px 10px',fontSize:12,color:'var(--coral)',cursor:'pointer'}}>✕</button>
+      </div>
+    </div>);})}
+    {lixeira.length>0&&<div style={{marginTop:16,textAlign:'center'}}><button onClick={()=>{lixeira.forEach(l=>onPurge(l.id));}} style={{background:'#FFF5F5',border:'1.5px solid var(--coral)',borderRadius:8,padding:'9px 18px',fontSize:13,fontWeight:600,color:'var(--coral)',cursor:'pointer'}}>🗑 Esvaziar lixeira</button></div>}
+  </Modal>);
+}
+
 // ─── RESUMO ───────────────────────────────────────────────────────
 function Resumo({lancamentos,setAba}){
   const rec=lancamentos.filter(l=>l.tipo==='RECEITA'&&l.status==='RECEBIDO');
@@ -278,8 +311,8 @@ function Resumo({lancamentos,setAba}){
 }
 
 // ─── LANÇAMENTOS ──────────────────────────────────────────────────
-function Lancamentos({lancamentos,setLancamentos,openNew}){
-  const[modal,setModal]=useState(null);const[del,setDel]=useState(null);const[showImport,setShowImport]=useState(false);
+function Lancamentos({lancamentos,setLancamentos,lixeira,setLixeira,openNew}){
+  const[modal,setModal]=useState(null);const[del,setDel]=useState(null);const[showImport,setShowImport]=useState(false);const[showLixeira,setShowLixeira]=useState(false);
   const[ft,setFt]=useState({tipo:'',status:'',ano:'',mes:'',dia:'',pagador:'',reembolso:'',q:''});
   useEffect(()=>{openNew.current=()=>setModal('new');},[]);
   const anos=[...new Set(lancamentos.map(l=>l.dataDoc?.slice(0,4)).filter(Boolean))].sort().reverse();
@@ -295,6 +328,7 @@ function Lancamentos({lancamentos,setLancamentos,openNew}){
     return true;
   }).sort((a,b)=>(b.dataDoc||'').localeCompare(a.dataDoc||''));
   const save=item=>{setLancamentos(p=>p.some(l=>l.id===item.id)?p.map(l=>l.id===item.id?item:l):[item,...p]);setModal(null);};
+  const softDelete=id=>{const item=lancamentos.find(l=>l.id===id);if(item){setLixeira(p=>[...p,{...item,deletedAt:new Date().toISOString()}]);setLancamentos(p=>p.filter(l=>l.id!==id));}setDel(null);};
   const tot=lst.reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido||l.vlrBruto)||0),0);
   const importar=async(novos)=>{setLancamentos(p=>[...p,...novos.map(l=>({...l,id:uid()}))]);setShowImport(false);};
   return(<div className="au page"><div className="pc" style={{paddingTop:14,display:'flex',flexDirection:'column',gap:8}}>
@@ -312,6 +346,7 @@ function Lancamentos({lancamentos,setLancamentos,openNew}){
     <div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
       {lst.length>0&&<div style={{background:'var(--preto)',borderRadius:8,padding:'9px 13px',display:'flex',justifyContent:'space-between',alignItems:'center',flex:1,minWidth:180}}><span style={{fontFamily:'var(--ff)',fontSize:11,letterSpacing:'.1em',color:'var(--cinzaE)'}}>{lst.length} LANÇAMENTO{lst.length!==1?'S':''}</span><span style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:700,color:'var(--lima)'}}>{brl(tot)}</span></div>}
       <button onClick={()=>setShowImport(true)} style={{display:'flex',alignItems:'center',gap:6,background:'var(--cinzaF)',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 13px',fontSize:13,fontWeight:600,color:'var(--cinzaE)',cursor:'pointer'}}>📂 Importar</button>
+      <button onClick={()=>setShowLixeira(true)} style={{display:'flex',alignItems:'center',gap:6,background:'#FFF5F5',border:'1.5px solid var(--coral)',borderRadius:8,padding:'9px 13px',fontSize:13,fontWeight:600,color:'var(--coral)',cursor:'pointer'}}>🗑 Lixeira {lixeira.length>0?`(${lixeira.length})`:''}</button>
       <button onClick={()=>exportExcel(lst)} style={{display:'flex',alignItems:'center',gap:6,background:'#ECFDF5',border:'1.5px solid #10B981',borderRadius:8,padding:'9px 13px',fontSize:13,fontWeight:600,color:'#065F46',cursor:'pointer'}}>⬇ Excel</button>
       <button onClick={()=>exportPDF(lst)} style={{display:'flex',alignItems:'center',gap:6,background:'#EFF6FF',border:'1.5px solid var(--azul)',borderRadius:8,padding:'9px 13px',fontSize:13,fontWeight:600,color:'var(--azul)',cursor:'pointer'}}>🖨 PDF</button>
     </div>
@@ -342,7 +377,8 @@ function Lancamentos({lancamentos,setLancamentos,openNew}){
     })}</div>
   </div>
   {modal&&<Modal title={modal==='new'?'Novo Lançamento':'Editar Lançamento'} onClose={()=>setModal(null)}><FormL init={modal!=='new'?modal:null} onSave={save} onClose={()=>setModal(null)}/></Modal>}
-  {del&&<DelModal msg="Deseja excluir este lançamento?" onConfirm={()=>{setLancamentos(p=>p.filter(l=>l.id!==del));setDel(null);}} onClose={()=>setDel(null)}/>}
+  {del&&<DelModal msg="Mover para a lixeira? Você pode restaurar depois." onConfirm={()=>softDelete(del)} onClose={()=>setDel(null)}/>}
+  {showLixeira&&<LixeiraModal lixeira={lixeira} onRestore={id=>{const item=lixeira.find(l=>l.id===id);if(item){const{deletedAt,...rest}=item;setLancamentos(p=>[rest,...p]);setLixeira(p=>p.filter(l=>l.id!==id));}}} onPurge={id=>setLixeira(p=>p.filter(l=>l.id!==id))} onClose={()=>setShowLixeira(false)}/>}
   </div>);
 }
 
@@ -386,7 +422,7 @@ export default function Financeiro({onBack}){
   const fab=()=>{if(aba==='lancamentos')nL.current();else if(aba==='clientes')nC.current();else{setAba('lancamentos');setTimeout(()=>nL.current(),200);}};
   return(<><style>{STYLE}</style><div style={{background:'var(--preto)',position:'sticky',top:0,zIndex:300}}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 16px 0'}}><div style={{display:'flex',alignItems:'center',gap:10}}>{onBack&&<button onClick={onBack} style={{color:'var(--lima)',fontSize:22,padding:'0 6px 0 0',lineHeight:1}}>‹</button>}<div style={{display:'flex',alignItems:'baseline',gap:7}}><span style={{fontFamily:'var(--ff)',fontSize:22,fontWeight:800,color:'var(--lima)',letterSpacing:'.06em'}}>ZESTE</span><span style={{fontSize:10,color:'var(--cinzaE)',letterSpacing:'.14em'}}>FINANCEIRO</span></div></div><span style={{fontSize:10,color:saved?'var(--lima)':'transparent',transition:'color .3s',fontFamily:'var(--ff)',fontWeight:700,letterSpacing:'.08em'}}>✓ SALVO</span></div><nav className="nav">{ABAS.map((a,i)=>(<span key={a.id}>{i>0&&<div className="nav-sep"/>}<div className={`nav-item${aba===a.id?' on':''}`} onClick={()=>setAba(a.id)}>{a.l}</div></span>))}</nav></div>
   {aba==='resumo'&&<Resumo lancamentos={data.lancamentos} setAba={setAba}/>}
-  {aba==='lancamentos'&&<Lancamentos lancamentos={data.lancamentos} setLancamentos={sL} openNew={nL}/>}
+  {aba==='lancamentos'&&<Lancamentos lancamentos={data.lancamentos} setLancamentos={sL} lixeira={data.lixeira||[]} setLixeira={fn=>setData(d=>{const l=typeof fn==='function'?fn(d.lixeira||[]):fn;return p({...d,lixeira:l});})} openNew={nL}/>}
   {aba==='dre'&&<DRE lancamentos={data.lancamentos}/>}
   {aba==='clientes'&&<Clientes clientes={data.clientes} setClientes={sC} openNew={nC}/>}
   <button className="fab" onClick={fab}>+</button></>);
