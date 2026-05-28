@@ -82,7 +82,7 @@ export default function ZesteSistema(){
   if(modulo==="financeiro"){
     return(
       <AppCtx.Provider value={ctx}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&display=swap');*{box-sizing:border-box;margin:0;padding:0;}select option{background:#181818;}`}</style>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
         <Financeiro onBack={()=>setModulo("dashboard")}/>
       </AppCtx.Provider>
     );
@@ -101,7 +101,7 @@ export default function ZesteSistema(){
 
   return(
     <AppCtx.Provider value={ctx}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&display=swap');*{box-sizing:border-box;margin:0;padding:0;}select option{background:#181818;}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
       <div style={{...S.app,display:"flex"}}>
         <Sidebar modulo={modulo} setModulo={setModulo} user={session.user} onLogout={handleLogout} collapsed={collapsed} setCollapsed={setCollapsed}/>
         <main style={{flex:1,overflowY:"auto",minHeight:"100vh"}}>{renderModulo()}</main>
