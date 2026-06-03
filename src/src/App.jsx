@@ -487,7 +487,7 @@ export default function ZesteSistema() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user }}>
-        <Financeiro onBack={() => setModulo("dashboard")} />
+        <Financeiro onBack={() => setModulo("dashboard")} token={session.token} />
       </AppCtx.Provider>
     </>
   );
