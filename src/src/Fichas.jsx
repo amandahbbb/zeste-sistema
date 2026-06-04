@@ -346,6 +346,200 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes}){
   </div>);
 }
 
+
+// ── QR HELPERS ────────────────────────────────────────────────────
+const QR_PREFIX='ZESTE:ING:';
+const qrUrl=(id,size=200)=>`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(QR_PREFIX+id)}&bgcolor=FFFFFF&color=111614&margin=1`;
+
+function QRScanner({onScan,onClose}){
+  const videoRef=useRef();const canvasRef=useRef();const streamRef=useRef();const[scanning,setScanning]=useState(true);const[err,setErr]=useState('');
+  useEffect(()=>{
+    let active=true;
+    (async()=>{
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}}});
+        if(!active)return;streamRef.current=stream;
+        if(videoRef.current){videoRef.current.srcObject=stream;videoRef.current.play();}
+        // Try BarcodeDetector first (native, faster)
+        if('BarcodeDetector' in window){
+          const detector=new BarcodeDetector({formats:['qr_code']});
+          const scan=async()=>{
+            if(!active||!videoRef.current)return;
+            try{const codes=await detector.detect(videoRef.current);
+              for(const c of codes){if(c.rawValue?.startsWith(QR_PREFIX)){onScan(c.rawValue.replace(QR_PREFIX,''));return;}}
+            }catch{}
+            if(active)requestAnimationFrame(scan);
+          };
+          videoRef.current.onplaying=()=>scan();
+        }else{
+          // Fallback: canvas-based check every 500ms (basic)
+          const check=()=>{
+            if(!active||!videoRef.current||!canvasRef.current)return;
+            setErr('Aponte a câmera para o QR code');
+          };
+          const interval=setInterval(check,1000);
+          return()=>clearInterval(interval);
+        }
+      }catch(e){setErr('Não foi possível acessar a câmera. Verifique as permissões.');}
+    })();
+    return()=>{active=false;if(streamRef.current)streamRef.current.getTracks().forEach(t=>t.stop());};
+  },[]);
+  return(<Modal title="📷 Escanear QR Code" onClose={()=>{if(streamRef.current)streamRef.current.getTracks().forEach(t=>t.stop());onClose();}}>
+    <div style={{position:'relative',borderRadius:12,overflow:'hidden',background:'#000',marginBottom:12}}>
+      <video ref={videoRef} style={{width:'100%',display:'block',borderRadius:12}} playsInline muted/>
+      <canvas ref={canvasRef} style={{display:'none'}}/>
+      <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
+        <div style={{width:200,height:200,border:'3px solid var(--lima)',borderRadius:16,boxShadow:'0 0 0 9999px rgba(0,0,0,.4)'}}/>
+      </div>
+    </div>
+    {err&&<div style={{textAlign:'center',color:'var(--cinzaE)',fontSize:13,marginBottom:8}}>{err}</div>}
+    <div style={{textAlign:'center',fontSize:12,color:'var(--cinzaE)'}}>Posicione o QR code dentro do quadro</div>
+    <div style={{marginTop:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:'var(--cinzaE)',marginBottom:6,textTransform:'uppercase',letterSpacing:'.06em'}}>Ou digite o código manualmente:</div>
+      <div style={{display:'flex',gap:8}}>
+        <input id="manualQR" placeholder="ID do ingrediente (ex: ing_001)" style={{flex:1}}/>
+        <button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{const v=document.getElementById('manualQR').value;if(v)onScan(v);}}>OK</button>
+      </div>
+    </div>
+  </Modal>);
+}
+
+function QRLabels({ingredientes,onClose}){
+  const comEstoque=ingredientes.filter(i=>(i.estoque||0)>0||(i.estoqueMin||0)>0);
+  const lista=comEstoque.length>0?comEstoque:ingredientes.slice(0,20);
+  const imprimir=()=>{
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+      body{font-family:Arial,sans-serif;margin:10px}
+      h1{font-size:16px;color:#2D6E47;margin-bottom:8px}
+      .grid{display:flex;flex-wrap:wrap;gap:8px}
+      .label{width:140px;border:1px solid #ccc;border-radius:6px;padding:8px;text-align:center;page-break-inside:avoid}
+      .label img{width:100px;height:100px}
+      .label .nome{font-size:10px;font-weight:700;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .label .id{font-size:8px;color:#888;margin-top:2px}
+      @media print{body{margin:0}.label{border:1px solid #ddd}}
+    </style></head><body>
+      <h1>ZESTE — Etiquetas QR Code Estoque</h1>
+      <div class="grid">${lista.map(i=>`<div class="label"><img src="${qrUrl(i.id,100)}"/><div class="nome">${i.nome}</div><div class="id">${i.un} · ${i.id}</div></div>`).join('')}</div>
+    </body></html>`;
+    const w=window.open('','_blank');w.document.write(html);w.document.close();setTimeout(()=>w.print(),600);
+  };
+  return(<Modal title="🏷️ Gerar Etiquetas QR Code" onClose={onClose}>
+    <p style={{fontSize:13,color:'var(--cinzaE)',marginBottom:14,lineHeight:1.6}}>
+      {comEstoque.length>0
+        ?`${comEstoque.length} ingredientes com estoque configurado. Imprima as etiquetas e cole nos potes/prateleiras.`
+        :`Nenhum ingrediente com estoque. Mostrando os primeiros 20 para demonstração.`}
+    </p>
+    <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:16,maxHeight:300,overflowY:'auto'}}>
+      {lista.slice(0,12).map(i=>(<div key={i.id} style={{width:110,textAlign:'center',background:'var(--cinzaF)',borderRadius:8,padding:8}}>
+        <img src={qrUrl(i.id,80)} width={80} height={80} alt={i.nome} style={{borderRadius:4}}/>
+        <div style={{fontSize:10,fontWeight:700,marginTop:4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{i.nome}</div>
+      </div>))}
+      {lista.length>12&&<div style={{width:110,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--cinzaE)',fontSize:12}}>+{lista.length-12} mais</div>}
+    </div>
+    <button className="ft-btn ft-btn-p" style={{width:'100%'}} onClick={imprimir}>🖨️ IMPRIMIR TODAS AS ETIQUETAS ({lista.length})</button>
+  </Modal>);
+}
+
+// ── ESTOQUE TAB ───────────────────────────────────────────────────
+function TabEstoque({ingredientes,onSave}){
+  const[q,setQ]=useState('');const[mov,setMov]=useState(null);
+  const filtered=ingredientes.filter(i=>!q||normNome(i.nome).includes(normNome(q)));
+  const comEstoque=filtered.filter(i=>(i.estoque||0)>0||(i.estoqueMin||0)>0);
+  const semEstoque=filtered.filter(i=>!i.estoque&&!i.estoqueMin);
+  const baixos=ingredientes.filter(i=>i.estoqueMin>0&&(i.estoque||0)<i.estoqueMin);
+
+  const salvarMov=()=>{
+    if(!mov)return;
+    const ing=ingredientes.find(i=>i.id===mov.ingId);if(!ing)return;
+    const novoEstoque=Math.max(0,(ing.estoque||0)+(mov.tipo==='entrada'?1:-1)*Number(mov.qtd||0));
+    const hist=[...(ing.historico||[]),{tipo:mov.tipo,qtd:Number(mov.qtd),data:new Date().toISOString().split('T')[0],obs:mov.obs||''}].slice(-20);
+    onSave({...ing,estoque:novoEstoque,historico:hist});
+    setMov(null);
+  };
+
+  const[showScan,setShowScan]=useState(false);const[showLabels,setShowLabels]=useState(false);
+  const handleScan=(ingId)=>{
+    setShowScan(false);
+    const ing=ingredientes.find(i=>i.id===ingId);
+    if(ing)setMov({ingId:ing.id,tipo:'entrada',qtd:'',obs:''});
+    else alert('Ingrediente não encontrado: '+ingId);
+  };
+  return(<div className="ft-page">
+    <div className="ft-search" style={{flexWrap:'wrap'}}>
+      <input placeholder="🔍 Buscar ingrediente…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:'1 1 150px'}}/>
+      <button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13,gap:4}} onClick={()=>setShowScan(true)}>📷 Escanear</button>
+      <button className="ft-btn ft-btn-g" style={{padding:'10px 14px',fontSize:13,gap:4}} onClick={()=>setShowLabels(true)}>🏷️ Etiquetas</button>
+    </div>
+    {showScan&&<QRScanner onScan={handleScan} onClose={()=>setShowScan(false)}/>}
+    {showLabels&&<QRLabels ingredientes={ingredientes} onClose={()=>setShowLabels(false)}/>}
+
+    {baixos.length>0&&<div className="ft-pc" style={{marginBottom:12}}>
+      <div style={{background:'#FFF0ED',borderLeft:'3px solid var(--coral)',borderRadius:6,padding:'12px 14px'}}>
+        <div style={{fontFamily:'var(--ff)',fontSize:13,fontWeight:700,color:'var(--coral)',marginBottom:6}}>⚠️ ESTOQUE BAIXO — {baixos.length} ingrediente{baixos.length>1?'s':''}</div>
+        {baixos.map(i=><div key={i.id} style={{fontSize:12,color:'#7C2D12',marginBottom:3}}>{i.nome}: <strong>{num(i.estoque||0,2)} {i.un}</strong> (mín: {num(i.estoqueMin,2)})</div>)}
+      </div>
+    </div>}
+
+    <div className="ft-pc">
+      {comEstoque.length>0&&<><SH>Com estoque cadastrado</SH><div className="ft-card" style={{marginBottom:16}}>
+        {comEstoque.map((i,idx)=>{
+          const pctEst=i.estoqueMin>0?Math.min(1,(i.estoque||0)/i.estoqueMin):1;
+          const cor=pctEst<0.5?'var(--coral)':pctEst<1?'#F59E0B':'var(--verde)';
+          return(<div key={i.id} style={{padding:'12px 14px',borderBottom:idx<comEstoque.length-1?'1px solid var(--cinzaF)':'none',display:'flex',alignItems:'center',gap:10}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{i.nome}</div>
+              <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center'}}>
+                <span style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:cor}}>{num(i.estoque||0,2)} {i.un}</span>
+                {i.estoqueMin>0&&<span style={{fontSize:11,color:'var(--cinzaE)'}}>mín: {num(i.estoqueMin,2)}</span>}
+              </div>
+              {i.estoqueMin>0&&<div style={{height:4,borderRadius:99,background:'var(--cinzaF)',marginTop:4,maxWidth:200}}>
+                <div style={{height:'100%',width:Math.min(100,pctEst*100)+'%',background:cor,borderRadius:99,transition:'width .5s'}}/>
+              </div>}
+            </div>
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              <button onClick={()=>setMov({ingId:i.id,tipo:'entrada',qtd:'',obs:''})} style={{background:'#ECFDF5',border:'1.5px solid #10B981',borderRadius:6,padding:'8px 10px',fontSize:12,fontWeight:600,color:'#065F46',cursor:'pointer',minHeight:40}}>+ Entrada</button>
+              <button onClick={()=>setMov({ingId:i.id,tipo:'saida',qtd:'',obs:''})} style={{background:'#FFF5F5',border:'1.5px solid var(--coral)',borderRadius:6,padding:'8px 10px',fontSize:12,fontWeight:600,color:'var(--coral)',cursor:'pointer',minHeight:40}}>- Saída</button>
+            </div>
+          </div>);
+        })}
+      </div></>}
+
+      <SH>Configurar estoque</SH>
+      <p style={{fontSize:12,color:'var(--cinzaE)',marginBottom:12}}>Clique em um ingrediente para definir estoque atual e mínimo.</p>
+      <div className="ft-card">
+        {semEstoque.slice(0,30).map((i,idx)=>(<div key={i.id} className="ft-row" style={{borderBottom:idx<Math.min(29,semEstoque.length-1)?'1px solid var(--cinzaF)':'none'}} onClick={()=>setMov({ingId:i.id,tipo:'config',estoque:i.estoque||0,estoqueMin:i.estoqueMin||0})}>
+          <div style={{flex:1,fontSize:13,fontWeight:600}}>{i.nome}</div>
+          <span style={{fontSize:11,color:'var(--cinzaE)'}}>{i.un} · {brl(i.p)}/kg</span>
+        </div>))}
+        {semEstoque.length>30&&<div style={{padding:'12px 14px',textAlign:'center',color:'var(--cinzaE)',fontSize:12}}>+ {semEstoque.length-30} ingredientes sem estoque</div>}
+      </div>
+    </div>
+
+    {mov&&<Modal title={mov.tipo==='config'?'Configurar Estoque':mov.tipo==='entrada'?'Registrar Entrada':'Registrar Saída'} onClose={()=>setMov(null)}>
+      <div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)',marginBottom:14}}>{ingredientes.find(i=>i.id===mov.ingId)?.nome}</div>
+      {mov.tipo==='config'?(<>
+        <div className="ft-fg">
+          <div className="ft-fld h"><label className="ft-flbl">Estoque atual ({ingredientes.find(i=>i.id===mov.ingId)?.un})</label><input type="number" step="0.01" value={mov.estoque} onChange={e=>setMov(m=>({...m,estoque:+e.target.value}))}/></div>
+          <div className="ft-fld h"><label className="ft-flbl">Estoque mínimo</label><input type="number" step="0.01" value={mov.estoqueMin} onChange={e=>setMov(m=>({...m,estoqueMin:+e.target.value}))}/></div>
+        </div>
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}>
+          <button className="ft-btn ft-btn-g" onClick={()=>setMov(null)}>Cancelar</button>
+          <button className="ft-btn ft-btn-p" onClick={()=>{const ing=ingredientes.find(i=>i.id===mov.ingId);if(ing)onSave({...ing,estoque:mov.estoque,estoqueMin:mov.estoqueMin});setMov(null);}}>Salvar</button>
+        </div>
+      </>):(<>
+        <div className="ft-fg">
+          <div className="ft-fld"><label className="ft-flbl">Quantidade ({ingredientes.find(i=>i.id===mov.ingId)?.un})</label><input type="number" step="0.01" min="0" value={mov.qtd} onChange={e=>setMov(m=>({...m,qtd:e.target.value}))}/></div>
+          <div className="ft-fld"><label className="ft-flbl">Observação (opcional)</label><input value={mov.obs||''} onChange={e=>setMov(m=>({...m,obs:e.target.value}))} placeholder="Ex: Compra Atacadão"/></div>
+        </div>
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}>
+          <button className="ft-btn ft-btn-g" onClick={()=>setMov(null)}>Cancelar</button>
+          <button className="ft-btn ft-btn-p" onClick={salvarMov} disabled={!mov.qtd||Number(mov.qtd)<=0}>{mov.tipo==='entrada'?'+ Registrar Entrada':'- Registrar Saída'}</button>
+        </div>
+      </>)}
+    </Modal>}
+  </div>);
+}
+
 // ── RESUMO TAB ────────────────────────────────────────────────────
 function TabResumo({ingredientes,fichasCalc,pratosCalc}){
   const pratosComPreco=pratosCalc.filter(p=>p.precoVenda>0);
@@ -389,7 +583,7 @@ function TabResumo({ingredientes,fichasCalc,pratosCalc}){
 }
 
 // ── ROOT ──────────────────────────────────────────────────────────
-const TABS=[{id:'resumo',l:'RESUMO'},{id:'ingredientes',l:'INGREDIENTES'},{id:'fichas',l:'FICHAS'},{id:'pratos',l:'PRATOS'},{id:'producao',l:'PRODUÇÃO'}];
+const TABS=[{id:'resumo',l:'RESUMO'},{id:'ingredientes',l:'INGREDIENTES'},{id:'fichas',l:'FICHAS'},{id:'pratos',l:'PRATOS'},{id:'producao',l:'PRODUÇÃO'},{id:'estoque',l:'ESTOQUE'}];
 
 export default function Fichas({onBack,token}){
   const[ingredientes,setIngredientes]=useState([]);
@@ -458,5 +652,6 @@ export default function Fichas({onBack,token}){
     {aba==='fichas'&&<TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter}/>}
     {aba==='pratos'&&<TabPratos pratosCalc={pratosCalc} clienteFilter={clienteFilter}/>}
     {aba==='producao'&&<TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes}/>}
+    {aba==='estoque'&&<TabEstoque ingredientes={ingredientes} onSave={saveIngrediente}/>}
   </>);
 }
