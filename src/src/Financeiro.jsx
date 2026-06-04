@@ -89,6 +89,17 @@ const SPROJ={CONCLUÍDO:{bg:'var(--verde)',fg:'var(--branco)'},'EM ANDAMENTO':{b
 const STC={RECEBIDO:{bg:'var(--verde)',fg:'var(--branco)'},'A RECEBER':{bg:'var(--azul)',fg:'var(--branco)'},PAGO:{bg:'var(--verde)',fg:'var(--branco)'},PREVISTO:{bg:'var(--cinzaM)',fg:'var(--cinzaE)'},CANCELADO:{bg:'var(--coral)',fg:'var(--branco)'}};
 const PAGADORES=['AMANDA','BRUNA','ZESTE'];
 
+async function loadXLSX(){
+  if(window.XLSX)return window.XLSX;
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+    s.onload=()=>resolve(window.XLSX);
+    s.onerror=()=>reject(new Error('Falha ao carregar SheetJS'));
+    document.head.appendChild(s);
+  });
+}
+
 const uid=()=>Math.random().toString(36).slice(2,9);
 const td=()=>new Date().toISOString().split('T')[0];
 const brl=n=>n==null||n===''?'—':'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -99,7 +110,7 @@ const mc=c=>{if(!c)return'—';const[y,m]=c.split('-');return`${MS[+m-1]}/${y}`}
 async function compressImg(file){if(!file.type.startsWith('image/')){return new Promise(r=>{const fr=new FileReader();fr.onload=e=>r({type:'pdf',data:e.target.result,name:file.name});fr.readAsDataURL(file);});}return new Promise(r=>{const fr=new FileReader();fr.onload=e=>{const img=new Image();img.onload=()=>{const MAX=600;let{width:w,height:h}=img;if(w>MAX){h=h*MAX/w;w=MAX;}if(h>MAX){w=w*MAX/h;h=MAX;}const c=document.createElement('canvas');c.width=Math.round(w);c.height=Math.round(h);c.getContext('2d').drawImage(img,0,0,c.width,c.height);r({type:'image',data:c.toDataURL('image/jpeg',.65),name:file.name});};img.src=e.target.result;};fr.readAsDataURL(file);});}
 
 async function exportExcel(lancamentos,filename='zeste_lancamentos'){
-  const XLSX=await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+  const XLSX=await loadXLSX();
   const rows=[['Data','Tipo','Status','Descrição','Categoria','Subcategoria','Natureza','Cliente/Fornecedor','Projeto','Competência','Forma','Valor Bruto','Taxa R$','Valor Líquido','Valor Pago','Data Pago','Pagador','Reembolso','Obs'],...lancamentos.map(l=>[l.dataDoc||'',l.tipo||'',l.status||'',l.descricao||'',l.categoria||'',l.subcategoria||'',l.natureza||'',l.clienteFornecedor||'',l.projeto||'',l.competencia||'',l.forma||'',+(l.vlrBruto||0),+(l.vlrTaxa||0),+(l.vlrLiquido||0),+(l.vlrPago||0),l.dataPago||'',l.pagador||'',l.reembolso||'',l.obs||''])];
   const ws=XLSX.utils.aoa_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Lançamentos');XLSX.writeFile(wb,`${filename}_${td()}.xlsx`);
 }
@@ -203,7 +214,7 @@ function LixeiraModal({lixeira,onRestore,onPurge,onClose}){
 // ── IMPORTAR EXCEL ────────────────────────────────────────────────
 function ImportarExcel({onImport,onClose}){
   const[preview,setPreview]=useState(null);const[map,setMap]=useState({data:'',descricao:'',valor:'',tipo:''});const[cols,setCols]=useState([]);const[imp,setImp]=useState(false);const[ok,setOk]=useState(false);
-  const handleFile=async e=>{const file=e.target.files[0];if(!file)return;const XLSX=await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");const buf=await file.arrayBuffer();const wb=XLSX.read(buf);const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1});const headers=rows[0].map(String);const data=rows.slice(1).filter(r=>r.some(c=>c!==undefined&&c!=='')).slice(0,4);setCols(headers);setPreview({headers,data,all:rows.slice(1).filter(r=>r.some(c=>c!==undefined&&c!==''))});const find=terms=>headers.find(h=>terms.some(t=>h.toLowerCase().includes(t)))||'';setMap({data:find(['data','date','dt']),descricao:find(['descri','hist','memo']),valor:find(['valor','value','amount','vlr']),tipo:find(['tipo','type','dc','cr'])});};
+  const handleFile=async e=>{const file=e.target.files[0];if(!file)return;const XLSX=await loadXLSX();const buf=await file.arrayBuffer();const wb=XLSX.read(buf);const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1});const headers=rows[0].map(String);const data=rows.slice(1).filter(r=>r.some(c=>c!==undefined&&c!=='')).slice(0,4);setCols(headers);setPreview({headers,data,all:rows.slice(1).filter(r=>r.some(c=>c!==undefined&&c!==''))});const find=terms=>headers.find(h=>terms.some(t=>h.toLowerCase().includes(t)))||'';setMap({data:find(['data','date','dt']),descricao:find(['descri','hist','memo']),valor:find(['valor','value','amount','vlr']),tipo:find(['tipo','type','dc','cr'])});};
   const confirmar=async()=>{if(!preview||!map.data||!map.descricao||!map.valor)return;setImp(true);const idx={data:preview.headers.indexOf(map.data),descricao:preview.headers.indexOf(map.descricao),valor:preview.headers.indexOf(map.valor),tipo:map.tipo?preview.headers.indexOf(map.tipo):-1};const items=preview.all.map(r=>{const raw=r[idx.valor];const valor=Math.abs(parseFloat(String(raw).replace(/[^\d,.-]/g,'').replace(',','.')));if(!valor||isNaN(valor))return null;let tipo='DESPESA';if(idx.tipo>=0){const t=String(r[idx.tipo]||'').toLowerCase();if(t.includes('c')||t.includes('entrada')||t.includes('cred'))tipo='RECEITA';}else if(parseFloat(String(raw).replace(',','.'))>0)tipo='RECEITA';const dataRaw=r[idx.data];let dataDoc=td();if(dataRaw){const d=new Date(dataRaw);if(!isNaN(d))dataDoc=d.toISOString().split('T')[0];else dataDoc=String(dataRaw).split('/').reverse().join('-').padStart(10,'0')||td();}return{id:uid(),tipo,status:tipo==='RECEITA'?'RECEBIDO':'PAGO',dataDoc,descricao:String(r[idx.descricao]||'Importado').slice(0,100),valor,categoria:'OUTROS',natureza:'DESPESA FIXA',pagador:'ZESTE',reembolso:'',obs:'',anexos:[]};}).filter(Boolean);await onImport(items);setOk(true);setTimeout(()=>{setOk(false);onClose();},2000);setImp(false);};
   return(<div style={{paddingBottom:8}}>
     <p style={{fontSize:13,color:'var(--cinzaE)',marginBottom:14,lineHeight:1.6}}>Upload de extrato .xlsx. O sistema detecta as colunas automaticamente.</p>
