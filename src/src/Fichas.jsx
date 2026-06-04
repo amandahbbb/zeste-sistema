@@ -172,6 +172,146 @@ button{cursor:pointer;border:none;background:none}
 function Modal({title,onClose,children}){useEffect(()=>{document.body.style.overflow='hidden';return()=>{document.body.style.overflow=''};},[]);return(<div className="ft-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}><div className="ft-sheet"><div style={{width:36,height:4,background:'var(--cinzaM)',borderRadius:2,margin:'10px auto 2px'}}/><div className="ft-shdr"><span style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:700,color:'var(--verde)'}}>{title}</span><button className="ft-close" onClick={onClose}>✕</button></div><div style={{padding:'16px 18px 16px'}}>{children}</div></div></div>);}
 const SH=({children})=><div className="ft-sh"><div className="ft-sh-bar"/><span className="ft-sh-txt">{children}</span></div>;
 
+
+// ── ITEM PICKER (selecionar ingrediente ou ficha) ─────────────────
+function ItemPicker({open,onClose,ingredientes,fichasCalc,allowFicha=true,onPick}){
+  const[q,setQ]=useState('');const[tab,setTab]=useState('ing');
+  if(!open)return null;
+  const filtIng=ingredientes.filter(i=>!q||normNome(i.nome).includes(normNome(q)));
+  const filtFic=allowFicha?fichasCalc.filter(f=>!q||normNome(f.nome).includes(normNome(q))):[];
+  return(<Modal title="Adicionar Insumo" onClose={onClose}>
+    <input placeholder="🔍 Buscar…" value={q} onChange={e=>setQ(e.target.value)} style={{marginBottom:10}}/>
+    {allowFicha&&<div style={{display:'flex',gap:6,marginBottom:12}}>
+      <button onClick={()=>setTab('ing')} style={{flex:1,padding:'9px 12px',borderRadius:8,border:`1.5px solid ${tab==='ing'?'var(--verde)':'var(--cinzaM)'}`,background:tab==='ing'?'var(--verde)':'transparent',color:tab==='ing'?'var(--branco)':'var(--cinzaE)',fontWeight:700,fontSize:13}}>🥬 Ingredientes</button>
+      <button onClick={()=>setTab('fic')} style={{flex:1,padding:'9px 12px',borderRadius:8,border:`1.5px solid ${tab==='fic'?'var(--azul)':'var(--cinzaM)'}`,background:tab==='fic'?'var(--azul)':'transparent',color:tab==='fic'?'var(--branco)':'var(--cinzaE)',fontWeight:700,fontSize:13}}>📋 Sub-fichas</button>
+    </div>}
+    <div style={{maxHeight:300,overflowY:'auto'}}>
+      {tab==='ing'&&filtIng.map(i=>(<div key={i.id} className="ft-row" style={{borderBottom:'1px solid var(--cinzaF)'}} onClick={()=>{onPick({tipo:'ing',nomeRef:i.nome});onClose();}}>
+        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{i.nome}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{i.un} · {brl(i.p)}/kg · FC {num(i.fc)}</div></div>
+      </div>))}
+      {tab==='fic'&&filtFic.map(f=>(<div key={f.id} className="ft-row" style={{borderBottom:'1px solid var(--cinzaF)'}} onClick={()=>{onPick({tipo:'ficha',nomeRef:f.nome});onClose();}}>
+        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{f.nome}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>📋 {brl(f._custoPorKg)}/kg · {(f.itens||[]).length} insumos</div></div>
+      </div>))}
+    </div>
+  </Modal>);
+}
+
+// ── FICHA FORM (criar/editar ficha) ───────────────────────────────
+function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc}){
+  const[f,setF]=useState(()=>ficha?{...ficha}:{id:uid(),nome:'',margemSeguranca:0.1,itens:[],modoPreparo:'',_cliente:'zeste'});
+  const[picker,setPicker]=useState(false);
+  if(!open)return null;
+  const addItem=(item)=>setF(p=>({...p,itens:[...p.itens,{...item,qtdLiquida:0.1}]}));
+  const updItem=(i,k,v)=>setF(p=>({...p,itens:p.itens.map((it,j)=>j===i?{...it,[k]:v}:it)}));
+  const remItem=(i)=>setF(p=>({...p,itens:p.itens.filter((_,j)=>j!==i)}));
+  // Calcular custos em tempo real
+  const calcItems=f.itens.map(it=>{
+    const ref=it.tipo==='ficha'?fichasCalc.find(fc=>fc.nome===it.nomeRef):ingredientes.find(ig=>ig.nome===it.nomeRef);
+    const precoKg=it.tipo==='ficha'?(ref?._custoPorKg||0):(ref?.p||0);
+    const fc=it.tipo==='ficha'?1:(ref?.fc||1);
+    const qtdLiq=Number(it.qtdLiquida)||0;
+    const custo=qtdLiq*fc*precoKg;
+    return{...it,precoKg,fc,custo};
+  });
+  const custoSomado=calcItems.reduce((s,i)=>s+i.custo,0);
+  const custoTotal=custoSomado*(1+(Number(f.margemSeguranca)||0));
+  return(<Modal title={ficha?'Editar Ficha':'Nova Ficha'} onClose={onClose}>
+    <div className="ft-fg" style={{marginBottom:14}}>
+      <div className="ft-fld"><label className="ft-flbl">Nome da ficha</label><input value={f.nome} onChange={e=>setF(p=>({...p,nome:e.target.value.toUpperCase()}))}/></div>
+      <div className="ft-fld h"><label className="ft-flbl">Margem Segurança (%)</label><input type="number" step="0.01" value={f.margemSeguranca} onChange={e=>setF(p=>({...p,margemSeguranca:+e.target.value}))}/></div>
+      <div className="ft-fld h"><label className="ft-flbl">Cliente</label><select value={f._cliente||'zeste'} onChange={e=>setF(p=>({...p,_cliente:e.target.value}))}><option value="zeste">Zeste (base)</option><option value="440">440 Restaurante</option></select></div>
+    </div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+      <span style={{fontFamily:'var(--ff)',fontSize:13,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.08em'}}>INSUMOS & SUB-FICHAS</span>
+      <button className="ft-btn ft-btn-p" style={{padding:'8px 14px',fontSize:12}} onClick={()=>setPicker(true)}>+ Adicionar</button>
+    </div>
+    {calcItems.map((it,i)=>(<div key={i} style={{background:'var(--cinzaF)',borderRadius:10,padding:'12px 14px',marginBottom:8,border:'1px solid var(--cinzaM)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <div><div style={{fontSize:14,fontWeight:700}}>{it.nomeRef}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(it.precoKg)}/kg{it.fc>1?` · FC ${num(it.fc)}`:''}</div></div>
+        <button onClick={()=>remItem(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+      </div>
+      <div style={{display:'flex',gap:12,alignItems:'center'}}>
+        <div style={{flex:1}}><label className="ft-flbl">QTD LÍQUIDA (KG)</label><input type="number" step="0.001" min="0" value={it.qtdLiquida} onChange={e=>updItem(i,'qtdLiquida',+e.target.value)}/></div>
+        <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(it.custo)}</div></div>
+      </div>
+    </div>))}
+    {f.itens.length===0&&<div style={{textAlign:'center',padding:20,color:'var(--cinzaE)',fontStyle:'italic'}}>Clique "+ Adicionar" para incluir insumos</div>}
+    <div className="ft-fld" style={{marginTop:12}}><label className="ft-flbl">Modo de preparo (opcional)</label><textarea rows={3} value={f.modoPreparo||''} onChange={e=>setF(p=>({...p,modoPreparo:e.target.value}))} style={{resize:'vertical',minHeight:60}} placeholder="Descreva o passo a passo…"/></div>
+    <div style={{background:'var(--preto)',borderRadius:10,padding:'14px 16px',marginTop:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.1em'}}>CUSTO TOTAL</div><div style={{fontFamily:'var(--ff)',fontSize:22,fontWeight:700,color:'var(--lima)'}}>{brl(custoTotal)}</div></div>
+      <div style={{textAlign:'right'}}><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>MARGEM {pct(f.margemSeguranca)}</div><div style={{fontSize:12,color:'var(--cinzaE)'}}>Base: {brl(custoSomado)}</div></div>
+    </div>
+    <div style={{display:'flex',gap:8,justifyContent:'space-between',marginTop:16}}>
+      {ficha&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(ficha.id);onClose();}}>🗑 Excluir</button>}
+      <div style={{display:'flex',gap:8,marginLeft:'auto'}}>
+        <button className="ft-btn ft-btn-g" onClick={onClose}>Cancelar</button>
+        <button className="ft-btn ft-btn-p" onClick={()=>{onSave({...f});onClose();}} disabled={!f.nome||f.itens.length===0}>💾 Salvar</button>
+      </div>
+    </div>
+    <ItemPicker open={picker} onClose={()=>setPicker(false)} ingredientes={ingredientes} fichasCalc={fichasCalc} onPick={addItem}/>
+  </Modal>);
+}
+
+// ── PRATO FORM (criar/editar prato) ───────────────────────────────
+function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc}){
+  const[p,setP]=useState(()=>prato?{...prato}:{id:uid(),nome:'',categoria:'Clássicos Zeste',porcao:1,precoVenda:0,componentes:[],modoPreparo:'',_cliente:'zeste'});
+  const[picker,setPicker]=useState(false);
+  if(!open)return null;
+  const addComp=(item)=>setP(pr=>({...pr,componentes:[...pr.componentes,{...item,qtdGramas:100}]}));
+  const updComp=(i,k,v)=>setP(pr=>({...pr,componentes:pr.componentes.map((c,j)=>j===i?{...c,[k]:v}:c)}));
+  const remComp=(i)=>setP(pr=>({...pr,componentes:pr.componentes.filter((_,j)=>j!==i)}));
+  const calcComps=p.componentes.map(c=>{
+    const ref=c.tipo==='ficha'?fichasCalc.find(f=>f.nome===c.nomeRef):ingredientes.find(ig=>ig.nome===c.nomeRef);
+    const custoPorKg=c.tipo==='ficha'?(ref?._custoPorKg||0):(ref?.p||0);
+    const fc=c.tipo==='ficha'?1:(ref?.fc||1);
+    const qtdKg=(Number(c.qtdGramas)||0)/1000;
+    const custo=qtdKg*fc*custoPorKg;
+    return{...c,custoPorKg,fc,custo};
+  });
+  const custoTotal=calcComps.reduce((s,c)=>s+c.custo,0);
+  const preco=Number(p.precoVenda)||0;
+  const cmv=preco>0?custoTotal/preco:0;
+  const lucro=preco-custoTotal;
+  return(<Modal title={prato?'Editar Prato':'Novo Prato'} onClose={onClose}>
+    <div className="ft-fg" style={{marginBottom:14}}>
+      <div className="ft-fld"><label className="ft-flbl">Nome do prato</label><input value={p.nome} onChange={e=>setP(pr=>({...pr,nome:e.target.value.toUpperCase()}))}/></div>
+      <div className="ft-fld h"><label className="ft-flbl">Categoria</label><input value={p.categoria} onChange={e=>setP(pr=>({...pr,categoria:e.target.value}))}/></div>
+      <div className="ft-fld h"><label className="ft-flbl">Porções</label><input type="number" min="1" value={p.porcao} onChange={e=>setP(pr=>({...pr,porcao:+e.target.value}))}/></div>
+      <div className="ft-fld"><label className="ft-flbl">Preço de venda (R$)</label><input type="number" step="0.01" min="0" value={p.precoVenda} onChange={e=>setP(pr=>({...pr,precoVenda:+e.target.value}))}/></div>
+    </div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+      <span style={{fontFamily:'var(--ff)',fontSize:13,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.08em'}}>COMPONENTES (POR PORÇÃO)</span>
+      <button className="ft-btn ft-btn-p" style={{padding:'8px 14px',fontSize:12}} onClick={()=>setPicker(true)}>+ Adicionar</button>
+    </div>
+    {calcComps.map((c,i)=>(<div key={i} style={{background:'var(--cinzaF)',borderRadius:10,padding:'12px 14px',marginBottom:8,border:'1px solid var(--cinzaM)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:14,fontWeight:700}}>{c.nomeRef}</span>{c.tipo==='ficha'&&<span className="ft-tag" style={{background:'#FFFBEB',color:'#92400E',fontSize:9}}>FICHA</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(c.custoPorKg)}/kg{c.fc>1?` · FC ${num(c.fc)}`:''}</div></div>
+        <button onClick={()=>remComp(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+      </div>
+      <div style={{display:'flex',gap:12,alignItems:'center'}}>
+        <div style={{flex:1}}><label className="ft-flbl">QUANTIDADE (GRAMAS)</label><input type="number" step="1" min="0" value={c.qtdGramas} onChange={e=>updComp(i,'qtdGramas',+e.target.value)}/></div>
+        <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(c.custo)}</div></div>
+      </div>
+    </div>))}
+    {p.componentes.length===0&&<div style={{textAlign:'center',padding:20,color:'var(--cinzaE)',fontStyle:'italic'}}>Clique "+ Adicionar" para incluir componentes</div>}
+    <div className="ft-fld" style={{marginTop:12}}><label className="ft-flbl">Empratamento / modo (opcional)</label><textarea rows={2} value={p.modoPreparo||''} onChange={e=>setP(pr=>({...pr,modoPreparo:e.target.value}))} style={{resize:'vertical',minHeight:50}} placeholder="1. Empratar…"/></div>
+    <div style={{background:'var(--preto)',borderRadius:10,padding:'14px 16px',marginTop:14,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+      <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--coral)'}}>{brl(custoTotal)}</div></div>
+      <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>VENDA</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--lima)'}}>{brl(preco)}</div></div>
+      <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>LUCRO</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:lucro>=0?'var(--lima)':'var(--coral)'}}>{brl(lucro)}</div></div>
+      <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CMV</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:cmvColor(cmv)}}>{pct(cmv)}</div></div>
+    </div>
+    <div style={{display:'flex',gap:8,justifyContent:'space-between',marginTop:16}}>
+      {prato&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(prato.id);onClose();}}>🗑 Excluir</button>}
+      <div style={{display:'flex',gap:8,marginLeft:'auto'}}>
+        <button className="ft-btn ft-btn-g" onClick={onClose}>Cancelar</button>
+        <button className="ft-btn ft-btn-p" onClick={()=>{onSave({...p});onClose();}} disabled={!p.nome||p.componentes.length===0}>💾 Salvar</button>
+      </div>
+    </div>
+    <ItemPicker open={picker} onClose={()=>setPicker(false)} ingredientes={ingredientes} fichasCalc={fichasCalc} onPick={addComp}/>
+  </Modal>);
+}
+
 // ── INGREDIENTES TAB ──────────────────────────────────────────────
 function TabIngredientes({ingredientes,onSave,onDelete}){
   const[q,setQ]=useState('');const[edit,setEdit]=useState(null);
@@ -204,10 +344,10 @@ function TabIngredientes({ingredientes,onSave,onDelete}){
 
 // ── FICHAS TAB ────────────────────────────────────────────────────
 function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFilter}){
-  const[q,setQ]=useState('');const[detail,setDetail]=useState(null);
+  const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);
   const filtered=fichasCalc.filter(f=>(!q||normNome(f.nome).includes(normNome(q)))&&(!clienteFilter||f._cliente===clienteFilter||f._cliente==='zeste'));
   return(<div className="ft-page">
-    <div className="ft-search"><input placeholder="🔍 Buscar ficha…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/></div>
+    <div className="ft-search"><input placeholder="🔍 Buscar ficha…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/><button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEditForm({})}>+ Nova</button></div>
     <div className="ft-pc"><div className="ft-card">
       {filtered.length===0&&<div style={{padding:32,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhuma ficha encontrada</div>}
       {filtered.map(f=>(<div key={f.id} className="ft-row" onClick={()=>setDetail(f)}>
@@ -238,17 +378,22 @@ function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFil
         </div>))}
       </div>
       {detail.margemSeguranca>0&&<div style={{marginTop:10,fontSize:12,color:'var(--cinzaE)'}}>Margem de segurança: {pct(detail.margemSeguranca)}</div>}
+      <div style={{display:'flex',gap:8,marginTop:16}}>
+        <button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(detail.id);setDetail(null);}}>🗑 Excluir</button>
+        <button className="ft-btn ft-btn-p" style={{marginLeft:'auto',padding:'10px 14px',fontSize:13}} onClick={()=>{setEditForm(fichasRaw.find(f=>f.id===detail.id)||detail);setDetail(null);}}>✏️ Editar</button>
+      </div>
     </Modal>}
+    {editForm&&<FichaForm open={true} ficha={editForm.id?editForm:null} onClose={()=>setEditForm(null)} onSave={onSave} onDelete={onDelete} ingredientes={ingredientes} fichasCalc={fichasCalc}/>}
   </div>);
 }
 
 // ── PRATOS TAB ────────────────────────────────────────────────────
-function TabPratos({pratosCalc,clienteFilter}){
-  const[q,setQ]=useState('');const[detail,setDetail]=useState(null);
+function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFilter}){
+  const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);
   const filtered=pratosCalc.filter(p=>(!q||normNome(p.nome).includes(normNome(q)))&&(!clienteFilter||p._cliente===clienteFilter||p._cliente==='zeste'));
   const categorias=[...new Set(filtered.map(p=>p.categoria||'Sem categoria'))];
   return(<div className="ft-page">
-    <div className="ft-search"><input placeholder="🔍 Buscar prato…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/></div>
+    <div className="ft-search"><input placeholder="🔍 Buscar prato…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/><button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEditForm({})}>+ Novo</button></div>
     <div className="ft-pc">
       {categorias.map(cat=>{const pratos=filtered.filter(p=>(p.categoria||'Sem categoria')===cat);return(<div key={cat}>
         <SH>{cat}</SH>
@@ -286,7 +431,12 @@ function TabPratos({pratosCalc,clienteFilter}){
       {detail.precoVenda>0&&<div style={{marginTop:14,background:cmvColor(detail.cmv)+'18',borderLeft:`3px solid ${cmvColor(detail.cmv)}`,borderRadius:6,padding:'10px 12px',fontSize:13,color:cmvColor(detail.cmv),fontWeight:600}}>
         CMV {pct(detail.cmv)} — {cmvLabel(detail.cmv)} · Lucro bruto de {brl(detail.precoVenda-detail.custoTotal)} por porção
       </div>}
+      <div style={{display:'flex',gap:8,marginTop:16}}>
+        <button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(detail.id);setDetail(null);}}>🗑 Excluir</button>
+        <button className="ft-btn ft-btn-p" style={{marginLeft:'auto',padding:'10px 14px',fontSize:13}} onClick={()=>{setEditForm(pratosCalc.find(p=>p.id===detail.id)||detail);setDetail(null);}}>✏️ Editar</button>
+      </div>
     </Modal>}
+    {editForm&&<PratoForm open={true} prato={editForm.id?editForm:null} onClose={()=>setEditForm(null)} onSave={onSave} onDelete={onDelete} ingredientes={ingredientes} fichasCalc={fichasCalc}/>}
   </div>);
 }
 
@@ -626,6 +776,8 @@ export default function Fichas({onBack,token}){
   const saveIngrediente=async item=>{await sync(async()=>{await sbInsertIng(item,token);setIngredientes(p=>p.some(i=>i.id===item.id)?p.map(i=>i.id===item.id?item:i):[item,...p]);});};
   const delIngrediente=async id=>{await sync(async()=>{await fetch(`${SB_URL}/rest/v1/fin_ingredientes?id=eq.${id}`,{method:'DELETE',headers:sbH(token)});setIngredientes(p=>p.filter(i=>i.id!==id));});};
 
+  const savePrato=async item=>{await sync(async()=>{await sbUpsert('fin_pratos',item,item._cliente||item.categoria?.includes('440')?'440':'zeste',token);setPratosRaw(p=>p.some(pr=>pr.id===item.id)?p.map(pr=>pr.id===item.id?item:pr):[item,...p]);});};
+  const delPrato=async id=>{await sync(async()=>{await sbDel('fin_pratos',id,token);setPratosRaw(p=>p.filter(pr=>pr.id!==id));});};
   const saveFicha=async item=>{await sync(async()=>{await sbUpsert('fin_fichas',item,item._cliente||'zeste',token);setFichasRaw(p=>p.some(f=>f.id===item.id)?p.map(f=>f.id===item.id?item:f):[item,...p]);});};
   const delFicha=async id=>{await sync(async()=>{await sbDel('fin_fichas',id,token);setFichasRaw(p=>p.filter(f=>f.id!==id));});};
 
@@ -650,7 +802,7 @@ export default function Fichas({onBack,token}){
     {aba==='resumo'&&<TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc}/>}
     {aba==='ingredientes'&&<TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente}/>}
     {aba==='fichas'&&<TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter}/>}
-    {aba==='pratos'&&<TabPratos pratosCalc={pratosCalc} clienteFilter={clienteFilter}/>}
+    {aba==='pratos'&&<TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter}/>}
     {aba==='producao'&&<TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes}/>}
     {aba==='estoque'&&<TabEstoque ingredientes={ingredientes} onSave={saveIngrediente}/>}
   </>);
