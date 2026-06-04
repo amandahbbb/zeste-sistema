@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext, useCallback } from "react";
 import Financeiro from "./Financeiro.jsx";
+import Fichas from "./Fichas.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SUPABASE_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -492,12 +493,21 @@ export default function ZesteSistema() {
     </>
   );
 
+  if (modulo === "fichas") return (
+    <>
+      <style>{GLOBAL_STYLE}</style>
+      <AppCtx.Provider value={{ token: session.token, user: session.user }}>
+        <Fichas onBack={() => setModulo("dashboard")} token={session.token} />
+      </AppCtx.Provider>
+    </>
+  );
+
   const renderModulo = () => {
     switch (modulo) {
       case "dashboard": return <Dashboard />;
       case "crm": return <CRM />;
       case "drive": return <Placeholder icon="📁" title="Drive Interno" fase="3" desc="Upload de documentos por cliente." />;
-      case "fichas": return <Placeholder icon="🍽️" title="Fichas Técnicas" fase="3" desc="Central de receitas e CMV." />;
+      // fichas handled above as full-screen
       case "marketing": return <Placeholder icon="📱" title="Marketing" fase="4" desc="Calendário editorial Instagram." />;
       default: return <Dashboard />;
     }
