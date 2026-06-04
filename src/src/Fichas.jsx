@@ -78,6 +78,40 @@ function calcAllFichas(fichasRaw,ingredientes){
   return resolved;
 }
 
+
+function calcProducao(producao,pratosCalc,fichasCalc,ingredientes){
+  const agreg=new Map();
+  const addIng=(nomeRef,qtdLiq,nomePrato)=>{
+    const ing=ingredientes.find(i=>i.nome===nomeRef);if(!ing)return;
+    const at=agreg.get(nomeRef)||{nome:ing.nome,un:ing.un,qtdLiq:0,qtdBruta:0,fc:ing.fc||1,preco:ing.p||0,custo:0,usadoEm:[]};
+    at.qtdLiq+=qtdLiq;at.qtdBruta=at.qtdLiq*at.fc;at.custo=at.qtdBruta*at.preco;
+    const u=at.usadoEm.find(u=>u.prato===nomePrato);
+    if(u)u.qtd+=qtdLiq;else at.usadoEm.push({prato:nomePrato,qtd:qtdLiq});
+    agreg.set(nomeRef,at);
+  };
+  const expandFicha=(nomeRef,mult,nomePrato)=>{
+    const ficha=fichasCalc.find(f=>f.nome===nomeRef);if(!ficha)return;
+    for(const it of ficha.itens||[]){
+      const qtdLiq=(Number(it.qtdLiquida)||0)*mult;
+      if(it.tipo==='ficha')expandFicha(it.nomeRef,qtdLiq,nomePrato);
+      else addIng(it.nomeRef,qtdLiq,nomePrato);
+    }
+  };
+  for(const{pratoNome,qtd}of producao){
+    const prato=pratosCalc.find(p=>p.nome===pratoNome);if(!prato||qtd<=0)continue;
+    for(const comp of prato.comps||[]){
+      const qtdKg=(Number(comp.qtdGramas)||0)/1000;const qtdTotal=qtdKg*qtd;
+      if(comp.tipo==='ficha'){
+        const ficha=fichasCalc.find(f=>f.nome===comp.nomeRef);
+        if(!ficha||ficha.pesoFinal<=0)continue;
+        expandFicha(comp.nomeRef,qtdTotal/ficha.pesoFinal,prato.nome);
+      }else addIng(comp.nomeRef,qtdTotal,prato.nome);
+    }
+  }
+  const lista=Array.from(agreg.values()).sort((a,b)=>b.custo-a.custo);
+  return{lista,totalCusto:lista.reduce((s,i)=>s+i.custo,0)};
+}
+
 const cmvColor=c=>c<.30?'#2D6E47':c<.35?'#B8860B':c<.40?'#E8914B':'#E8614B';
 const cmvLabel=c=>c<.30?'Excelente':c<.35?'Bom':c<.40?'Atenção':'Alto';
 
@@ -256,6 +290,62 @@ function TabPratos({pratosCalc,clienteFilter}){
   </div>);
 }
 
+
+// ── PRODUÇÃO TAB ──────────────────────────────────────────────────
+function TabProducao({pratosCalc,fichasCalc,ingredientes}){
+  const[linhas,setLinhas]=useState([]);
+  const[resultado,setResultado]=useState(null);
+  const addLinha=()=>setLinhas(p=>[...p,{pratoNome:pratosCalc[0]?.nome||'',qtd:1}]);
+  const updLinha=(i,k,v)=>setLinhas(p=>p.map((l,j)=>j===i?{...l,[k]:v}:l));
+  const remLinha=i=>setLinhas(p=>p.filter((_,j)=>j!==i));
+  const calcular=()=>{
+    const res=calcProducao(linhas.filter(l=>l.qtd>0),pratosCalc,fichasCalc,ingredientes);
+    setResultado(res);
+  };
+  return(<div className="ft-page">
+    <div className="ft-pc" style={{paddingTop:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:700,color:'var(--verde)'}}>Planejamento de Produção</div>
+        <button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={addLinha}>+ Prato</button>
+      </div>
+      {linhas.length===0&&<div style={{textAlign:'center',padding:32,color:'var(--cinzaE)',fontStyle:'italic'}}>Adicione pratos para calcular a lista de compras</div>}
+      {linhas.map((l,i)=>(<div key={i} style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+        <select value={l.pratoNome} onChange={e=>updLinha(i,'pratoNome',e.target.value)} style={{flex:1,fontSize:14,padding:'10px 12px',border:'1.5px solid var(--cinzaM)',borderRadius:8,background:'var(--branco)',outline:'none'}}>
+          {pratosCalc.map(p=><option key={p.id} value={p.nome}>{p.nome}</option>)}
+        </select>
+        <input type="number" min="1" value={l.qtd} onChange={e=>updLinha(i,'qtd',+e.target.value)} style={{width:70,textAlign:'center',fontSize:14,padding:'10px 8px',border:'1.5px solid var(--cinzaM)',borderRadius:8,outline:'none'}}/>
+        <span style={{fontSize:11,color:'var(--cinzaE)',minWidth:28}}>und</span>
+        <button onClick={()=>remLinha(i)} style={{color:'var(--coral)',fontSize:18,minWidth:36,minHeight:36,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+      </div>))}
+      {linhas.length>0&&<button className="ft-btn ft-btn-p" style={{width:'100%',marginTop:12}} onClick={calcular}>📋 CALCULAR LISTA DE COMPRAS</button>}
+
+      {resultado&&(<div style={{marginTop:20}}>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16}}>
+          <div className="ft-kpi" style={{borderColor:'var(--coral)'}}><div className="ft-kpi-l" style={{color:'var(--coral)'}}>Custo Total</div><div className="ft-kpi-v" style={{color:'var(--coral)'}}>{brl(resultado.totalCusto)}</div></div>
+          <div className="ft-kpi" style={{borderColor:'var(--lima)'}}><div className="ft-kpi-l" style={{color:'var(--lima)'}}>Itens</div><div className="ft-kpi-v" style={{color:'var(--lima)'}}>{resultado.lista.length}</div></div>
+        </div>
+        <SH>Lista de Compras</SH>
+        <div className="ft-card">
+          <div style={{padding:'10px 14px',background:'var(--preto)',display:'flex',fontFamily:'var(--ff)',fontSize:11,color:'var(--lima)',letterSpacing:'.08em',gap:8}}>
+            <span style={{flex:2}}>INGREDIENTE</span><span style={{flex:1,textAlign:'right'}}>QTD LÍQ.</span><span style={{flex:1,textAlign:'right'}}>COMPRAR (C/ FC)</span><span style={{flex:1,textAlign:'right'}}>CUSTO</span>
+          </div>
+          {resultado.lista.map((it,i)=>(<div key={it.nome} style={{padding:'10px 14px',borderBottom:i<resultado.lista.length-1?'1px solid var(--cinzaF)':'none',display:'flex',gap:8,alignItems:'center'}}>
+            <div style={{flex:2,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{it.nome}</div>
+              <div style={{fontSize:10,color:'var(--cinzaE)',marginTop:2}}>
+                {it.usadoEm.map(u=>`${u.prato}: ${num(u.qtd*1000,0)}g`).join(' · ')}
+              </div>
+            </div>
+            <div style={{flex:1,textAlign:'right',fontSize:13,color:'var(--cinzaE)'}}>{num(it.qtdLiq,3)} {it.un}</div>
+            <div style={{flex:1,textAlign:'right',fontSize:13,fontWeight:700,color:'var(--azul)'}}>{num(it.qtdBruta,3)} {it.un}{it.fc>1?` (FC ${num(it.fc)})`:''}</div>
+            <div style={{flex:1,textAlign:'right',fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'var(--coral)'}}>{brl(it.custo)}</div>
+          </div>))}
+        </div>
+      </div>)}
+    </div>
+  </div>);
+}
+
 // ── RESUMO TAB ────────────────────────────────────────────────────
 function TabResumo({ingredientes,fichasCalc,pratosCalc}){
   const pratosComPreco=pratosCalc.filter(p=>p.precoVenda>0);
@@ -299,7 +389,7 @@ function TabResumo({ingredientes,fichasCalc,pratosCalc}){
 }
 
 // ── ROOT ──────────────────────────────────────────────────────────
-const TABS=[{id:'resumo',l:'RESUMO'},{id:'ingredientes',l:'INGREDIENTES'},{id:'fichas',l:'FICHAS'},{id:'pratos',l:'PRATOS'}];
+const TABS=[{id:'resumo',l:'RESUMO'},{id:'ingredientes',l:'INGREDIENTES'},{id:'fichas',l:'FICHAS'},{id:'pratos',l:'PRATOS'},{id:'producao',l:'PRODUÇÃO'}];
 
 export default function Fichas({onBack,token}){
   const[ingredientes,setIngredientes]=useState([]);
@@ -367,5 +457,6 @@ export default function Fichas({onBack,token}){
     {aba==='ingredientes'&&<TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente}/>}
     {aba==='fichas'&&<TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter}/>}
     {aba==='pratos'&&<TabPratos pratosCalc={pratosCalc} clienteFilter={clienteFilter}/>}
+    {aba==='producao'&&<TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes}/>}
   </>);
 }
