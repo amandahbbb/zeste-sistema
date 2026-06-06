@@ -231,7 +231,34 @@ const MANUAL_SECTIONS = [
 ];
 
 // ─── CRM DATA ────────────────────────────────────────────────────────────────
-const CRM_STORAGE_KEY = "zeste-comercial-crm-v1";
+const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYwNTY0MTIsImV4cCI6MjA2MTYzMjQxMn0.2mMnd0cMkFNGBogREdjcDguWOJ0aV-MjQtAYBZzXNSI";
+const TABLE = "crm_contatos";
+
+async function sbLoad(token) {
+  const h = {"Content-Type":"application/json", apikey: SB_KEY, ...(token && {Authorization:`Bearer ${token}`})};
+  const r = await fetch(`${SB_URL}/rest/v1/${TABLE}?deleted_at=is.null&order=created_at.asc&select=id,data`, {headers: h});
+  const rows = await r.json();
+  return Array.isArray(rows) ? rows.map(r => ({...r.data, _sbid: r.id})) : [];
+}
+
+async function sbUpsert(contact, token) {
+  const h = {"Content-Type":"application/json", apikey: SB_KEY, Prefer:"resolution=merge-duplicates", ...(token && {Authorization:`Bearer ${token}`})};
+  const {_sbid, ...data} = contact;
+  if (_sbid) {
+    await fetch(`${SB_URL}/rest/v1/${TABLE}?id=eq.${_sbid}`, {method:"PATCH", headers: h, body: JSON.stringify({data, updated_at: new Date().toISOString()})});
+    return _sbid;
+  } else {
+    const r = await fetch(`${SB_URL}/rest/v1/${TABLE}`, {method:"POST", headers:{...h, Prefer:"return=representation"}, body: JSON.stringify({data})});
+    const rows = await r.json();
+    return rows?.[0]?.id;
+  }
+}
+
+async function sbDelete(sbid, token) {
+  const h = {"Content-Type":"application/json", apikey: SB_KEY, ...(token && {Authorization:`Bearer ${token}`})};
+  await fetch(`${SB_URL}/rest/v1/${TABLE}?id=eq.${sbid}`, {method:"PATCH", headers: h, body: JSON.stringify({deleted_at: new Date().toISOString()})});
+}
 const STAGES = ["Prospects","Leads","Negociação / Proposta","Cliente","Portas Fechadas"];
 const STAGE_META = {
   "Prospects":             { color:"#A8C5DA44", accent:"#4A90B8", icon:"◎" },
@@ -462,13 +489,18 @@ function CRMView(){
   const[search,setSearch]=useState("");
   const[filterSeg,setFilterSeg]=useState("");
   const[storageOk,setStorageOk]=useState(null);
+  const token = typeof window !== "undefined" ? (window.__supabaseToken || null) : null;
 
-  useEffect(()=>{(async()=>{try{const r=await window.storage.get(CRM_STORAGE_KEY);const d=JSON.parse(r.value);if(Array.isArray(d))setContacts(d);setStorageOk(true);}catch{setStorageOk(true);}})();},[]);
+  useEffect(()=>{(async()=>{try{const data=await sbLoad(token);setContacts(data);}catch(e){console.error(e);}finally{setStorageOk(true);}})();},[]);
 
-  const persist=useCallback(async(u)=>{try{await window.storage.set(CRM_STORAGE_KEY,JSON.stringify(u));}catch{}},[]);
-  const update=(fn)=>{setContacts(prev=>{const next=fn(prev);persist(next);return next;});};
-  const saveContact=(u)=>{update(prev=>prev.map(c=>c.id===u.id?u:c));setSelected(null);};
-  const addContact=(c)=>{update(prev=>[...prev,c]);setShowNew(false);};
+  const saveContact=async(u)=>{
+    try{const sbid=await sbUpsert(u,token);setContacts(prev=>prev.map(c=>c._sbid===u._sbid?{...u,_sbid:sbid}:c));}catch(e){console.error(e);}
+    setSelected(null);
+  };
+  const addContact=async(c)=>{
+    try{const sbid=await sbUpsert(c,token);setContacts(prev=>[...prev,{...c,_sbid:sbid}]);}catch(e){console.error(e);}
+    setShowNew(false);
+  };
 
   const filtered=useMemo(()=>contacts.filter(c=>{const q=search.toLowerCase();return(!q||c.name.toLowerCase().includes(q)||c.company.toLowerCase().includes(q))&&(!filterSeg||c.segmento===filterSeg);}),[contacts,search,filterSeg]);
 
