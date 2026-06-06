@@ -3,6 +3,7 @@ import Financeiro from "./Financeiro.jsx";
 import Fichas from "./Fichas.jsx";
 import Comercial from "./Comercial.jsx";
 import RedesSociais from "./Marketing.jsx";
+import PortalCliente from "./PortalCliente.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SUPABASE_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -476,6 +477,13 @@ export default function ZesteSistema() {
   const [modulo, setModulo] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Portal do Cliente: detectar rota #cliente/ID
+  const hash = typeof window !== 'undefined' ? window.location.hash : '';
+  const portalMatch = hash.match(/^#cliente\/(.+)$/);
+  if (portalMatch) {
+    return <PortalCliente clienteId={portalMatch[1]} />;
+  }
 
   const handleLogout = async () => { if (session?.token) await db.auth.signOut(session.token); setSession(null); };
 
