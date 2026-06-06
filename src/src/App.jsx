@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext, useCallback } from "rea
 import Financeiro from "./Financeiro.jsx";
 import Fichas from "./Fichas.jsx";
 import Comercial from "./Comercial.jsx";
+import RedesSociais from "./Marketing.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SUPABASE_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -512,13 +513,22 @@ export default function ZesteSistema() {
     </>
   );
 
+  if (modulo === "marketing") return (
+    <>
+      <style>{GLOBAL_STYLE}</style>
+      <AppCtx.Provider value={{ token: session.token, user: session.user }}>
+        <RedesSociais onBack={() => setModulo("dashboard")} token={session.token} />
+      </AppCtx.Provider>
+    </>
+  );
+
   const renderModulo = () => {
     switch (modulo) {
       case "dashboard": return <Dashboard />;
       // crm removed - using Comercial module
       case "drive": return <Placeholder icon="📁" title="Drive Interno" fase="3" desc="Upload de documentos por cliente." />;
       // fichas handled above as full-screen
-      case "marketing": return <Placeholder icon="📱" title="Marketing" fase="4" desc="Calendário editorial Instagram." />;
+      // marketing handled above as full-screen
       default: return <Dashboard />;
     }
   };
