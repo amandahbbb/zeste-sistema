@@ -167,11 +167,10 @@ function Logo({ small }) {
 // ── MÓDULOS ────────────────────────────────────────────────────
 const MODULOS = [
   { id: "dashboard",  icon: "📊", label: "Dashboard"  },
-  { id: "crm",        icon: "👥", label: "CRM"         },
-  { id: "comercial", icon: "💼", label: "Comercial" },
+  { id: "comercial",  icon: "🤝", label: "Comercial"  },
   { id: "financeiro", icon: "💰", label: "Financeiro"  },
-  { id: "drive",      icon: "📁", label: "Drive"       },
   { id: "fichas",     icon: "🍽️", label: "Fichas"      },
+  { id: "drive",      icon: "📁", label: "Drive"       },
   { id: "marketing",  icon: "📱", label: "Marketing"   },
 ];
 
@@ -504,11 +503,19 @@ export default function ZesteSistema() {
     </>
   );
 
+  if (modulo === "comercial") return (
+    <>
+      <style>{GLOBAL_STYLE}</style>
+      <AppCtx.Provider value={{ token: session.token, user: session.user }}>
+        <Comercial onBack={() => setModulo("dashboard")} token={session.token} />
+      </AppCtx.Provider>
+    </>
+  );
+
   const renderModulo = () => {
     switch (modulo) {
       case "dashboard": return <Dashboard />;
-      case "crm": return <CRM />;
-        case "comercial": return <Comercial />;
+      // crm removed - using Comercial module
       case "drive": return <Placeholder icon="📁" title="Drive Interno" fase="3" desc="Upload de documentos por cliente." />;
       // fichas handled above as full-screen
       case "marketing": return <Placeholder icon="📱" title="Marketing" fase="4" desc="Calendário editorial Instagram." />;

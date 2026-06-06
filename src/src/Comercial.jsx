@@ -528,7 +528,9 @@ function CRMView(){
 }
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
-export default function ComercialZeste(){
+export default function ComercialZeste({onBack,token:tokenProp}){
+  // Sync token for CRM supabase calls
+  if(tokenProp&&typeof window!=="undefined")window.__supabaseToken=tokenProp;
   const[activeSection,setActiveSection]=useState("filosofia");
   const[showCRM,setShowCRM]=useState(false);
 
@@ -542,7 +544,7 @@ export default function ComercialZeste(){
       <div style={{display:"flex",alignItems:"center",gap:10,height:50}}>
         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
           <div style={{width:28,height:28,borderRadius:8,background:C.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:"#0E0E0C"}}>Z</div>
-          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:C.text,letterSpacing:"0.05em"}}>ZESTE</span>
+          {onBack&&<button onClick={onBack} style={{color:C.yellow,fontSize:22,background:"none",border:"none",cursor:"pointer",lineHeight:1,marginRight:6,minWidth:36,minHeight:36,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>}<span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:C.text,letterSpacing:"0.05em"}}>ZESTE</span>
         </div>
         <div style={{width:1,height:20,background:C.border}}/>
         <span style={{fontSize:11,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",flexShrink:0}}>COMERCIAL</span>
