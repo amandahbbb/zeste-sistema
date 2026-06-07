@@ -283,9 +283,22 @@ function LoginScreen({ onLogin }) {
   const login = async () => {
     if (!email || !senha) return;
     setLoad(true); setErr("");
+    // 1. Tenta Supabase Auth (admin)
     const data = await db.auth.signIn(email, senha);
-    if (data.access_token) onLogin(data.access_token, data.user);
-    else setErr("E-mail ou senha incorretos");
+    if (data.access_token) {
+      onLogin({ role: "admin", token: data.access_token, user: data.user });
+      return;
+    }
+    // 2. Tenta portal do cliente
+    try {
+      const r = await fetch(SUPABASE_URL + "/rest/v1/fin_portal_clientes?email=eq." + encodeURIComponent(email) + "&senha_hash=eq." + encodeURIComponent(senha) + "&ativo=eq.true&select=*", { headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY } });
+      const clients = await r.json();
+      if (Array.isArray(clients) && clients.length > 0) {
+        onLogin({ role: "cliente", token: SUPABASE_KEY, user: { email }, clienteInfo: clients[0] });
+        return;
+      }
+    } catch {}
+    setErr("E-mail ou senha incorretos");
     setLoad(false);
   };
   return (
@@ -478,19 +491,20 @@ export default function ZesteSistema() {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Portal do Cliente: detectar rota #cliente/ID
-  const hash = typeof window !== 'undefined' ? window.location.hash : '';
-  const portalMatch = hash.match(/^#cliente\/(.+)$/);
-  if (portalMatch) {
-    return <PortalCliente clienteId={portalMatch[1]} />;
-  }
-
-  const handleLogout = async () => { if (session?.token) await db.auth.signOut(session.token); setSession(null); };
+  const handleLogout = async () => { if (session?.role === 'admin' && session?.token) await db.auth.signOut(session.token); setSession(null); };
 
   if (!session) return (
     <>
       <style>{GLOBAL_STYLE}</style>
-      <LoginScreen onLogin={(token, user) => setSession({ token, user })} />
+      <LoginScreen onLogin={(sess) => setSession(sess)} />
+    </>
+  );
+
+  // Cliente logado → view restrita
+  if (session.role === "cliente") return (
+    <>
+      <style>{GLOBAL_STYLE}</style>
+      <PortalCliente clienteInfo={session.clienteInfo} token={session.token} onLogout={() => setSession(null)} />
     </>
   );
 
