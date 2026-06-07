@@ -378,8 +378,10 @@ function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFil
         </div>))}
       </div>
       {detail.margemSeguranca>0&&<div style={{marginTop:10,fontSize:12,color:'var(--cinzaE)'}}>Margem de segurança: {pct(detail.margemSeguranca)}</div>}
-      <div style={{display:'flex',gap:8,marginTop:16}}>
+      {detail._ultimaEdicao&&<div style={{fontSize:11,color:'var(--cinzaE)',marginTop:10}}>Última edição: {detail._ultimaEdicao} em {detail._ultimaEdicaoEm?new Date(detail._ultimaEdicaoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</div>}
+      <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
         <button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(detail.id);setDetail(null);}}>🗑 Excluir</button>
+        <button className="ft-btn ft-btn-g" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setHistItem(detail)}>📜 Histórico</button>
         <button className="ft-btn ft-btn-p" style={{marginLeft:'auto',padding:'10px 14px',fontSize:13}} onClick={()=>{setEditForm(fichasRaw.find(f=>f.id===detail.id)||detail);setDetail(null);}}>✏️ Editar</button>
       </div>
     </Modal>}
@@ -431,8 +433,10 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
       {detail.precoVenda>0&&<div style={{marginTop:14,background:cmvColor(detail.cmv)+'18',borderLeft:`3px solid ${cmvColor(detail.cmv)}`,borderRadius:6,padding:'10px 12px',fontSize:13,color:cmvColor(detail.cmv),fontWeight:600}}>
         CMV {pct(detail.cmv)} — {cmvLabel(detail.cmv)} · Lucro bruto de {brl(detail.precoVenda-detail.custoTotal)} por porção
       </div>}
-      <div style={{display:'flex',gap:8,marginTop:16}}>
+      {detail._ultimaEdicao&&<div style={{fontSize:11,color:'var(--cinzaE)',marginTop:10}}>Última edição: {detail._ultimaEdicao} em {detail._ultimaEdicaoEm?new Date(detail._ultimaEdicaoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</div>}
+      <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
         <button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(detail.id);setDetail(null);}}>🗑 Excluir</button>
+        <button className="ft-btn ft-btn-g" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setHistItem(detail)}>📜 Histórico</button>
         <button className="ft-btn ft-btn-p" style={{marginLeft:'auto',padding:'10px 14px',fontSize:13}} onClick={()=>{setEditForm(pratosCalc.find(p=>p.id===detail.id)||detail);setDetail(null);}}>✏️ Editar</button>
       </div>
     </Modal>}
@@ -732,17 +736,43 @@ function TabResumo({ingredientes,fichasCalc,pratosCalc}){
   </div>);
 }
 
+
+// ── HISTÓRICO DE VERSÕES ──────────────────────────────────────────
+function HistoricoModal({item,onClose,onRevert}){
+  const hist=(item._historico||[]).slice().reverse();
+  if(!hist.length)return(<Modal title="Histórico" onClose={onClose}><div style={{padding:20,textAlign:'center',color:'var(--cinzaE)'}}>Nenhuma alteração registrada ainda.</div></Modal>);
+  return(<Modal title={`Histórico — ${item.nome}`} onClose={onClose}>
+    <div style={{fontSize:12,color:'var(--cinzaE)',marginBottom:14}}>Últimas {hist.length} alterações. Clique em "Reverter" para restaurar uma versão anterior.</div>
+    {hist.map((v,i)=>(<div key={i} style={{background:i===0?'#ECFDF5':'var(--cinzaF)',borderRadius:10,padding:'12px 14px',marginBottom:8,border:`1px solid ${i===0?'var(--verde)':'var(--cinzaM)'}`}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700}}>{v._editadoPor||'Admin'}</div>
+          <div style={{fontSize:11,color:'var(--cinzaE)'}}>{new Date(v._editadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        {i>0&&<button onClick={()=>{onRevert(v);onClose();}} style={{background:'var(--verde)',color:'var(--branco)',borderRadius:6,padding:'6px 12px',fontSize:12,fontWeight:600}}>↩ Reverter</button>}
+        {i===0&&<span className="ft-tag" style={{background:'#ECFDF5',color:'var(--verde)'}}>ATUAL</span>}
+      </div>
+      <div style={{fontSize:12,color:'var(--cinzaE)'}}>
+        {v.nome&&<span>Nome: <strong>{v.nome}</strong></span>}
+        {v.precoVenda!==undefined&&<span> · Venda: <strong>{brl(v.precoVenda)}</strong></span>}
+        {v.itens&&<span> · {v.itens.length} insumos</span>}
+        {v.componentes&&<span> · {v.componentes.length} componentes</span>}
+      </div>
+    </div>))}
+  </Modal>);
+}
+
 // ── ROOT ──────────────────────────────────────────────────────────
 const TABS=[{id:'resumo',l:'RESUMO'},{id:'ingredientes',l:'INGREDIENTES'},{id:'fichas',l:'FICHAS'},{id:'pratos',l:'PRATOS'},{id:'producao',l:'PRODUÇÃO'},{id:'estoque',l:'ESTOQUE'}];
 
-export default function Fichas({onBack,token}){
+export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome,onLogout,userInfo}){
   const[ingredientes,setIngredientes]=useState([]);
   const[fichasRaw,setFichasRaw]=useState([]);
   const[pratosRaw,setPratosRaw]=useState([]);
   const[loading,setLoading]=useState(true);
   const[syncing,setSyncing]=useState(false);
-  const[aba,setAba]=useState('resumo');
-  const[clienteFilter,setClienteFilter]=useState('');
+  const[aba,setAba]=useState('resumo');const[histItem,setHistItem]=useState(null);
+  const[clienteFilter,setClienteFilter]=useState(clienteIdProp||'');
 
   useEffect(()=>{loadAll();},[]);
 
@@ -773,12 +803,34 @@ export default function Fichas({onBack,token}){
 
   const sync=async fn=>{setSyncing(true);try{await fn();}finally{setSyncing(false);}};
 
-  const saveIngrediente=async item=>{await sync(async()=>{await sbInsertIng(item,token);setIngredientes(p=>p.some(i=>i.id===item.id)?p.map(i=>i.id===item.id?item:i):[item,...p]);});};
+  const saveIngrediente=async item=>{await sync(async()=>{
+    const old=ingredientes.find(i=>i.id===item.id);
+    const saved={...item,_historico:addHistory(old,whoAmI),_ultimaEdicao:whoAmI,_ultimaEdicaoEm:new Date().toISOString()};
+    await sbInsertIng(saved,token);
+    setIngredientes(p=>p.some(i=>i.id===saved.id)?p.map(i=>i.id===saved.id?saved:i):[saved,...p]);
+  });};
   const delIngrediente=async id=>{await sync(async()=>{await fetch(`${SB_URL}/rest/v1/fin_ingredientes?id=eq.${id}`,{method:'DELETE',headers:sbH(token)});setIngredientes(p=>p.filter(i=>i.id!==id));});};
 
-  const savePrato=async item=>{await sync(async()=>{await sbUpsert('fin_pratos',item,item._cliente||item.categoria?.includes('440')?'440':'zeste',token);setPratosRaw(p=>p.some(pr=>pr.id===item.id)?p.map(pr=>pr.id===item.id?item:pr):[item,...p]);});};
+  const savePrato=async item=>{await sync(async()=>{
+    const old=pratosRaw.find(p=>p.id===item.id);
+    const saved={...item,_historico:addHistory(old,whoAmI),_ultimaEdicao:whoAmI,_ultimaEdicaoEm:new Date().toISOString()};
+    await sbUpsert('fin_pratos',saved,saved._cliente||saved.categoria?.includes('440')?'440':'zeste',token);
+    setPratosRaw(p=>p.some(pr=>pr.id===saved.id)?p.map(pr=>pr.id===saved.id?saved:pr):[saved,...p]);
+  });};
   const delPrato=async id=>{await sync(async()=>{await sbDel('fin_pratos',id,token);setPratosRaw(p=>p.filter(pr=>pr.id!==id));});};
-  const saveFicha=async item=>{await sync(async()=>{await sbUpsert('fin_fichas',item,item._cliente||'zeste',token);setFichasRaw(p=>p.some(f=>f.id===item.id)?p.map(f=>f.id===item.id?item:f):[item,...p]);});};
+  const addHistory=(oldItem,who)=>{
+    if(!oldItem||!oldItem.id)return[];
+    const hist=(oldItem._historico||[]).slice(-19);
+    hist.push({...oldItem,_historico:undefined,_editadoPor:who,_editadoEm:new Date().toISOString()});
+    return hist;
+  };
+  const whoAmI=userInfo?.nome||userInfo?.email||clienteNome||'Admin';
+  const saveFicha=async item=>{await sync(async()=>{
+    const old=fichasRaw.find(f=>f.id===item.id);
+    const saved={...item,_historico:addHistory(old,whoAmI),_ultimaEdicao:whoAmI,_ultimaEdicaoEm:new Date().toISOString()};
+    await sbUpsert('fin_fichas',saved,saved._cliente||'zeste',token);
+    setFichasRaw(p=>p.some(f=>f.id===saved.id)?p.map(f=>f.id===saved.id?saved:f):[saved,...p]);
+  });};
   const delFicha=async id=>{await sync(async()=>{await sbDel('fin_fichas',id,token);setFichasRaw(p=>p.filter(f=>f.id!==id));});};
 
   if(loading)return(<><style>{STYLE}</style><div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--cinzaF)'}}><div style={{textAlign:'center'}}><div style={{fontFamily:'var(--ff)',fontSize:32,fontWeight:800,color:'var(--verde)'}}>ZESTE</div><div style={{color:'var(--cinzaE)',fontSize:13,marginTop:4}}>Carregando fichas técnicas…</div></div></div></>);
@@ -790,11 +842,12 @@ export default function Fichas({onBack,token}){
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px 0'}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           {onBack&&<button onClick={onBack} style={{color:'var(--lima)',fontSize:24,lineHeight:1,minWidth:36,minHeight:36,display:'flex',alignItems:'center'}}>‹</button>}
-          <div style={{display:'flex',alignItems:'baseline',gap:7}}><span style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:800,color:'var(--lima)'}}>ZESTE</span><span style={{fontSize:9,color:'var(--cinzaE)',letterSpacing:'.14em'}}>FICHAS TÉCNICAS</span></div>
+          <div style={{display:'flex',alignItems:'baseline',gap:7}}><span style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:800,color:'var(--lima)'}}>ZESTE</span><span style={{fontSize:9,color:'var(--cinzaE)',letterSpacing:'.14em'}}>{clienteNome?clienteNome.toUpperCase():'FICHAS TÉCNICAS'}</span></div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           {syncing&&<span style={{fontSize:10,color:'var(--lima)',fontFamily:'var(--ff)',fontWeight:700}}>SYNC…</span>}
           <button onClick={loadAll} style={{color:'var(--cinzaE)',fontSize:18,minWidth:36,minHeight:36,display:'flex',alignItems:'center',justifyContent:'center'}}>↻</button>
+          {onLogout&&<button onClick={onLogout} style={{color:'#888',fontSize:11,padding:'6px 12px',border:'1px solid #333',borderRadius:6,letterSpacing:'.06em',fontWeight:600,marginLeft:4}}>SAIR</button>}
         </div>
       </div>
       <nav className="ft-nav">{TABS.map((t,i)=>(<span key={t.id}>{i>0&&<div style={{width:1,background:'#252525',margin:'10px 0',flexShrink:0}}/>}<div className={`ft-tab${aba===t.id?' on':''}`} onClick={()=>setAba(t.id)}>{t.l}</div></span>))}</nav>
@@ -805,5 +858,10 @@ export default function Fichas({onBack,token}){
     {aba==='pratos'&&<TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter}/>}
     {aba==='producao'&&<TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes}/>}
     {aba==='estoque'&&<TabEstoque ingredientes={ingredientes} onSave={saveIngrediente}/>}
+    {histItem&&<HistoricoModal item={histItem} onClose={()=>setHistItem(null)} onRevert={async(v)=>{
+      const clean={...v,_historico:undefined,_editadoPor:undefined,_editadoEm:undefined};
+      if(histItem.componentes)await savePrato(clean);else await saveFicha(clean);
+      setHistItem(null);
+    }}/>}
   </>);
 }

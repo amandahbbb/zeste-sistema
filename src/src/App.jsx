@@ -521,7 +521,7 @@ export default function ZesteSistema() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user }}>
-        <Fichas onBack={() => setModulo("dashboard")} token={session.token} />
+        <Fichas onBack={() => setModulo("dashboard")} token={session.token} userInfo={{email:session.user?.email,nome:"Admin"}} />
       </AppCtx.Provider>
     </>
   );
