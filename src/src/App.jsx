@@ -328,43 +328,139 @@ function LoginScreen({ onLogin }) {
 // ── DASHBOARD ────────────────────────────────────────────────────
 function Dashboard() {
   const { token } = useApp();
-  const [stats, setStats] = useState({ clientes: 0, ativos: 0, leads: 0, posts: 0 });
-  const [clientes, setClientes] = useState([]);
-  const [loading, setLoad] = useState(true);
-  const statusColor = s => ({ Lead: "#555", Proposta: "#5b9fd4", Ativo: "#8FA715", Pausado: "#C4502B", Concluído: "#497A5D" }[s] || "#555");
+  const [d, setD] = useState({ clientes:[], lancs:[], ings:[], pratos:[], loading:true });
+  const mes = new Date().toISOString().slice(0, 7);
+  const brl = v => v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const pct = v => v==null||isNaN(v)?'—':(v*100).toFixed(1)+'%';
+
   useEffect(() => {
     (async () => {
-      const cl = await db.from("clientes").select("id,nome,status,created_at", token);
-      const po = await db.from("marketing_posts").select("id,status,data_planejada", token);
-      const mes = new Date().toISOString().slice(0, 7);
-      if (Array.isArray(cl)) {
-        setStats({ clientes: cl.length, ativos: cl.filter(c => c.status === "Ativo").length, leads: cl.filter(c => c.status === "Lead").length, posts: Array.isArray(po) ? po.filter(p => p.data_planejada?.startsWith(mes)).length : 0 });
-        setClientes(cl.slice(0, 6));
-      }
-      setLoad(false);
+      const [cl, ln, ig, pr] = await Promise.all([
+        db.from("clientes").select("id,nome,status,created_at", token),
+        fetch(SUPABASE_URL+"/rest/v1/fin_lancamentos?deleted_at=is.null&order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
+        fetch(SUPABASE_URL+"/rest/v1/fin_ingredientes?order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
+        fetch(SUPABASE_URL+"/rest/v1/fin_pratos?deleted_at=is.null&order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
+      ]);
+      setD({
+        clientes: Array.isArray(cl)?cl:[],
+        lancs: Array.isArray(ln)?ln.map(r=>r.dados||r):[],
+        ings: Array.isArray(ig)?ig.map(r=>r.dados||r):[],
+        pratos: Array.isArray(pr)?pr.map(r=>r.dados||r):[],
+        loading: false
+      });
     })();
   }, []);
-  const kpis = [["Total Clientes", stats.clientes, "#1A4F71"], ["Ativos", stats.ativos, "#8FA715"], ["Leads", stats.leads, "#497A5D"], ["Posts do mês", stats.posts, "#C4502B"]];
+
+  if(d.loading) return <div className="page-content"><div style={{textAlign:'center',padding:60,color:'#555'}}>Carregando dashboard…</div></div>;
+
+  // Financial calcs
+  const lancsMes = d.lancs.filter(l=>(l.dataDoc||'').startsWith(mes));
+  const recMes = lancsMes.filter(l=>l.tipo==='RECEITA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
+  const desMes = lancsMes.filter(l=>l.tipo==='DESPESA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
+  const resultado = recMes - desMes;
+  const reembolsos = d.lancs.filter(l=>l.reembolso==='PENDENTE');
+  const reembTotal = reembolsos.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
+  const aReceber = d.lancs.filter(l=>l.tipo==='RECEITA'&&l.status==='A RECEBER');
+  const aReceberTotal = aReceber.reduce((s,l)=>s+(+(l.vlrBruto||0)),0);
+  const previstos = d.lancs.filter(l=>l.tipo==='DESPESA'&&l.status==='PREVISTO');
+  const cartaoDesp = d.lancs.filter(l=>l.tipo==='DESPESA'&&l.cartaoNome&&(l.dataDoc||'').startsWith(mes));
+
+  // CMV calcs  
+  const pratosComPreco = d.pratos.filter(p=>p.precoVenda>0);
+  const cmvMedio = pratosComPreco.length>0?pratosComPreco.reduce((s,p)=>{const ct=(p.componentes||[]).reduce((a,c)=>a+((Number(c.qtdGramas)||0)/1000)*(c.custoPorKg||0),0);return s+(p.precoVenda>0?ct/p.precoVenda:0);},0)/pratosComPreco.length:0;
+
+  // Stock alerts
+  const estoqueBaixo = d.ings.filter(i=>i.estoqueMin>0&&(i.estoque||0)<i.estoqueMin);
+
+  // CRM
+  const clAtivos = d.clientes.filter(c=>c.status==='Ativo').length;
+  const clLeads = d.clientes.filter(c=>c.status==='Lead').length;
+
+  // Top despesas
+  const topDesp = lancsMes.filter(l=>l.tipo==='DESPESA').sort((a,b)=>(+(b.vlrPago||b.vlrBruto)||0)-(+(a.vlrPago||a.vlrBruto)||0)).slice(0,5);
+
+  // Last 3 months comparison
+  const meses3 = [0,1,2].map(i=>{const d2=new Date();d2.setMonth(d2.getMonth()-i);return d2.toISOString().slice(0,7);}).reverse();
+  const mesesData = meses3.map(m=>{const ml=d.lancs.filter(l=>(l.dataDoc||'').startsWith(m));return{m,rec:ml.filter(l=>l.tipo==='RECEITA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0),des:ml.filter(l=>l.tipo==='DESPESA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0)};});
+  const maxBar = Math.max(...mesesData.map(m=>Math.max(m.rec,m.des)),1);
+
+  const MESES_NOME = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const pendencias = reembolsos.length + aReceber.length + previstos.length + estoqueBaixo.length;
+
   return (
     <div className="page-content">
       <div className="page-header">
-        <div><h2 className="page-title">Dashboard</h2><div className="page-sub">Visão geral do negócio</div></div>
+        <div><h2 className="page-title">Dashboard</h2><div className="page-sub">Visão geral do negócio · {MESES_NOME[new Date().getMonth()]} {new Date().getFullYear()}</div></div>
       </div>
+
+      {/* KPIs */}
       <div className="kpi-grid">
-        {kpis.map(([l, v, c]) => (
-          <div key={l} className="kpi-card" style={{ borderLeftColor: c }}>
+        {[["Receitas do mês",brl(recMes),"#8FA715"],["Despesas do mês",brl(desMes),"#E8614B"],["Resultado",brl(resultado),resultado>=0?"#C5D943":"#E8614B"],["Clientes Ativos",clAtivos,"#1A4F71"],["CMV Médio",pct(cmvMedio),cmvMedio<.30?"#8FA715":cmvMedio<.35?"#B8860B":"#E8614B"]].map(([l,v,c])=>(
+          <div key={l} className="kpi-card" style={{borderLeftColor:c}}>
             <div className="kpi-label">{l}</div>
-            <div className="kpi-value" style={{ color: c }}>{loading ? "…" : v}</div>
+            <div className="kpi-value" style={{color:c}}>{v}</div>
           </div>
         ))}
       </div>
+
+      {/* Alertas */}
+      {pendencias>0&&<div className="card" style={{background:'#1a1710',border:'1px solid #3a3520'}}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#F59E0B',marginBottom:12}}>⚠️ PENDÊNCIAS — {pendencias} item{pendencias>1?'s':''}</div>
+        {reembolsos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><div style={{fontSize:13,color:'#F2EBD8'}}>💰 <strong>{reembolsos.length}</strong> reembolso{reembolsos.length>1?'s':''} pendente{reembolsos.length>1?'s':''}</div><div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#F59E0B'}}>{brl(reembTotal)}</div></div>}
+        {aReceber.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><div style={{fontSize:13,color:'#F2EBD8'}}>📥 <strong>{aReceber.length}</strong> receita{aReceber.length>1?'s':''} a receber</div><div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#8FA715'}}>{brl(aReceberTotal)}</div></div>}
+        {previstos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><div style={{fontSize:13,color:'#F2EBD8'}}>📋 <strong>{previstos.length}</strong> despesa{previstos.length>1?'s':''} prevista{previstos.length>1?'s':''}</div><div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#E8614B'}}>{brl(previstos.reduce((s,l)=>s+(+(l.vlrBruto||0)),0))}</div></div>}
+        {estoqueBaixo.length>0&&<div style={{padding:'8px 0'}}><div style={{fontSize:13,color:'#F2EBD8'}}>📦 <strong>{estoqueBaixo.length}</strong> ingrediente{estoqueBaixo.length>1?'s':''} com estoque baixo</div><div style={{fontSize:11,color:'#888',marginTop:4}}>{estoqueBaixo.slice(0,3).map(i=>i.nome).join(', ')}{estoqueBaixo.length>3?` +${estoqueBaixo.length-3}`:''}</div></div>}
+      </div>}
+
+      {/* Gráfico últimos 3 meses */}
       <div className="card">
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".09em", textTransform: "uppercase", color: "#555", marginBottom: 14 }}>Clientes recentes</div>
-        {clientes.length === 0 && !loading && <div style={{ color: "#555", fontSize: 13 }}>Nenhum cliente ainda.</div>}
-        {clientes.map(c => (
-          <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #2A2A2A" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#F2EBD8" }}>{c.nome}</div>
-            <span className="tag" style={{ background: statusColor(c.status) + "22", color: statusColor(c.status), border: `1px solid ${statusColor(c.status)}44` }}>{c.status}</span>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:14}}>RECEITA vs DESPESA — ÚLTIMOS 3 MESES</div>
+        <div style={{display:'flex',gap:16,alignItems:'flex-end',height:120}}>
+          {mesesData.map(m=>{const mn=MESES_NOME[parseInt(m.m.split('-')[1])-1];return(
+            <div key={m.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+              <div style={{display:'flex',gap:3,alignItems:'flex-end',width:'100%',justifyContent:'center',height:90}}>
+                <div style={{width:'40%',background:'#8FA715',borderRadius:'4px 4px 0 0',height:`${Math.max(4,m.rec/maxBar*80)}px`,transition:'height .5s'}}/>
+                <div style={{width:'40%',background:'#E8614B',borderRadius:'4px 4px 0 0',height:`${Math.max(4,m.des/maxBar*80)}px`,transition:'height .5s'}}/>
+              </div>
+              <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{mn}</div>
+            </div>
+          );})}
+        </div>
+        <div style={{display:'flex',gap:16,justifyContent:'center',marginTop:10}}>
+          <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#888'}}><div style={{width:10,height:10,borderRadius:2,background:'#8FA715'}}/>Receitas</div>
+          <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#888'}}><div style={{width:10,height:10,borderRadius:2,background:'#E8614B'}}/>Despesas</div>
+        </div>
+      </div>
+
+      {/* Cartão de crédito do mês */}
+      {cartaoDesp.length>0&&<div className="card">
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:14}}>💳 DESPESAS NO CARTÃO — {MESES_NOME[new Date().getMonth()]}</div>
+        {cartaoDesp.map(l=><div key={l.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #2A2A2A',alignItems:'center'}}>
+          <div><div style={{fontSize:13,fontWeight:600,color:'#F2EBD8'}}>{l.descricao}</div><div style={{fontSize:11,color:'#888',marginTop:2}}>{l.cartaoNome} {l.cartaoUlt4?`****${l.cartaoUlt4}`:''} {l.recorrente?'🔄':''}</div></div>
+          <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#E8614B'}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</div>
+        </div>)}
+        <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0 0',marginTop:4}}>
+          <span style={{fontSize:12,fontWeight:700,color:'#888'}}>Total cartão</span>
+          <span style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'#E8614B'}}>{brl(cartaoDesp.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0))}</span>
+        </div>
+      </div>}
+
+      {/* Top 5 despesas */}
+      {topDesp.length>0&&<div className="card">
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:14}}>TOP DESPESAS DO MÊS</div>
+        {topDesp.map((l,i)=><div key={l.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:i<topDesp.length-1?'1px solid #2A2A2A':'none',alignItems:'center'}}>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:'#F2EBD8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.descricao}</div><div style={{fontSize:11,color:'#888',marginTop:2}}>{l.categoria||''} · {l.pagador||''}</div></div>
+          <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#E8614B',flexShrink:0}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</div>
+        </div>)}
+      </div>}
+
+      {/* Clientes */}
+      <div className="card">
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:14}}>CLIENTES — {d.clientes.length} total · {clAtivos} ativos · {clLeads} leads</div>
+        {d.clientes.slice(0,6).map(c=>(
+          <div key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #2A2A2A'}}>
+            <div style={{fontSize:14,fontWeight:600,color:'#F2EBD8'}}>{c.nome}</div>
+            <span className="tag" style={{background:(({Lead:'#555',Proposta:'#5b9fd4',Ativo:'#8FA715',Pausado:'#C4502B',Concluído:'#497A5D'})[c.status]||'#555')+'22',color:({Lead:'#555',Proposta:'#5b9fd4',Ativo:'#8FA715',Pausado:'#C4502B',Concluído:'#497A5D'})[c.status]||'#555'}}>{c.status}</span>
           </div>
         ))}
       </div>
