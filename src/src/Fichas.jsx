@@ -842,7 +842,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px 0'}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           {onBack&&<button onClick={onBack} style={{color:'var(--lima)',fontSize:24,lineHeight:1,minWidth:36,minHeight:36,display:'flex',alignItems:'center'}}>‹</button>}
-          <div style={{display:'flex',alignItems:'baseline',gap:7}}><span style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:800,color:'var(--lima)'}}>ZESTE</span><span style={{fontSize:9,color:'var(--cinzaE)',letterSpacing:'.14em'}}>{clienteNome?clienteNome.toUpperCase():'FICHAS TÉCNICAS'}</span></div>
+          <div style={{display:'flex',alignItems:'baseline',gap:7}}><img src="/logo-icon.png" alt="Z" style={{height:24,width:'auto',marginRight:4}}/><span style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:800,color:'var(--lima)'}}>ZESTE</span><span style={{fontSize:9,color:'var(--cinzaE)',letterSpacing:'.14em'}}>{clienteNome?clienteNome.toUpperCase():'FICHAS TÉCNICAS'}</span></div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           {syncing&&<span style={{fontSize:10,color:'var(--lima)',fontFamily:'var(--ff)',fontWeight:700}}>SYNC…</span>}

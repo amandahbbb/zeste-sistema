@@ -181,13 +181,7 @@ function Sidebar({ modulo, setModulo, user, onLogout, collapsed, setCollapsed })
   return (
     <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
       <div className="sidebar-logo">
-        {!collapsed && <Logo small />}
-        {collapsed && (
-          <svg width="22" height="28" viewBox="0 0 44 56" fill="none">
-            <ellipse cx="22" cy="28" rx="19" ry="26" stroke="#8FA715" strokeWidth="2.5" />
-            <path d="M16 16 Q21 13 26 17 Q30 21 26 27 Q22 32 18 37 Q15 41 20 44 Q24 46 28 43" stroke="#8FA715" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-          </svg>
-        )}
+        <img src={collapsed?"/logo-icon.png":"/logo-zeste.png"} alt="Zeste" style={{height:collapsed?28:36,width:'auto',transition:'height .2s'}}/>
         <button onClick={() => setCollapsed(!collapsed)} style={{ color: "#555", fontSize: 14, padding: 4, marginLeft: collapsed ? 0 : 4 }}>
           {collapsed ? "›" : "‹"}
         </button>
@@ -225,7 +219,7 @@ function TopBar({ modulo, onMenu }) {
           <rect y="12" width="18" height="2" rx="1" fill="#888" />
         </svg>
       </button>
-      <div className="top-bar-title">{m?.icon} {m?.label}</div>
+      <div className="top-bar-title"><img src="/logo-icon.png" alt="Z" style={{height:20,marginRight:6,verticalAlign:'middle'}}/> {m?.label}</div>
       <div style={{ width: 36 }} />
     </div>
   );
