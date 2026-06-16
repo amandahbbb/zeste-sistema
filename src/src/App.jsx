@@ -153,7 +153,7 @@ function Logo({ small }) {
   const s = small ? 26 : 38;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <img src="/logo-icon.png" alt="Zeste" style={{ height: s * 1.25, width: "auto" }} />
+      <img src="/logo-icon-t.png" alt="Zeste" style={{ height: s * 1.25, width: "auto" }} />
       <div>
         <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: small ? 15 : 20, fontWeight: 800, letterSpacing: ".1em", color: "#F2EBD8" }}>ZESTE</div>
         {!small && <div style={{ fontSize: 9, color: "#555", letterSpacing: ".1em" }}>SISTEMA UNIFICADO</div>}
@@ -177,7 +177,7 @@ function Sidebar({ modulo, setModulo, user, onLogout, collapsed, setCollapsed })
   return (
     <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
       <div className="sidebar-logo">
-        <img src={collapsed?"/logo-icon.png":"/logo-zeste.png"} alt="Zeste" style={{height:collapsed?34:52,width:'auto',transition:'height .2s'}}/>
+        <img src={collapsed?"/logo-icon-t.png":"/logo-zeste.png"} alt="Zeste" style={{height:collapsed?34:52,width:'auto',transition:'height .2s'}}/>
         <button onClick={() => setCollapsed(!collapsed)} style={{ color: "#555", fontSize: 14, padding: 4, marginLeft: collapsed ? 0 : 4 }}>
           {collapsed ? "›" : "‹"}
         </button>
@@ -215,7 +215,7 @@ function TopBar({ modulo, onMenu }) {
           <rect y="12" width="18" height="2" rx="1" fill="#888" />
         </svg>
       </button>
-      <div className="top-bar-title"><img src="/logo-icon.png" alt="Z" style={{height:20,marginRight:6,verticalAlign:'middle'}}/> {m?.label}</div>
+      <div className="top-bar-title"><img src="/logo-icon-t.png" alt="Z" style={{height:20,marginRight:6,verticalAlign:'middle'}}/> {m?.label}</div>
       <div style={{ width: 36 }} />
     </div>
   );
