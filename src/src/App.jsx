@@ -153,11 +153,7 @@ function Logo({ small }) {
   const s = small ? 26 : 38;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <svg width={s} height={s * 1.3} viewBox="0 0 44 56" fill="none">
-        <ellipse cx="22" cy="28" rx="19" ry="26" stroke="#8FA715" strokeWidth="2" />
-        <path d="M16 16 Q21 13 26 17 Q30 21 26 27 Q22 32 18 37 Q15 41 20 44 Q24 46 28 43" stroke="#8FA715" strokeWidth="2" fill="none" strokeLinecap="round" />
-        <ellipse cx="20" cy="13" rx="3.5" ry="2" stroke="#8FA715" strokeWidth="1.4" fill="none" transform="rotate(-20 20 13)" />
-      </svg>
+      <img src="/logo-icon.png" alt="Zeste" style={{ height: s * 1.25, width: "auto" }} />
       <div>
         <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: small ? 15 : 20, fontWeight: 800, letterSpacing: ".1em", color: "#F2EBD8" }}>ZESTE</div>
         {!small && <div style={{ fontSize: 9, color: "#555", letterSpacing: ".1em" }}>SISTEMA UNIFICADO</div>}
@@ -181,7 +177,7 @@ function Sidebar({ modulo, setModulo, user, onLogout, collapsed, setCollapsed })
   return (
     <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
       <div className="sidebar-logo">
-        <img src={collapsed?"/logo-icon.png":"/logo-zeste.png"} alt="Zeste" style={{height:collapsed?28:36,width:'auto',transition:'height .2s'}}/>
+        <img src={collapsed?"/logo-icon.png":"/logo-zeste.png"} alt="Zeste" style={{height:collapsed?34:52,width:'auto',transition:'height .2s'}}/>
         <button onClick={() => setCollapsed(!collapsed)} style={{ color: "#555", fontSize: 14, padding: 4, marginLeft: collapsed ? 0 : 4 }}>
           {collapsed ? "›" : "‹"}
         </button>
