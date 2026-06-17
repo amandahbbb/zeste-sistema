@@ -416,17 +416,18 @@ function Dashboard() {
         ))}
       </div>
       {/* CRM PRIORIDADES */}
-      {crmPri.length>0&&<div className="card" style={{marginBottom:16}}>
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span>PRIORIDADES CRM</span>
-          <button onClick={()=>setModulo('comercial')} style={{fontSize:10,color:'#8FA715',fontWeight:700,background:'none',border:'none',cursor:'pointer',letterSpacing:'.06em'}}>VER TODOS →</button>
+      {crmPri.length>0&&<div onClick={()=>setModulo('comercial')} style={{marginBottom:16,background:'#1C2820',border:'1px solid #2C3A28',borderRadius:8,padding:16,cursor:'pointer'}} onMouseEnter={e=>e.currentTarget.style.borderColor='#8FA715'} onMouseLeave={e=>e.currentTarget.style.borderColor='#2C3A28'}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#8FA715',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span>📋 PRIORIDADES CRM</span>
+          <span style={{fontSize:10,color:'#8FA715',fontWeight:700,letterSpacing:'.06em'}}>VER TODOS →</span>
         </div>
-        {crmPri.map((ct,i)=>{const cor=STAGE_COR[ct.stage]||'#555';const ult=ct.historico?.slice(-1)[0];return(
-          <div key={ct._id||i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:i<crmPri.length-1?'1px solid #2A2A2A':'none'}}>
+        {crmPri.map((ct,i)=>{const cor=STAGE_COR[ct.stage]||'#555';const ult=ct.historico?.slice(-1)[0];const temData=ct.proximaReuniao;return(
+          <div key={ct._id||i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:i<crmPri.length-1?'1px solid #2C3A28':'none'}}>
             <div style={{width:3,alignSelf:'stretch',borderRadius:99,background:cor,flexShrink:0}}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:700,color:'#F2EBD8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ct.name||ct.company||'—'}</div>
-              <div style={{fontSize:11,color:'#888',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ct.company&&ct.name?ct.company:ct.segmento||''}{ult?` · ${ult.nota?.slice(0,40)||''}`:''}</div>
+              <div style={{fontSize:11,color:'#888',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ct.company&&ct.name?ct.company:ct.segmento||''}{ult&&!temData?' · '+ult.nota?.slice(0,35):''}</div>
+              {temData&&<div style={{fontSize:10,color:cor,fontWeight:700,marginTop:3}}>📅 {ct.tipoReuniao||'Reunião'} — {new Date(temData+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</div>}
             </div>
             <span style={{padding:'2px 7px',borderRadius:4,background:cor+'22',color:cor,fontSize:9,fontWeight:700,letterSpacing:'.06em',flexShrink:0}}>{STAGE_BADGE[ct.stage]||ct.stage}</span>
           </div>

@@ -301,7 +301,7 @@ const FICHA_FIELDS = [
   {key:"objetivo",label:"Objetivo com a Zeste",big:true},
   {key:"obs",label:"Observações Gerais",big:true},
 ];
-function makeEmpty(){return{id:Date.now(),name:"",company:"",stage:"Prospects",email:"",phone:"",segmento:"",endereco:"",bairro:"",regiao:"",diagChecklist:{},diagNotes:{},proximosPassos:{},ficha:{},historico:[]};}
+function makeEmpty(){return{id:Date.now(),name:"",company:"",stage:"Prospects",email:"",phone:"",segmento:"",endereco:"",bairro:"",regiao:"",proximaReuniao:"",tipoReuniao:"Reunião",diagChecklist:{},diagNotes:{},proximosPassos:{},ficha:{},historico:[]};}
 function getTotals(dc){const total=DIAG_BLOCKS.reduce((s,b)=>s+b.items.length,0);const done=DIAG_BLOCKS.reduce((s,b)=>s+b.items.filter(i=>dc?.[i.id]).length,0);return{total,done,pct:total===0?0:Math.round((done/total)*100)};}
 
 // ─── SHARED STYLES ────────────────────────────────────────────────────────────
@@ -352,6 +352,11 @@ function ContactCard({contact,onClick}){
       </div>
     </div>
     {ppActive.length>0&&<div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:3}}>{ppActive.map(pp=><span key={pp.id} style={{fontSize:10,padding:"2px 7px",borderRadius:20,background:`${meta.accent}22`,color:meta.accent,fontWeight:700}}>{pp.emoji} {pp.label}</span>)}</div>}
+    {contact.proximaReuniao&&<div style={{marginTop:7,display:"flex",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:`${meta.accent}15`,border:`1px solid ${meta.accent}33`}}>
+      <span style={{fontSize:10}}>📅</span>
+      <span style={{fontSize:10,fontWeight:700,color:meta.accent}}>{contact.tipoReuniao||'Reunião'}</span>
+      <span style={{fontSize:10,color:C.muted}}>{new Date(contact.proximaReuniao+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
+    </div>}
   </div>;
 }
 
@@ -398,6 +403,14 @@ function CRMModal({contact,onClose,onSave}){
         </div>
         <div style={{display:"flex",gap:4,marginTop:10,flexWrap:"wrap"}}>
           {STAGES.map(s=><button key={s} onClick={()=>set("stage",s)} style={{padding:"3px 9px",borderRadius:20,border:"1.5px solid rgba(255,255,255,0.3)",background:c.stage===s?"#fff":"transparent",color:c.stage===s?meta.accent:"#fff",fontSize:10,cursor:"pointer",fontWeight:700}}>{STAGE_META[s].icon} {s}</button>)}
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontWeight:700,whiteSpace:"nowrap"}}>📅 Próximo:</span>
+          <select value={c.tipoReuniao||"Reunião"} onChange={e=>set("tipoReuniao",e.target.value)} style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:6,color:"#fff",padding:"4px 8px",fontSize:11,cursor:"pointer",outline:"none"}}>
+            {["Reunião","Apresentação de Proposta","Follow-up","Visita","Call","Enviar Proposta","Fechar Contrato","Outro"].map(t=><option key={t} style={{background:"#1a1a1a"}}>{t}</option>)}
+          </select>
+          <input type="date" value={c.proximaReuniao||""} onChange={e=>set("proximaReuniao",e.target.value)} style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:6,color:"#fff",padding:"4px 8px",fontSize:11,outline:"none",cursor:"pointer"}}/>
+          {c.proximaReuniao&&<button onClick={()=>set("proximaReuniao","")} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:4,color:"rgba(255,255,255,0.6)",padding:"4px 7px",fontSize:11,cursor:"pointer"}}>✕</button>}
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",background:C.card,borderBottom:`2px solid ${C.border}`,flexShrink:0}}>
