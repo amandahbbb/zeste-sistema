@@ -320,6 +320,7 @@ function LoginScreen({ onLogin }) {
 function Dashboard() {
   const { token, user, setModulo } = useApp();
   const [d, setD] = useState({ clientes:[], lancs:[], ings:[], pratos:[], crm:[], loading:true });
+  const [crmReloading, setCrmReloading] = useState(false);
   const mes = new Date().toISOString().slice(0, 7);
   const brl = v => v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const brlShort = v => { if(v==null||isNaN(v)) return '—'; const n=Number(v); if(n>=1000) return 'R$'+(n/1000).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'k'; return 'R$'+n.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0}); };
@@ -338,6 +339,15 @@ function Dashboard() {
       setD({ clientes:Array.isArray(cl)?cl:[], lancs:Array.isArray(ln)?ln.map(r=>r.dados||r):[], ings:Array.isArray(ig)?ig.map(r=>r.dados||r):[], pratos:Array.isArray(pr)?pr.map(r=>r.dados||r):[], crm:Array.isArray(crm)?crm.map(r=>({...r.data,_id:r.id})):[], loading:false });
     })();
   }, []);
+
+  const reloadCrm = async () => {
+    setCrmReloading(true);
+    try {
+      const crmH2 = {"Content-Type":"application/json", apikey:SUPABASE_KEY, Authorization:`Bearer ${token||SUPABASE_KEY}`};
+      const crm = await fetch(SUPABASE_URL+"/rest/v1/crm_contatos?deleted_at=is.null&select=id,data",{headers:crmH2}).then(r=>r.json()).catch(()=>[]);
+      setD(prev=>({...prev, crm:Array.isArray(crm)?crm.map(r=>({...r.data,_id:r.id})):[]}));
+    } finally { setCrmReloading(false); }
+  };
 
   if(d.loading) return <div className="page-content"><div style={{textAlign:'center',padding:80,color:'#555',fontSize:13}}>Carregando…</div></div>;
 
@@ -419,7 +429,10 @@ function Dashboard() {
       {crmPri.length>0&&<div onClick={()=>setModulo('comercial')} style={{marginBottom:16,background:'#1C2820',border:'1px solid #2C3A28',borderRadius:8,padding:16,cursor:'pointer'}} onMouseEnter={e=>e.currentTarget.style.borderColor='#8FA715'} onMouseLeave={e=>e.currentTarget.style.borderColor='#2C3A28'}>
         <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#8FA715',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <span>📋 PRIORIDADES CRM</span>
-          <span style={{fontSize:10,color:'#8FA715',fontWeight:700,letterSpacing:'.06em'}}>VER TODOS →</span>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <button onClick={e=>{e.stopPropagation();reloadCrm();}} disabled={crmReloading} style={{background:'none',border:'none',color:'#8FA715',cursor:'pointer',fontSize:13,padding:0}} title="Atualizar">{crmReloading?'⟳':'↻'}</button>
+            <span style={{fontSize:10,color:'#8FA715',fontWeight:700,letterSpacing:'.06em'}}>VER TODOS →</span>
+          </div>
         </div>
         {crmPri.map((ct,i)=>{const cor=STAGE_COR[ct.stage]||'#555';const ult=ct.historico?.slice(-1)[0];const temData=ct.proximaReuniao;return(
           <div key={ct._id||i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:i<crmPri.length-1?'1px solid #2C3A28':'none'}}>
@@ -427,7 +440,7 @@ function Dashboard() {
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:700,color:'#F2EBD8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ct.name||ct.company||'—'}</div>
               <div style={{fontSize:11,color:'#888',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ct.company&&ct.name?ct.company:ct.segmento||''}{ult&&!temData?' · '+ult.nota?.slice(0,35):''}</div>
-              {temData&&<div style={{fontSize:10,color:cor,fontWeight:700,marginTop:3}}>📅 {ct.tipoReuniao||'Reunião'} — {new Date(temData+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</div>}
+              {temData&&<div style={{fontSize:10,color:cor,fontWeight:700,marginTop:3}}>📅 {ct.tipoReuniao||'Reunião'} — {new Date(temData+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}{ct.horarioReuniao?' às '+ct.horarioReuniao:''}</div>}
             </div>
             <span style={{padding:'2px 7px',borderRadius:4,background:cor+'22',color:cor,fontSize:9,fontWeight:700,letterSpacing:'.06em',flexShrink:0}}>{STAGE_BADGE[ct.stage]||ct.stage}</span>
           </div>

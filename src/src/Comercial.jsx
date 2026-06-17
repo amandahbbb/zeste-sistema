@@ -380,6 +380,8 @@ function CRMModal({contact,onClose,onSave}){
   const[c,setC]=useState(()=>JSON.parse(JSON.stringify(contact)));
   const[newNota,setNewNota]=useState({tipo:"Visita",nota:""});
   const[openBlock,setOpenBlock]=useState(null);
+  const[saving,setSaving]=useState(false);
+  const[saved,setSaved]=useState(false);
   const meta=STAGE_META[c.stage];
   const today=new Date().toLocaleDateString("pt-BR");
   const{total,done,pct}=getTotals(c.diagChecklist);
@@ -470,7 +472,7 @@ function CRMModal({contact,onClose,onSave}){
       </div>
       <div style={{padding:"11px 20px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8,background:C.card,flexShrink:0}}>
         <button onClick={onClose} style={{padding:"8px 18px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontSize:13,color:C.muted}}>Cancelar</button>
-        <button onClick={()=>onSave(c)} style={{padding:"8px 20px",borderRadius:7,border:"none",background:meta.accent,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700}}>Salvar</button>
+        <button onClick={async()=>{setSaving(true);setSaved(false);await onSave(c);setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2500);}} disabled={saving} style={{padding:"8px 20px",borderRadius:7,border:"none",background:saved?"#10B981":meta.accent,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,transition:"background .3s"}}>{saving?"Salvando…":saved?"✓ Salvo!":"Salvar"}</button>
       </div>
     </div>
   </div>;
@@ -512,8 +514,15 @@ function CRMView(){
   useEffect(()=>{reload();const t=setInterval(reload,60000);return()=>clearInterval(t);},[]);
 
   const saveContact=async(u)=>{
-    try{const sbid=await sbUpsert(u,token);setContacts(prev=>prev.map(c=>c._sbid===u._sbid?{...u,_sbid:sbid}:c));}catch(e){console.error(e);}
-    setSelected(null);
+    try{
+      const sbid=await sbUpsert(u,token);
+      setContacts(prev=>prev.map(c=>c._sbid===u._sbid?{...u,_sbid:sbid}:c));
+      // Confirm persist: reload from Supabase after a short delay
+      setTimeout(()=>reload(),800);
+    }catch(e){
+      console.error('Erro ao salvar:',e);
+      alert('Erro ao salvar. Verifique a conexão e tente novamente.');
+    }
   };
   const addContact=async(c)=>{
     try{const sbid=await sbUpsert(c,token);setContacts(prev=>[...prev,{...c,_sbid:sbid}]);}catch(e){console.error(e);}
