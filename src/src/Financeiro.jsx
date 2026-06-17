@@ -73,6 +73,7 @@ input[type=file]{display:none}button{cursor:pointer;border:none;background:none}
 @keyframes fi{from{opacity:0}to{opacity:1}}
 .au{animation:up .2s ease}.af{animation:fi .18s ease}
 .sync-bar{height:2px;background:var(--lima);position:fixed;top:0;left:0;z-index:999;transition:width .3s}
+select{color-scheme:light}select option{background:var(--branco)!important;color:var(--preto)!important}
 `;
 
 // ── CONSTANTES ────────────────────────────────────────────────────
@@ -161,6 +162,13 @@ function FormL({init,onSave,onClose}){
       </div>
       <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:4}}>{f.natureza==='DESPESA FIXA'?'Recorrente, independe do volume':f.natureza==='DESPESA VARIÁVEL'?'Custo direto da entrega':'Gera retorno futuro'}</div>
     </Fld>)}
+    {f.tipo==='DESPESA'&&<Fld label="Recorrente?">
+      <div style={{display:'flex',gap:8}}>
+        <button type="button" onClick={()=>S('recorrente',false)} style={{flex:1,padding:'9px 12px',borderRadius:6,border:'1.5px solid '+(f.recorrente?'var(--cinzaM)':'var(--lima)'),background:f.recorrente?'transparent':'var(--lima)',color:f.recorrente?'var(--cinzaE)':'var(--preto)',fontWeight:700,fontSize:13,minHeight:40}}>Compra única</button>
+        <button type="button" onClick={()=>S('recorrente',true)} style={{flex:1,padding:'9px 12px',borderRadius:6,border:'1.5px solid '+(f.recorrente?'var(--lima)':'var(--cinzaM)'),background:f.recorrente?'var(--lima)':'transparent',color:f.recorrente?'var(--preto)':'var(--cinzaE)',fontWeight:700,fontSize:13,minHeight:40}}>🔄 Todo mês</button>
+      </div>
+      {f.recorrente&&<div style={{marginTop:5,fontSize:11,color:'var(--verde)',fontWeight:600}}>✓ Vai aparecer todo mês no resumo de recorrências</div>}
+    </Fld>}
     <Fld label="Descrição"><input required value={f.descricao} onChange={e=>S('descricao',e.target.value)} placeholder="Ex: Consultoria operacional cliente X"/></Fld>
     <Fld label="Cliente / Fornecedor" h><input value={f.clienteFornecedor} onChange={e=>S('clienteFornecedor',e.target.value)} placeholder="Nome"/></Fld>
     <Fld label="Projeto" h><input value={f.projeto} onChange={e=>S('projeto',e.target.value)} placeholder="Projeto"/></Fld>
