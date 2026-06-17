@@ -399,7 +399,7 @@ function Dashboard() {
   return (
     <div className="page-content">
       <div style={{marginBottom:24}}>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:'#F2EBD8',letterSpacing:'.02em'}}>{saudacaoFinal}{nomeExibido?\`, ${nomeExibido}!`:''}</div>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:'#F2EBD8',letterSpacing:'.02em'}}>{saudacaoFinal}{nomeExibido?', '+nomeExibido+'!':''}</div>
         <div style={{fontSize:12,color:'#555',marginTop:2}}>{dataStr}</div>
       </div>
       <div className="kpi-grid" style={{marginBottom:16}}>
@@ -442,7 +442,7 @@ function Dashboard() {
         {reembolsos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><span style={{fontSize:13,color:'#F2EBD8'}}>💰 <b>{reembolsos.length}</b> reembolso pendente</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:'#F59E0B'}}>{brl(reembTotal)}</span></div>}
         {aReceber.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><span style={{fontSize:13,color:'#F2EBD8'}}>📥 <b>{aReceber.length}</b> a receber</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:'#8FA715'}}>{brl(aReceberTotal)}</span></div>}
         {previstos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><span style={{fontSize:13,color:'#F2EBD8'}}>📋 <b>{previstos.length}</b> despesa prevista</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:'#E8614B'}}>{brl(previstos.reduce((s,l)=>s+(+(l.vlrBruto||0)),0))}</span></div>}
-        {estoqueBaixo.length>0&&<div style={{padding:'7px 0'}}><span style={{fontSize:13,color:'#F2EBD8'}}>📦 <b>{estoqueBaixo.length}</b> estoque baixo</span><div style={{fontSize:11,color:'#888',marginTop:3}}>{estoqueBaixo.slice(0,3).map(i=>i.nome).join(', ')}{estoqueBaixo.length>3?\` +${estoqueBaixo.length-3}`:''}</div></div>}
+        {estoqueBaixo.length>0&&<div style={{padding:'7px 0'}}><span style={{fontSize:13,color:'#F2EBD8'}}>📦 <b>{estoqueBaixo.length}</b> estoque baixo</span><div style={{fontSize:11,color:'#888',marginTop:3}}>{estoqueBaixo.slice(0,3).map(i=>i.nome).join(', ')}{estoqueBaixo.length>3?' +'+estoqueBaixo.length-3:''}</div></div>}
       </div>}
       <div className="card" style={{marginBottom:16}}>
         <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:16}}>RECEITA vs DESPESA — ÚLTIMOS 3 MESES</div>
