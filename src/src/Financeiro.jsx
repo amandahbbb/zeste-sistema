@@ -74,6 +74,7 @@ input[type=file]{display:none}button{cursor:pointer;border:none;background:none}
 .au{animation:up .2s ease}.af{animation:fi .18s ease}
 .sync-bar{height:2px;background:var(--lima);position:fixed;top:0;left:0;z-index:999;transition:width .3s}
 select{color-scheme:light}select option{background:var(--branco)!important;color:var(--preto)!important}
+@media(max-width:600px){.prev-grid{grid-template-columns:1fr!important}}
 `;
 
 // ── CONSTANTES ────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ function FeeCalc({forma,vlrBruto,tipo}){if(tipo!=='RECEITA'||!vlrBruto||+vlrBrut
 function Anexos({anexos=[],onChange}){const ref=useRef();const[prev,setPrev]=useState(null);const add=async(files)=>{const p=await Promise.all(Array.from(files).map(compressImg));onChange([...anexos,...p]);};return(<div><div className="att-grid">{anexos.map((a,i)=>(<div key={i} style={{position:'relative'}}>{a.type==='image'?<img src={a.data} className="att-thumb" alt="" onClick={()=>setPrev(a)}/>:<div className="att-pdf" onClick={()=>setPrev(a)}><span style={{fontSize:22}}>📄</span><span style={{fontSize:9,color:'var(--cinzaE)'}}>{(a.name||'').slice(0,10)}</span></div>}<button onClick={()=>onChange(anexos.filter((_,j)=>j!==i))} style={{position:'absolute',top:-6,right:-6,width:20,height:20,borderRadius:'50%',background:'var(--coral)',color:'var(--branco)',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button></div>))}<div className="att-add" onClick={()=>ref.current.click()}><span style={{fontSize:22}}>📎</span><span>Anexo</span></div></div><input ref={ref} type="file" accept="image/*,application/pdf" capture="environment" multiple onChange={e=>add(e.target.files)}/>{prev&&(<Modal title={prev.name||'Comprovante'} onClose={()=>setPrev(null)}>{prev.type==='image'?<img src={prev.data} style={{width:'100%',borderRadius:8}} alt=""/>:<div style={{textAlign:'center',padding:32}}><span style={{fontSize:48}}>📄</span><p style={{marginTop:10,color:'var(--cinzaE)',marginBottom:14}}>{prev.name}</p><a href={prev.data} download={prev.name||'comprovante.pdf'} style={{color:'var(--azul)',fontWeight:600}}>⬇ Baixar PDF</a></div>}</Modal>)}</div>);}
 
 // ── FORM LANÇAMENTO ───────────────────────────────────────────────
-const EL={status:'PAGO',tipo:'DESPESA',natureza:'DESPESA FIXA',dataDoc:td(),categoria:'OUTROS',subcategoria:'OUTROS',descricao:'',clienteFornecedor:'',projeto:'',competencia:'',forma:'PIX',vlrBruto:'',taxaPct:0,vlrTaxa:0,vlrLiquido:'',dataPrevista:td(),vlrPago:'',dataPago:td(),pagador:'ZESTE',reembolso:'',obs:'',anexos:[],cartao:'',cartaoNome:'',cartaoBandeira:'',cartaoUlt4:'',cartaoTitular:'',cartaoDiaFecha:'',cartaoDiaVence:'',recorrente:false,parcelaAtual:'',parcelaTotal:''};
+const EL={status:'PAGO',tipo:'DESPESA',natureza:'DESPESA FIXA',dataDoc:td(),categoria:'OUTROS',subcategoria:'OUTROS',descricao:'',clienteFornecedor:'',projeto:'',competencia:'',forma:'PIX',vlrBruto:'',taxaPct:0,vlrTaxa:0,vlrLiquido:'',dataPrevista:td(),vlrPago:'',dataPago:td(),pagador:'ZESTE',reembolso:'',obs:'',anexos:[],cartao:'',cartaoNome:'',cartaoBandeira:'',cartaoUlt4:'',cartaoTitular:'',cartaoDiaFecha:'',cartaoDiaVence:'',recorrente:false,recorrenciaFreq:'mensal',parcelaAtual:'',parcelaTotal:''};
 
 function FormL({init,onSave,onClose}){
   const[f,setF]=useState(()=>({...EL,...(init||{}),id:(init?.id||uid())}));
@@ -163,11 +164,21 @@ function FormL({init,onSave,onClose}){
       <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:4}}>{f.natureza==='DESPESA FIXA'?'Recorrente, independe do volume':f.natureza==='DESPESA VARIÁVEL'?'Custo direto da entrega':'Gera retorno futuro'}</div>
     </Fld>)}
     {f.tipo==='DESPESA'&&<Fld label="Recorrente?">
-      <div style={{display:'flex',gap:8}}>
+      <div style={{display:'flex',gap:8,marginBottom:f.recorrente?8:0}}>
         <button type="button" onClick={()=>S('recorrente',false)} style={{flex:1,padding:'9px 12px',borderRadius:6,border:'1.5px solid '+(f.recorrente?'var(--cinzaM)':'var(--lima)'),background:f.recorrente?'transparent':'var(--lima)',color:f.recorrente?'var(--cinzaE)':'var(--preto)',fontWeight:700,fontSize:13,minHeight:40}}>Compra única</button>
-        <button type="button" onClick={()=>S('recorrente',true)} style={{flex:1,padding:'9px 12px',borderRadius:6,border:'1.5px solid '+(f.recorrente?'var(--lima)':'var(--cinzaM)'),background:f.recorrente?'var(--lima)':'transparent',color:f.recorrente?'var(--preto)':'var(--cinzaE)',fontWeight:700,fontSize:13,minHeight:40}}>🔄 Todo mês</button>
+        <button type="button" onClick={()=>S('recorrente',true)} style={{flex:1,padding:'9px 12px',borderRadius:6,border:'1.5px solid '+(f.recorrente?'var(--lima)':'var(--cinzaM)'),background:f.recorrente?'var(--lima)':'transparent',color:f.recorrente?'var(--preto)':'var(--cinzaE)',fontWeight:700,fontSize:13,minHeight:40}}>🔄 Recorrente</button>
       </div>
-      {f.recorrente&&<div style={{marginTop:5,fontSize:11,color:'var(--verde)',fontWeight:600}}>✓ Vai aparecer todo mês no resumo de recorrências</div>}
+      {f.recorrente&&<>
+        <select value={f.recorrenciaFreq||'mensal'} onChange={e=>S('recorrenciaFreq',e.target.value)} style={{width:'100%',marginBottom:5}}>
+          <option value="semanal">📅 Semanal (toda semana)</option>
+          <option value="quinzenal">📅 Quinzenal (a cada 15 dias)</option>
+          <option value="mensal">📅 Mensal (todo mês)</option>
+          <option value="trimestral">📅 Trimestral (a cada 3 meses)</option>
+          <option value="semestral">📅 Semestral (a cada 6 meses)</option>
+          <option value="anual">📅 Anual (uma vez por ano)</option>
+        </select>
+        <div style={{fontSize:11,color:'var(--verde)',fontWeight:600}}>✓ Projetado automaticamente na aba Previsões</div>
+      </>}
     </Fld>}
     <Fld label="Descrição"><input required value={f.descricao} onChange={e=>S('descricao',e.target.value)} placeholder="Ex: Consultoria operacional cliente X"/></Fld>
     <Fld label="Cliente / Fornecedor" h><input value={f.clienteFornecedor} onChange={e=>S('clienteFornecedor',e.target.value)} placeholder="Nome"/></Fld>
@@ -452,6 +463,243 @@ function Clientes({clientes,onSave,onDelete,openNew}){
   </div>{modal&&<Modal title={modal==='new'?'Novo Cliente':'Editar Cliente'} onClose={()=>setModal(null)}><FormC init={modal!=='new'?modal:null} onSave={save} onClose={()=>setModal(null)}/></Modal>}{del&&<DelModal msg="Excluir este cliente?" onConfirm={()=>{onDelete(del);setDel(null);}} onClose={()=>setDel(null)}/>}</div>);
 }
 
+// ── PREVISÕES ─────────────────────────────────────────────────────
+const FREQ_DIAS = {semanal:7,quinzenal:15,mensal:30,trimestral:91,semestral:182,anual:365};
+const FREQ_LABEL = {semanal:'Semanal',quinzenal:'Quinzenal',mensal:'Mensal',trimestral:'Trimestral',semestral:'Semestral',anual:'Anual'};
+
+function gerarProjecoes(lancamentos, horizonte=90){
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const fim = new Date(hoje); fim.setDate(fim.getDate()+horizonte);
+  const recorrentes = lancamentos.filter(l=>l.recorrente&&l.status!=='CANCELADO');
+  const projetados=[];
+  for(const l of recorrentes){
+    const freq = FREQ_DIAS[l.recorrenciaFreq||'mensal'];
+    if(!l.dataDoc) continue;
+    let base = new Date(l.dataDoc+'T12:00:00');
+    // Avança até hoje ou depois
+    while(base < hoje) base = new Date(base.getTime()+freq*86400000);
+    // Gera ocorrências até o horizonte
+    while(base <= fim){
+      const isoDate = base.toISOString().slice(0,10);
+      const jaCobre = lancamentos.some(p=>
+        p.id!==l.id&&p.tipo===l.tipo&&
+        (p.status==='PAGO'||p.status==='RECEBIDO'||p.status==='PREVISTO'||p.status==='A RECEBER')&&
+        p.dataDoc===isoDate&&
+        (p.descricao||'').toLowerCase()===(l.descricao||'').toLowerCase()
+      );
+      if(!jaCobre) projetados.push({
+        ...l, id:l.id+'_proj_'+isoDate, dataDoc:isoDate,
+        status:l.tipo==='RECEITA'?'A RECEBER':'PREVISTO',
+        _projetado:true, _freqLabel:FREQ_LABEL[l.recorrenciaFreq||'mensal']
+      });
+      base = new Date(base.getTime()+freq*86400000);
+    }
+  }
+  return projetados;
+}
+
+function FluxoChart({pontos}){
+  if(!pontos||pontos.length<2) return null;
+  const vals = pontos.map(p=>p.saldo);
+  const minV = Math.min(...vals,0);
+  const maxV = Math.max(...vals,1);
+  const range = maxV-minV||1;
+  const W=340,H=90,PL=8,PT=8,PB=20,PR=8;
+  const w=W-PL-PR, h=H-PT-PB;
+  const x=i=>(PL+i/(pontos.length-1)*w);
+  const y=v=>(PT+h-(v-minV)/range*h);
+  const pts = pontos.map((_,i)=>x(i)+','+y(vals[i])).join(' ');
+  const isPos = v=>v>=0;
+  return(
+    <svg viewBox={'0 0 '+W+' '+H} style={{width:'100%',height:H,display:'block'}}>
+      {/* Zero line */}
+      {minV<0&&maxV>0&&<line x1={PL} y1={y(0)} x2={W-PR} y2={y(0)} stroke="var(--cinzaM)" strokeWidth="1" strokeDasharray="3,3"/>}
+      {/* Fill */}
+      <polygon points={[PL+','+y(0),...pontos.map((_,i)=>x(i)+','+y(vals[i])),W-PR+','+y(0)].join(' ')} fill={isPos(vals[vals.length-1])?'rgba(45,110,71,.15)':'rgba(232,97,75,.1)'}/>
+      {/* Line */}
+      <polyline points={pts} fill="none" stroke={isPos(vals[vals.length-1])?'var(--verde)':'var(--coral)'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+      {/* Points */}
+      {pontos.map((p,i)=><circle key={i} cx={x(i)} cy={y(vals[i])} r="3.5" fill={isPos(vals[i])?'var(--verde)':'var(--coral)'} stroke="var(--branco)" strokeWidth="1.5"/>)}
+      {/* Labels */}
+      {pontos.map((p,i)=><text key={'l'+i} x={x(i)} y={H-4} textAnchor="middle" fontSize="9" fill="var(--cinzaE)" fontFamily="var(--ff)">{p.label}</text>)}
+    </svg>
+  );
+}
+
+function Previsoes({lancamentos,setAba}){
+  const [horizonte,setHorizonte] = useState(90);
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const hojeStr = hoje.toISOString().slice(0,10);
+
+  // Saldo atual real
+  const saldoAtual = lancamentos.reduce((s,l)=>{
+    if(l.status==='RECEBIDO'||l.status==='PAGO'){
+      const v=+(l.vlrPago||l.vlrLiquido||l.vlrBruto)||0;
+      return s+(l.tipo==='RECEITA'?v:-v);
+    }
+    return s;
+  },0);
+
+  // Projeções de recorrentes
+  const projetados = gerarProjecoes(lancamentos, horizonte);
+
+  // Todos os futuros (confirmados + projetados)
+  const futuroConf = lancamentos.filter(l=>
+    (l.status==='A RECEBER'||l.status==='PREVISTO')&&l.dataDoc>=hojeStr
+  );
+  const todosFuturos = [...futuroConf,...projetados];
+
+  // Calcular saldo em N dias
+  const saldoEm = dias => {
+    const cutoff = new Date(hoje); cutoff.setDate(cutoff.getDate()+dias);
+    const cutStr = cutoff.toISOString().slice(0,10);
+    const delta = todosFuturos
+      .filter(l=>(l.dataDoc||'')<= cutStr)
+      .reduce((s,l)=>{const v=+(l.vlrBruto||l.vlrPago)||0;return s+(l.tipo==='RECEITA'?v:-v);},0);
+    return saldoAtual+delta;
+  };
+
+  const s30=saldoEm(30),s60=saldoEm(60),s90=saldoEm(90);
+
+  // Pontos para gráfico (hoje + 2w + 4w + 6w + 8w + 12w)
+  const PONTOS=[{d:0,l:'Hoje'},{d:15,l:'15d'},{d:30,l:'30d'},{d:45,l:'45d'},{d:60,l:'60d'},{d:90,l:'90d'}];
+  const chartPts = PONTOS.map(p=>({label:p.l,saldo:saldoEm(p.d)}));
+
+  // Agrupar futuros por semana/data
+  const todasEntradas = todosFuturos.filter(l=>l.tipo==='RECEITA').sort((a,b)=>(a.dataDoc||'').localeCompare(b.dataDoc||''));
+  const todasSaidas   = todosFuturos.filter(l=>l.tipo==='DESPESA').sort((a,b)=>(a.dataDoc||'').localeCompare(b.dataDoc||''));
+
+  const totalEntradas = todasEntradas.reduce((s,l)=>s+(+(l.vlrBruto||l.vlrPago)||0),0);
+  const totalSaidas   = todasSaidas.reduce((s,l)=>s+(+(l.vlrBruto||l.vlrPago)||0),0);
+  const nRecorr = projetados.length;
+
+  const isAtrasado = d=>{try{return d<hojeStr;}catch{return false;}};
+  const fmtDt = d=>{
+    if(!d) return 'Sem data';
+    try{
+      const diff=Math.round((new Date(d+'T12:00:00')-hoje)/86400000);
+      const label=new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
+      if(diff<0) return label+' ⚠ ATRASADO';
+      if(diff===0) return label+' · HOJE';
+      if(diff===1) return label+' · amanhã';
+      if(diff<=7) return label+' · em '+diff+'d';
+      return label;
+    }catch{return d;}
+  };
+
+  const agruparPorData = items => items.reduce((acc,l)=>{
+    const k=l.dataDoc||'sem-data';
+    if(!acc[k]) acc[k]=[];
+    acc[k].push(l);
+    return acc;
+  },{});
+
+  const ItemRow = ({l,tipo})=>{
+    const vlr=+(l.vlrBruto||l.vlrPago)||0;
+    const atrasado=isAtrasado(l.dataDoc);
+    return(
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 14px',borderBottom:'1px solid var(--cinzaF)',gap:8,background:atrasado?'#FFF5F5':'transparent'}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap',marginBottom:2}}>
+            {l._projetado&&<span style={{fontSize:9,background:'#EEF5E0',color:'var(--verde)',borderRadius:3,padding:'1px 5px',fontWeight:700}}>🔄 {l._freqLabel}</span>}
+            {atrasado&&<span style={{fontSize:9,background:'#FEE2E2',color:'var(--coral)',borderRadius:3,padding:'1px 5px',fontWeight:700}}>ATRASADO</span>}
+            <span style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.descricao}</span>
+          </div>
+          <div style={{fontSize:11,color:'var(--cinzaE)'}}>{l.categoria||''}{l.clienteFornecedor?' · '+l.clienteFornecedor:''}{l.cartaoNome?' · 💳 '+l.cartaoNome:''}</div>
+        </div>
+        <span style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:tipo==='entrada'?'var(--verde)':'var(--coral)',flexShrink:0}}>{tipo==='entrada'?'+':'-'}{brl(vlr)}</span>
+      </div>
+    );
+  };
+
+  const GrupoData = ({data,items,tipo})=>(
+    <div>
+      <div style={{padding:'5px 14px',background:'var(--cinzaF)',display:'flex',alignItems:'center',gap:7}}>
+        <div style={{width:7,height:7,borderRadius:'50%',background:isAtrasado(data)?'var(--coral)':tipo==='entrada'?'var(--verde)':'var(--amarelo)'}}/>
+        <span style={{fontFamily:'var(--ff)',fontSize:10,fontWeight:700,color:isAtrasado(data)?'var(--coral)':'var(--cinzaE)',letterSpacing:'.07em'}}>{fmtDt(data).toUpperCase()}</span>
+      </div>
+      {items.map((l,i)=><ItemRow key={l.id+i} l={l} tipo={tipo}/>)}
+    </div>
+  );
+
+  const entradasGrupo = agruparPorData(todasEntradas);
+  const saidasGrupo   = agruparPorData(todasSaidas);
+
+  return(<div className="au page">
+    <div className="pc" style={{paddingTop:12}}>
+
+      {/* SELETOR DE HORIZONTE */}
+      <div style={{display:'flex',gap:7,marginBottom:14}}>
+        {[30,60,90].map(d=>(
+          <button key={d} onClick={()=>setHorizonte(d)} style={{flex:1,padding:'8px 0',borderRadius:7,border:'1.5px solid '+(horizonte===d?'var(--lima)':'var(--cinzaM)'),background:horizonte===d?'var(--lima)':'transparent',color:horizonte===d?'var(--preto)':'var(--cinzaE)',fontFamily:'var(--ff)',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+            {d} dias
+          </button>
+        ))}
+      </div>
+
+      {/* FLUXO DE CAIXA 30/60/90 */}
+      <div className="card" style={{padding:0,overflow:'hidden',marginBottom:16}}>
+        <div style={{padding:'14px 16px 10px',borderBottom:'1px solid var(--cinzaF)'}}>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:8}}>FLUXO DE CAIXA PROJETADO</div>
+          <FluxoChart pontos={chartPts}/>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr'}}>
+          {[['Hoje',saldoAtual,'var(--preto)'],['30 dias',s30,s30>=0?'var(--verde)':'var(--coral)'],['60 dias',s60,s60>=0?'var(--verde)':'var(--coral)'],['90 dias',s90,s90>=0?'var(--verde)':'var(--coral)']].map(([l,v,col])=>(
+            <div key={l} style={{padding:'12px 14px',borderRight:'1px solid var(--cinzaF)'}}>
+              <div style={{fontSize:9,fontWeight:700,letterSpacing:'.08em',color:'var(--cinzaE)',marginBottom:5}}>{l}</div>
+              <div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:col,lineHeight:1}}>{brl(v)}</div>
+              {l!=='Hoje'&&<div style={{fontSize:9,color:v>=saldoAtual?'var(--verde)':'var(--coral)',marginTop:3,fontWeight:600}}>{v>=saldoAtual?'↑':v===saldoAtual?'→':'↓'} {brl(Math.abs(v-saldoAtual))}</div>}
+            </div>
+          ))}
+        </div>
+        {nRecorr>0&&<div style={{padding:'8px 16px',background:'#F0F7E6',fontSize:11,color:'var(--verde)',fontWeight:600}}>
+          🔄 {nRecorr} recorrência{nRecorr!==1?'s':''} projetada{nRecorr!==1?'s':''} automaticamente nos próximos {horizonte} dias
+        </div>}
+      </div>
+
+      {/* RESUMO ENTRADAS vs SAÍDAS */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+        <div className="card" style={{padding:'12px 14px'}}>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:5}}>ENTRADAS PREVISTAS</div>
+          <div style={{fontFamily:'var(--ff)',fontSize:19,fontWeight:700,color:'var(--verde)'}}>{brl(totalEntradas)}</div>
+          <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:3}}>{todasEntradas.length} item{todasEntradas.length!==1?'s':''}</div>
+        </div>
+        <div className="card" style={{padding:'12px 14px'}}>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:5}}>SAÍDAS PREVISTAS</div>
+          <div style={{fontFamily:'var(--ff)',fontSize:19,fontWeight:700,color:'var(--coral)'}}>{brl(totalSaidas)}</div>
+          <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:3}}>{todasSaidas.length} item{todasSaidas.length!==1?'s':''}</div>
+        </div>
+      </div>
+
+      {/* TIMELINE LADO A LADO */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}} className="prev-grid">
+        <div>
+          <SH>Entradas previstas</SH>
+          <div className="card" style={{padding:0,overflow:'hidden',marginBottom:16}}>
+            {todasEntradas.length===0
+              ?<div style={{padding:'28px 16px',textAlign:'center',color:'var(--cinzaE)',fontSize:13,fontStyle:'italic'}}>Nenhuma entrada prevista</div>
+              :Object.entries(entradasGrupo).map(([dt,items])=><GrupoData key={dt} data={dt} items={items} tipo="entrada"/>)
+            }
+          </div>
+        </div>
+        <div>
+          <SH>Saídas previstas</SH>
+          <div className="card" style={{padding:0,overflow:'hidden',marginBottom:16}}>
+            {todasSaidas.length===0
+              ?<div style={{padding:'28px 16px',textAlign:'center',color:'var(--cinzaE)',fontSize:13,fontStyle:'italic'}}>Nenhuma saída prevista</div>
+              :Object.entries(saidasGrupo).map(([dt,items])=><GrupoData key={dt} data={dt} items={items} tipo="saida"/>)
+            }
+          </div>
+        </div>
+      </div>
+
+      <div style={{textAlign:'center',marginBottom:20}}>
+        <button onClick={()=>setAba('lancamentos')} style={{background:'var(--verde)',color:'#fff',border:'none',borderRadius:8,padding:'11px 24px',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Adicionar lançamento previsto</button>
+      </div>
+    </div>
+  </div>);
+}
+
 // ── ROOT ──────────────────────────────────────────────────────────
 export default function Financeiro({onBack,token}){
   const[lancamentos,setLancamentos]=useState([]);
@@ -482,7 +730,7 @@ export default function Financeiro({onBack,token}){
   const saveCliente=async item=>{await sync(async()=>{await sbUpsert('fin_clientes',item,token);setClientes(p=>p.some(c=>c.id===item.id)?p.map(c=>c.id===item.id?item:c):[item,...p]);});};
   const delCliente=async id=>{await sync(async()=>{await sbSoftDel('fin_clientes',id,token);setClientes(p=>p.filter(c=>c.id!==id));});};
 
-  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'clientes',l:'CLIENTES'}];
+  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'previsoes',l:'PREVISÕES'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'clientes',l:'CLIENTES'}];
   const fab=()=>{if(aba==='lancamentos')nL.current();else if(aba==='clientes')nC.current();else{setAba('lancamentos');setTimeout(()=>nL.current(),200);}};
 
   if(loading)return(<><style>{STYLE}</style><div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--cinzaF)'}}><div style={{textAlign:'center'}}><div style={{fontFamily:'var(--ff)',fontSize:32,fontWeight:800,color:'var(--verde)',letterSpacing:'.06em'}}>ZESTE</div><div style={{color:'var(--cinzaE)',fontSize:13,marginTop:4}}>Carregando do banco de dados…</div></div></div></>);
@@ -504,6 +752,7 @@ export default function Financeiro({onBack,token}){
       <nav className="nav">{ABAS.map((a,i)=>(<span key={a.id}>{i>0&&<div className="nav-sep"/>}<div className={`nav-item${aba===a.id?' on':''}`} onClick={()=>setAba(a.id)}>{a.l}</div></span>))}</nav>
     </div>
     {aba==='resumo'&&<Resumo lancamentos={lancamentos} setAba={setAba}/>}
+    {aba==='previsoes'&&<Previsoes lancamentos={lancamentos} setAba={setAba}/>}
     {aba==='lancamentos'&&<Lancamentos lancamentos={lancamentos} lixeira={lixeira} openNew={nL} onSave={saveLancamento} onDelete={softDelLancamento} onRestore={restoreLancamento} onPurge={purgeLancamento} onImport={importLancamentos}/>}
     {aba==='dre'&&<DRE lancamentos={lancamentos}/>}
     {aba==='clientes'&&<Clientes clientes={clientes} onSave={saveCliente} onDelete={delCliente} openNew={nC}/>}
