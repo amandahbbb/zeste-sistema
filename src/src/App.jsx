@@ -154,7 +154,11 @@ function Logo({ small }) {
   const s = small ? 26 : 38;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <img src="/logo-icon-t.png" alt="Zeste" style={{ height: s * 1.25, width: "auto" }} />
+      <svg width={s} height={s * 1.3} viewBox="0 0 44 56" fill="none">
+        <ellipse cx="22" cy="28" rx="19" ry="26" stroke="#8FA715" strokeWidth="2" />
+        <path d="M16 16 Q21 13 26 17 Q30 21 26 27 Q22 32 18 37 Q15 41 20 44 Q24 46 28 43" stroke="#8FA715" strokeWidth="2" fill="none" strokeLinecap="round" />
+        <ellipse cx="20" cy="13" rx="3.5" ry="2" stroke="#8FA715" strokeWidth="1.4" fill="none" transform="rotate(-20 20 13)" />
+      </svg>
       <div>
         <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: small ? 15 : 20, fontWeight: 800, letterSpacing: ".1em", color: "#F2EBD8" }}>ZESTE</div>
         {!small && <div style={{ fontSize: 9, color: "#555", letterSpacing: ".1em" }}>SISTEMA UNIFICADO</div>}
@@ -178,7 +182,7 @@ function Sidebar({ modulo, setModulo, user, onLogout, collapsed, setCollapsed })
   return (
     <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
       <div className="sidebar-logo">
-        <img src={collapsed?"/logo-icon-t.png":"/logo-zeste.png"} alt="Zeste" style={{height:collapsed?34:52,width:'auto',transition:'height .2s'}}/>
+        <img src={collapsed?"/logo-icon.png":"/logo-zeste.png"} alt="Zeste" style={{height:collapsed?28:36,width:'auto',transition:'height .2s'}}/>
         <button onClick={() => setCollapsed(!collapsed)} style={{ color: "#555", fontSize: 14, padding: 4, marginLeft: collapsed ? 0 : 4 }}>
           {collapsed ? "›" : "‹"}
         </button>
@@ -216,7 +220,7 @@ function TopBar({ modulo, onMenu }) {
           <rect y="12" width="18" height="2" rx="1" fill="#888" />
         </svg>
       </button>
-      <div className="top-bar-title"><img src="/logo-icon-t.png" alt="Z" style={{height:20,marginRight:6,verticalAlign:'middle'}}/> {m?.label}</div>
+      <div className="top-bar-title"><img src="/logo-icon.png" alt="Z" style={{height:20,marginRight:6,verticalAlign:'middle'}}/> {m?.label}</div>
       <div style={{ width: 36 }} />
     </div>
   );
@@ -339,9 +343,7 @@ function Dashboard() {
 
   if(d.loading) return <div className="page-content"><div style={{textAlign:'center',padding:80,color:'#555',fontSize:13}}>Carregando…</div></div>;
 
-  // Greeting
   const hora = new Date().getHours();
-  const saudacao = hora<12?'Bom dia':'Bom tarde'[hora<18?0:999]||'Boa noite';
   const saudacaoFinal = hora<12?'Bom dia ☀️':hora<18?'Boa tarde 🌤️':'Boa noite 🌙';
   const emailNome = user?.email?.split('@')[0]||'';
   const nomeExibido = emailNome.charAt(0).toUpperCase()+emailNome.slice(1);
@@ -349,29 +351,25 @@ function Dashboard() {
   const MESES_NOME = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const MESES_COMPLETO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const hoje = new Date();
-  const dataStr = `${DIAS[hoje.getDay()]}, ${hoje.getDate()} de ${MESES_COMPLETO[hoje.getMonth()]} de ${hoje.getFullYear()}`;
+  const dataStr = DIAS[hoje.getDay()]+', '+hoje.getDate()+' de '+MESES_COMPLETO[hoje.getMonth()]+' de '+hoje.getFullYear();
 
-  // Financeiro calcs — mês atual
-  const lancsMes = d.lancs.filter(l=>(l.dataDoc||'').startsWith(mes));
+  const lancsMes = d.lancs.filter(l=>(l.dataDoc||''). startsWith(mes));
   const recMes = lancsMes.filter(l=>l.tipo==='RECEITA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
   const desMes = lancsMes.filter(l=>l.tipo==='DESPESA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
   const resultado = recMes - desMes;
 
-  // Mês anterior para tendência
   const d2 = new Date(); d2.setMonth(d2.getMonth()-1);
   const mesAnt = d2.toISOString().slice(0,7);
-  const lancsAnt = d.lancs.filter(l=>(l.dataDoc||'').startsWith(mesAnt));
+  const lancsAnt = d.lancs.filter(l=>(l.dataDoc||''). startsWith(mesAnt));
   const recAnt = lancsAnt.filter(l=>l.tipo==='RECEITA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
   const desAnt = lancsAnt.filter(l=>l.tipo==='DESPESA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
-  const trend = (cur,prev) => { if(!prev) return null; const d=(cur-prev)/prev; return {dir:d>=0?'up':'down',pct:Math.abs(d*100).toFixed(0)}; };
-  const tRec = trend(recMes,recAnt); const tDes = trend(desMes,desAnt); const tRes = trend(resultado,recAnt-desAnt);
+  const trend = (cur,prev) => { if(!prev) return null; const dt=(cur-prev)/prev; return {dir:dt>=0?'up':'down',pct:Math.abs(dt*100).toFixed(0)}; };
+  const tRec=trend(recMes,recAnt); const tDes=trend(desMes,desAnt); const tRes=trend(resultado,recAnt-desAnt);
 
-  // CMV
   const pratosComPreco = d.pratos.filter(p=>p.precoVenda>0);
   const cmvMedio = pratosComPreco.length>0?pratosComPreco.reduce((s,p)=>{const ct=(p.componentes||[]).reduce((a,c)=>a+((Number(c.qtdGramas)||0)/1000)*(c.custoPorKg||0),0);return s+(p.precoVenda>0?ct/p.precoVenda:0);},0)/pratosComPreco.length:0;
   const cmvCor = cmvMedio<.30?'#8FA715':cmvMedio<.35?'#F59E0B':'#E8614B';
 
-  // Alertas
   const reembolsos = d.lancs.filter(l=>l.reembolso==='PENDENTE');
   const aReceber = d.lancs.filter(l=>l.tipo==='RECEITA'&&l.status==='A RECEBER');
   const aReceberTotal = aReceber.reduce((s,l)=>s+(+(l.vlrBruto||0)),0);
@@ -379,130 +377,77 @@ function Dashboard() {
   const estoqueBaixo = d.ings.filter(i=>i.estoqueMin>0&&(i.estoque||0)<i.estoqueMin);
   const pendencias = reembolsos.length+aReceber.length+previstos.length+estoqueBaixo.length;
   const reembTotal = reembolsos.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
-
-  // Clientes
   const clAtivos = d.clientes.filter(c=>c.status==='Ativo').length;
 
-  // Gráfico 3 meses com valores
   const meses3 = [0,1,2].map(i=>{const dt=new Date();dt.setMonth(dt.getMonth()-i);return dt.toISOString().slice(0,7);}).reverse();
-  const mesesData = meses3.map(m=>{const ml=d.lancs.filter(l=>(l.dataDoc||'').startsWith(m));return{m,rec:ml.filter(l=>l.tipo==='RECEITA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0),des:ml.filter(l=>l.tipo==='DESPESA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0)};});
+  const mesesData = meses3.map(m=>{const ml=d.lancs.filter(l=>(l.dataDoc||''). startsWith(m));return{m,rec:ml.filter(l=>l.tipo==='RECEITA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0),des:ml.filter(l=>l.tipo==='DESPESA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0)};});
   const maxBar = Math.max(...mesesData.map(m=>Math.max(m.rec,m.des)),1);
-
-  // Top despesas
   const topDesp = lancsMes.filter(l=>l.tipo==='DESPESA').sort((a,b)=>(+(b.vlrPago||b.vlrBruto)||0)-(+(a.vlrPago||a.vlrBruto)||0)).slice(0,4);
-  const cartaoDesp = d.lancs.filter(l=>l.tipo==='DESPESA'&&l.cartaoNome&&(l.dataDoc||'').startsWith(mes));
+  const cartaoDesp = d.lancs.filter(l=>l.tipo==='DESPESA'&&l.cartaoNome&&(l.dataDoc||''). startsWith(mes));
 
-  const TrendBadge = ({t,bom='up'}) => { if(!t) return null; const ok=t.dir===bom; return <span style={{fontSize:9,fontWeight:700,padding:'2px 5px',borderRadius:4,background:ok?'rgba(143,167,21,.15)':'rgba(232,97,75,.15)',color:ok?'#8FA715':'#E8614B'}}>{t.dir==='up'?'↑':'↓'}{t.pct}%</span>; };
-
-  const QUICK = [
-    {icon:'💰',label:'Financeiro',mod:'financeiro'},
-    {icon:'🍳',label:'Fichas',mod:'fichas'},
-    {icon:'🤝',label:'Comercial',mod:'comercial'},
-    {icon:'📱',label:'Marketing',mod:'marketing'},
-  ];
+  const TrendBadge = ({t,bom}) => { if(!t) return null; const ok=t.dir===bom; return <span style={{fontSize:9,fontWeight:700,padding:'2px 5px',borderRadius:4,background:ok?'rgba(143,167,21,.15)':'rgba(232,97,75,.15)',color:ok?'#8FA715':'#E8614B'}}>{t.dir==='up'?'↑':'↓'}{t.pct}%</span>; };
+  const QUICK = [{icon:'💰',label:'Financeiro',mod:'financeiro'},{icon:'🍳',label:'Fichas',mod:'fichas'},{icon:'🤝',label:'Comercial',mod:'comercial'},{icon:'📱',label:'Marketing',mod:'marketing'}];
 
   return (
     <div className="page-content">
-      {/* SAUDAÇÃO */}
       <div style={{marginBottom:24}}>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:'#F2EBD8',letterSpacing:'.02em'}}>{saudacaoFinal}{nomeExibido?`, ${nomeExibido}!`:''}</div>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:'#F2EBD8',letterSpacing:'.02em'}}>{saudacaoFinal}{nomeExibido?\`, ${nomeExibido}!`:''}</div>
         <div style={{fontSize:12,color:'#555',marginTop:2}}>{dataStr}</div>
       </div>
-
-      {/* KPIs */}
       <div className="kpi-grid" style={{marginBottom:16}}>
-        {[
-          {label:'Receitas',val:brl(recMes),cor:'#8FA715',trend:tRec,bom:'up'},
-          {label:'Despesas',val:brl(desMes),cor:'#E8614B',trend:tDes,bom:'down'},
-          {label:'Resultado',val:brl(resultado),cor:resultado>=0?'#8FA715':'#E8614B',trend:tRes,bom:'up'},
-          {label:'Clientes Ativos',val:clAtivos,cor:'#1A4F71',trend:null},
-          {label:'CMV Médio',val:pct(cmvMedio),cor:cmvCor,trend:null,sub:cmvMedio<.30?'✓ Excelente':cmvMedio<.35?'⚠ Atenção':'✗ Alto'},
-        ].map(({label,val,cor,trend:t,bom,sub})=>(
+        {[{label:'Receitas',val:brl(recMes),cor:'#8FA715',t:tRec,bom:'up'},{label:'Despesas',val:brl(desMes),cor:'#E8614B',t:tDes,bom:'down'},{label:'Resultado',val:brl(resultado),cor:resultado>=0?'#8FA715':'#E8614B',t:tRes,bom:'up'},{label:'Clientes Ativos',val:clAtivos,cor:'#1A4F71',t:null},{label:'CMV Médio',val:pct(cmvMedio),cor:cmvCor,t:null,sub:cmvMedio<.30?'✓ Excelente':cmvMedio<.35?'⚠ Atenção':'✗ Alto'}].map(({label,val,cor,t,bom,sub})=>(
           <div key={label} className="kpi-card" style={{borderLeftColor:cor}}>
-            <div className="kpi-label" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span>{label}</span>
-              {t&&<TrendBadge t={t} bom={bom}/>}
-            </div>
+            <div className="kpi-label" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span>{label}</span><TrendBadge t={t} bom={bom}/></div>
             <div className="kpi-value" style={{color:cor,fontSize:22}}>{val}</div>
             {sub&&<div style={{fontSize:10,color:cor,marginTop:3,fontWeight:700}}>{sub}</div>}
           </div>
         ))}
       </div>
-
-      {/* AÇÕES RÁPIDAS */}
       <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
         {QUICK.map(({icon,label,mod})=>(
-          <button key={mod} onClick={()=>setModulo(mod)} style={{display:'flex',alignItems:'center',gap:6,padding:'9px 14px',background:'#181818',border:'1px solid #2A2A2A',borderRadius:8,color:'#E8E0CC',fontSize:12,fontWeight:700,cursor:'pointer',letterSpacing:'.04em',transition:'border-color .15s'}}
+          <button key={mod} onClick={()=>setModulo(mod)} style={{display:'flex',alignItems:'center',gap:6,padding:'9px 14px',background:'#181818',border:'1px solid #2A2A2A',borderRadius:8,color:'#E8E0CC',fontSize:12,fontWeight:700,cursor:'pointer',letterSpacing:'.04em'}}
             onMouseEnter={e=>e.currentTarget.style.borderColor='#8FA715'} onMouseLeave={e=>e.currentTarget.style.borderColor='#2A2A2A'}>
             <span style={{fontSize:16}}>{icon}</span>{label}
           </button>
         ))}
       </div>
-
-      {/* ALERTAS */}
       {pendencias>0&&<div className="card" style={{background:'#1a1710',border:'1px solid #3a3520',marginBottom:16}}>
         <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#F59E0B',marginBottom:10}}>⚠️ PENDÊNCIAS — {pendencias} item{pendencias>1?'s':''}</div>
-        {reembolsos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><span style={{fontSize:13,color:'#F2EBD8'}}>💰 <b>{reembolsos.length}</b> reembolso{reembolsos.length>1?'s':''} pendente</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:'#F59E0B'}}>{brl(reembTotal)}</span></div>}
+        {reembolsos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><span style={{fontSize:13,color:'#F2EBD8'}}>💰 <b>{reembolsos.length}</b> reembolso pendente</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:'#F59E0B'}}>{brl(reembTotal)}</span></div>}
         {aReceber.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><span style={{fontSize:13,color:'#F2EBD8'}}>📥 <b>{aReceber.length}</b> a receber</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:'#8FA715'}}>{brl(aReceberTotal)}</span></div>}
-        {previstos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><span style={{fontSize:13,color:'#F2EBD8'}}>📋 <b>{previstos.length}</b> despesa{previstos.length>1?'s':''} prevista</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:'#E8614B'}}>{brl(previstos.reduce((s,l)=>s+(+(l.vlrBruto||0)),0))}</span></div>}
-        {estoqueBaixo.length>0&&<div style={{padding:'7px 0'}}><span style={{fontSize:13,color:'#F2EBD8'}}>📦 <b>{estoqueBaixo.length}</b> ingrediente{estoqueBaixo.length>1?'s':''} com estoque baixo</span><div style={{fontSize:11,color:'#888',marginTop:3}}>{estoqueBaixo.slice(0,3).map(i=>i.nome).join(', ')}{estoqueBaixo.length>3?` +${estoqueBaixo.length-3}`:''}</div></div>}
+        {previstos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><span style={{fontSize:13,color:'#F2EBD8'}}>📋 <b>{previstos.length}</b> despesa prevista</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:'#E8614B'}}>{brl(previstos.reduce((s,l)=>s+(+(l.vlrBruto||0)),0))}</span></div>}
+        {estoqueBaixo.length>0&&<div style={{padding:'7px 0'}}><span style={{fontSize:13,color:'#F2EBD8'}}>📦 <b>{estoqueBaixo.length}</b> estoque baixo</span><div style={{fontSize:11,color:'#888',marginTop:3}}>{estoqueBaixo.slice(0,3).map(i=>i.nome).join(', ')}{estoqueBaixo.length>3?\` +${estoqueBaixo.length-3}`:''}</div></div>}
       </div>}
-
-      {/* GRÁFICO 3 MESES */}
       <div className="card" style={{marginBottom:16}}>
         <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:16}}>RECEITA vs DESPESA — ÚLTIMOS 3 MESES</div>
         <div style={{display:'flex',gap:12,alignItems:'flex-end',height:130}}>
-          {mesesData.map(m=>{
-            const mn=MESES_NOME[parseInt(m.m.split('-')[1])-1];
-            const hRec=Math.max(8,m.rec/maxBar*100);
-            const hDes=Math.max(8,m.des/maxBar*100);
-            return (
-              <div key={m.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-                <div style={{display:'flex',gap:4,alignItems:'flex-end',width:'100%',justifyContent:'center',height:110}}>
-                  <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',gap:3}}>
-                    <span style={{fontSize:9,color:'#8FA715',fontWeight:700,whiteSpace:'nowrap'}}>{brlShort(m.rec)}</span>
-                    <div style={{width:'100%',background:'#8FA715',borderRadius:'4px 4px 0 0',height:`${hRec}px`,transition:'height .5s'}}/>
-                  </div>
-                  <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',gap:3}}>
-                    <span style={{fontSize:9,color:'#E8614B',fontWeight:700,whiteSpace:'nowrap'}}>{brlShort(m.des)}</span>
-                    <div style={{width:'100%',background:'#E8614B',borderRadius:'4px 4px 0 0',height:`${hDes}px`,transition:'height .5s'}}/>
-                  </div>
-                </div>
-                <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{mn}</div>
-                <div style={{fontSize:10,color:m.rec>=m.des?'#8FA715':'#E8614B',fontWeight:700}}>{m.rec>=m.des?'+':''}{brlShort(m.rec-m.des)}</div>
+          {mesesData.map(m=>{const mn=MESES_NOME[parseInt(m.m.split('-')[1])-1];const hR=Math.max(8,m.rec/maxBar*100);const hD=Math.max(8,m.des/maxBar*100);return(
+            <div key={m.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+              <div style={{display:'flex',gap:4,alignItems:'flex-end',width:'100%',justifyContent:'center',height:110}}>
+                <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',gap:3}}><span style={{fontSize:9,color:'#8FA715',fontWeight:700,whiteSpace:'nowrap'}}>{brlShort(m.rec)}</span><div style={{width:'100%',background:'#8FA715',borderRadius:'4px 4px 0 0',height:`${hR}px`,transition:'height .5s'}}/></div>
+                <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',gap:3}}><span style={{fontSize:9,color:'#E8614B',fontWeight:700,whiteSpace:'nowrap'}}>{brlShort(m.des)}</span><div style={{width:'100%',background:'#E8614B',borderRadius:'4px 4px 0 0',height:`${hD}px`,transition:'height .5s'}}/></div>
               </div>
-            );
-          })}
+              <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{mn}</div>
+              <div style={{fontSize:10,color:m.rec>=m.des?'#8FA715':'#E8614B',fontWeight:700}}>{m.rec>=m.des?'+':''}{brlShort(m.rec-m.des)}</div>
+            </div>
+          );})}
         </div>
         <div style={{display:'flex',gap:16,justifyContent:'center',marginTop:10}}>
           <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#888'}}><div style={{width:10,height:10,borderRadius:2,background:'#8FA715'}}/>Receitas</div>
           <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#888'}}><div style={{width:10,height:10,borderRadius:2,background:'#E8614B'}}/>Despesas</div>
         </div>
       </div>
-
-      {/* TOP DESPESAS + CARTÃO */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}} className="dash-2col">
         {topDesp.length>0&&<div className="card">
           <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:12}}>TOP DESPESAS</div>
-          {topDesp.map((l,i)=><div key={l.id} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:i<topDesp.length-1?'1px solid #2A2A2A':'none',alignItems:'center',gap:8}}>
-            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:'#F2EBD8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.descricao}</div><div style={{fontSize:10,color:'#555',marginTop:1}}>{l.categoria||''}</div></div>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,color:'#E8614B',flexShrink:0}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</span>
-          </div>)}
+          {topDesp.map((l,i)=><div key={l.id} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:i<topDesp.length-1?'1px solid #2A2A2A':'none',alignItems:'center',gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:'#F2EBD8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.descricao}</div><div style={{fontSize:10,color:'#555'}}>{l.categoria}</div></div><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,color:'#E8614B',flexShrink:0}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</span></div>)}
         </div>}
         {cartaoDesp.length>0&&<div className="card">
           <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:12}}>💳 CARTÃO</div>
-          {cartaoDesp.slice(0,4).map(l=><div key={l.id} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2A2A2A',alignItems:'center',gap:8}}>
-            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:'#F2EBD8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.descricao}</div><div style={{fontSize:10,color:'#555',marginTop:1}}>{l.cartaoNome}</div></div>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,color:'#E8614B',flexShrink:0}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</span>
-          </div>)}
-          <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0 0',marginTop:4}}>
-            <span style={{fontSize:11,fontWeight:700,color:'#888'}}>Total</span>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:700,color:'#E8614B'}}>{brl(cartaoDesp.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0))}</span>
-          </div>
+          {cartaoDesp.slice(0,4).map(l=><div key={l.id} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2A2A2A',alignItems:'center',gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:'#F2EBD8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.descricao}</div><div style={{fontSize:10,color:'#555'}}>{l.cartaoNome}</div></div><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,color:'#E8614B',flexShrink:0}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</span></div>)}
+          <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0 0',marginTop:4}}><span style={{fontSize:11,fontWeight:700,color:'#888'}}>Total</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:700,color:'#E8614B'}}>{brl(cartaoDesp.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0))}</span></div>
         </div>}
       </div>
-
-      {/* CLIENTES */}
       <div className="card">
         <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:12}}>CLIENTES — {d.clientes.length} total · {clAtivos} ativos</div>
         {d.clientes.slice(0,5).map((c,i)=>(
@@ -515,142 +460,6 @@ function Dashboard() {
     </div>
   );
 }
-
-  useEffect(() => {
-    (async () => {
-      const [cl, ln, ig, pr] = await Promise.all([
-        db.from("clientes").select("id,nome,status,created_at", token),
-        fetch(SUPABASE_URL+"/rest/v1/fin_lancamentos?deleted_at=is.null&order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
-        fetch(SUPABASE_URL+"/rest/v1/fin_ingredientes?order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
-        fetch(SUPABASE_URL+"/rest/v1/fin_pratos?deleted_at=is.null&order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
-      ]);
-      setD({
-        clientes: Array.isArray(cl)?cl:[],
-        lancs: Array.isArray(ln)?ln.map(r=>r.dados||r):[],
-        ings: Array.isArray(ig)?ig.map(r=>r.dados||r):[],
-        pratos: Array.isArray(pr)?pr.map(r=>r.dados||r):[],
-        loading: false
-      });
-    })();
-  }, []);
-
-  if(d.loading) return <div className="page-content"><div style={{textAlign:'center',padding:60,color:'#555'}}>Carregando dashboard…</div></div>;
-
-  // Financial calcs
-  const lancsMes = d.lancs.filter(l=>(l.dataDoc||'').startsWith(mes));
-  const recMes = lancsMes.filter(l=>l.tipo==='RECEITA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
-  const desMes = lancsMes.filter(l=>l.tipo==='DESPESA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
-  const resultado = recMes - desMes;
-  const reembolsos = d.lancs.filter(l=>l.reembolso==='PENDENTE');
-  const reembTotal = reembolsos.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
-  const aReceber = d.lancs.filter(l=>l.tipo==='RECEITA'&&l.status==='A RECEBER');
-  const aReceberTotal = aReceber.reduce((s,l)=>s+(+(l.vlrBruto||0)),0);
-  const previstos = d.lancs.filter(l=>l.tipo==='DESPESA'&&l.status==='PREVISTO');
-  const cartaoDesp = d.lancs.filter(l=>l.tipo==='DESPESA'&&l.cartaoNome&&(l.dataDoc||'').startsWith(mes));
-
-  // CMV calcs  
-  const pratosComPreco = d.pratos.filter(p=>p.precoVenda>0);
-  const cmvMedio = pratosComPreco.length>0?pratosComPreco.reduce((s,p)=>{const ct=(p.componentes||[]).reduce((a,c)=>a+((Number(c.qtdGramas)||0)/1000)*(c.custoPorKg||0),0);return s+(p.precoVenda>0?ct/p.precoVenda:0);},0)/pratosComPreco.length:0;
-
-  // Stock alerts
-  const estoqueBaixo = d.ings.filter(i=>i.estoqueMin>0&&(i.estoque||0)<i.estoqueMin);
-
-  // CRM
-  const clAtivos = d.clientes.filter(c=>c.status==='Ativo').length;
-  const clLeads = d.clientes.filter(c=>c.status==='Lead').length;
-
-  // Top despesas
-  const topDesp = lancsMes.filter(l=>l.tipo==='DESPESA').sort((a,b)=>(+(b.vlrPago||b.vlrBruto)||0)-(+(a.vlrPago||a.vlrBruto)||0)).slice(0,5);
-
-  // Last 3 months comparison
-  const meses3 = [0,1,2].map(i=>{const d2=new Date();d2.setMonth(d2.getMonth()-i);return d2.toISOString().slice(0,7);}).reverse();
-  const mesesData = meses3.map(m=>{const ml=d.lancs.filter(l=>(l.dataDoc||'').startsWith(m));return{m,rec:ml.filter(l=>l.tipo==='RECEITA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0),des:ml.filter(l=>l.tipo==='DESPESA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0)};});
-  const maxBar = Math.max(...mesesData.map(m=>Math.max(m.rec,m.des)),1);
-
-  const MESES_NOME = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const pendencias = reembolsos.length + aReceber.length + previstos.length + estoqueBaixo.length;
-
-  return (
-    <div className="page-content">
-      <div className="page-header">
-        <div><h2 className="page-title">Dashboard</h2><div className="page-sub">Visão geral do negócio · {MESES_NOME[new Date().getMonth()]} {new Date().getFullYear()}</div></div>
-      </div>
-
-      {/* KPIs */}
-      <div className="kpi-grid">
-        {[["Receitas do mês",brl(recMes),"#8FA715"],["Despesas do mês",brl(desMes),"#E8614B"],["Resultado",brl(resultado),resultado>=0?"#C5D943":"#E8614B"],["Clientes Ativos",clAtivos,"#1A4F71"],["CMV Médio",pct(cmvMedio),cmvMedio<.30?"#8FA715":cmvMedio<.35?"#B8860B":"#E8614B"]].map(([l,v,c])=>(
-          <div key={l} className="kpi-card" style={{borderLeftColor:c}}>
-            <div className="kpi-label">{l}</div>
-            <div className="kpi-value" style={{color:c}}>{v}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Alertas */}
-      {pendencias>0&&<div className="card" style={{background:'#1a1710',border:'1px solid #3a3520'}}>
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#F59E0B',marginBottom:12}}>⚠️ PENDÊNCIAS — {pendencias} item{pendencias>1?'s':''}</div>
-        {reembolsos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><div style={{fontSize:13,color:'#F2EBD8'}}>💰 <strong>{reembolsos.length}</strong> reembolso{reembolsos.length>1?'s':''} pendente{reembolsos.length>1?'s':''}</div><div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#F59E0B'}}>{brl(reembTotal)}</div></div>}
-        {aReceber.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><div style={{fontSize:13,color:'#F2EBD8'}}>📥 <strong>{aReceber.length}</strong> receita{aReceber.length>1?'s':''} a receber</div><div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#8FA715'}}>{brl(aReceberTotal)}</div></div>}
-        {previstos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><div style={{fontSize:13,color:'#F2EBD8'}}>📋 <strong>{previstos.length}</strong> despesa{previstos.length>1?'s':''} prevista{previstos.length>1?'s':''}</div><div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#E8614B'}}>{brl(previstos.reduce((s,l)=>s+(+(l.vlrBruto||0)),0))}</div></div>}
-        {estoqueBaixo.length>0&&<div style={{padding:'8px 0'}}><div style={{fontSize:13,color:'#F2EBD8'}}>📦 <strong>{estoqueBaixo.length}</strong> ingrediente{estoqueBaixo.length>1?'s':''} com estoque baixo</div><div style={{fontSize:11,color:'#888',marginTop:4}}>{estoqueBaixo.slice(0,3).map(i=>i.nome).join(', ')}{estoqueBaixo.length>3?` +${estoqueBaixo.length-3}`:''}</div></div>}
-      </div>}
-
-      {/* Gráfico últimos 3 meses */}
-      <div className="card">
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:14}}>RECEITA vs DESPESA — ÚLTIMOS 3 MESES</div>
-        <div style={{display:'flex',gap:16,alignItems:'flex-end',height:120}}>
-          {mesesData.map(m=>{const mn=MESES_NOME[parseInt(m.m.split('-')[1])-1];return(
-            <div key={m.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-              <div style={{display:'flex',gap:3,alignItems:'flex-end',width:'100%',justifyContent:'center',height:90}}>
-                <div style={{width:'40%',background:'#8FA715',borderRadius:'4px 4px 0 0',height:`${Math.max(4,m.rec/maxBar*80)}px`,transition:'height .5s'}}/>
-                <div style={{width:'40%',background:'#E8614B',borderRadius:'4px 4px 0 0',height:`${Math.max(4,m.des/maxBar*80)}px`,transition:'height .5s'}}/>
-              </div>
-              <div style={{fontSize:11,fontWeight:700,color:'#888'}}>{mn}</div>
-            </div>
-          );})}
-        </div>
-        <div style={{display:'flex',gap:16,justifyContent:'center',marginTop:10}}>
-          <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#888'}}><div style={{width:10,height:10,borderRadius:2,background:'#8FA715'}}/>Receitas</div>
-          <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#888'}}><div style={{width:10,height:10,borderRadius:2,background:'#E8614B'}}/>Despesas</div>
-        </div>
-      </div>
-
-      {/* Cartão de crédito do mês */}
-      {cartaoDesp.length>0&&<div className="card">
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:14}}>💳 DESPESAS NO CARTÃO — {MESES_NOME[new Date().getMonth()]}</div>
-        {cartaoDesp.map(l=><div key={l.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #2A2A2A',alignItems:'center'}}>
-          <div><div style={{fontSize:13,fontWeight:600,color:'#F2EBD8'}}>{l.descricao}</div><div style={{fontSize:11,color:'#888',marginTop:2}}>{l.cartaoNome} {l.cartaoUlt4?`****${l.cartaoUlt4}`:''} {l.recorrente?'🔄':''}</div></div>
-          <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#E8614B'}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</div>
-        </div>)}
-        <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0 0',marginTop:4}}>
-          <span style={{fontSize:12,fontWeight:700,color:'#888'}}>Total cartão</span>
-          <span style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'#E8614B'}}>{brl(cartaoDesp.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0))}</span>
-        </div>
-      </div>}
-
-      {/* Top 5 despesas */}
-      {topDesp.length>0&&<div className="card">
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:14}}>TOP DESPESAS DO MÊS</div>
-        {topDesp.map((l,i)=><div key={l.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:i<topDesp.length-1?'1px solid #2A2A2A':'none',alignItems:'center'}}>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:'#F2EBD8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.descricao}</div><div style={{fontSize:11,color:'#888',marginTop:2}}>{l.categoria||''} · {l.pagador||''}</div></div>
-          <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'#E8614B',flexShrink:0}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</div>
-        </div>)}
-      </div>}
-
-      {/* Clientes */}
-      <div className="card">
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:14}}>CLIENTES — {d.clientes.length} total · {clAtivos} ativos · {clLeads} leads</div>
-        {d.clientes.slice(0,6).map(c=>(
-          <div key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #2A2A2A'}}>
-            <div style={{fontSize:14,fontWeight:600,color:'#F2EBD8'}}>{c.nome}</div>
-            <span className="tag" style={{background:(({Lead:'#555',Proposta:'#5b9fd4',Ativo:'#8FA715',Pausado:'#C4502B',Concluído:'#497A5D'})[c.status]||'#555')+'22',color:({Lead:'#555',Proposta:'#5b9fd4',Ativo:'#8FA715',Pausado:'#C4502B',Concluído:'#497A5D'})[c.status]||'#555'}}>{c.status}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── CRM ──────────────────────────────────────────────────────────
 function CRM() {
   const { token } = useApp();
