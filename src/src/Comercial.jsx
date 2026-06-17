@@ -489,9 +489,11 @@ function CRMView(){
   const[search,setSearch]=useState("");
   const[filterSeg,setFilterSeg]=useState("");
   const[storageOk,setStorageOk]=useState(null);
+  const[syncing,setSyncing]=useState(false);
   const token = typeof window !== "undefined" ? (window.__supabaseToken || null) : null;
 
-  useEffect(()=>{(async()=>{try{const data=await sbLoad(token);setContacts(data);}catch(e){console.error(e);}finally{setStorageOk(true);}})();},[]);
+  const reload=async()=>{setSyncing(true);try{const data=await sbLoad(token);setContacts(data);setStorageOk(true);}catch(e){console.error(e);}finally{setSyncing(false);}};
+  useEffect(()=>{reload();const t=setInterval(reload,60000);return()=>clearInterval(t);},[]);
 
   const saveContact=async(u)=>{
     try{const sbid=await sbUpsert(u,token);setContacts(prev=>prev.map(c=>c._sbid===u._sbid?{...u,_sbid:sbid}:c));}catch(e){console.error(e);}
@@ -510,6 +512,7 @@ function CRMView(){
     <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar contato..." style={{...inp,flex:1,minWidth:120}}/>
       <select value={filterSeg} onChange={e=>setFilterSeg(e.target.value)} style={{...inp,width:"auto",padding:"8px 10px"}}><option value="">Todos</option>{SEGMENTOS.map(s=><option key={s}>{s}</option>)}</select>
+      <button onClick={reload} disabled={syncing} title="Sincronizar" style={{padding:"8px 12px",background:syncing?"#2A2A2A":C.surface,color:syncing?C.muted:C.text,border:`1px solid ${C.border}`,borderRadius:7,cursor:syncing?"default":"pointer",fontSize:14,flexShrink:0}}>{syncing?"⟳":"↻"}</button>
       <button onClick={()=>setShowNew(true)} style={{padding:"8px 14px",background:C.yellow,color:"#0E0E0C",border:"none",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>+ Novo</button>
     </div>
     <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:8}}>
