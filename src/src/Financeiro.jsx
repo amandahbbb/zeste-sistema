@@ -156,7 +156,7 @@ function FormL({init,onSave,onClose}){
       </select>
       {catCustom&&<input style={{marginTop:6}} placeholder="Nome da categoria" value={f.categoria} onChange={e=>S('categoria',e.target.value)}/>}
     </Fld>
-    {!catCustom&&<Fld label="Subcategoria"><select value={f.subcategoria} onChange={e=>S('subcategoria',e.target.value)}>{sub.map(s=><option key={s}>{s}</option>)}</select></Fld>}
+    {!catCustom&&<Fld label="Subcategoria"><input list="subcat-list" value={f.subcategoria} onChange={e=>S('subcategoria',e.target.value)} placeholder="Digitar ou escolher…"/><datalist id="subcat-list">{sub.map(s=><option key={s} value={s}/>)}</datalist></Fld>}
     {f.tipo==='DESPESA'&&(<Fld label="Natureza">
       <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:3}}>
         {NATUREZAS.map(n=>{const nc=NAT_CLR[n];const sel=f.natureza===n;return <button key={n} type="button" onClick={()=>S('natureza',n)} style={{padding:'8px 12px',borderRadius:6,border:`1.5px solid ${nc.bg}`,background:sel?nc.bg:'transparent',color:sel?nc.fg:nc.bg,fontFamily:'var(--ff)',fontSize:12,fontWeight:700,minHeight:40}}>{nc.label}</button>;})}
