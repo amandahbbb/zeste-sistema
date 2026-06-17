@@ -82,6 +82,24 @@ const FORMAS={'PIX':{taxa:0,icon:'⚡',label:'PIX'},'DÉBITO':{taxa:.015,icon:'�
 const CATS=['HONORÁRIOS','SERV. TERCEIROS','SOFTWARES','DESP. ADMINISTRATIVAS','MARKETING','PRÓ-LABORE','INVESTIMENTO','OUTROS'];
 const NATUREZAS=['DESPESA FIXA','DESPESA VARIÁVEL','INVESTIMENTO'];
 const NAT_CLR={'DESPESA FIXA':{bg:'#1B3A5C',fg:'#FFF',label:'FIXA'},'DESPESA VARIÁVEL':{bg:'#6B3E9A',fg:'#FFF',label:'VARIÁVEL'},'INVESTIMENTO':{bg:'#B8860B',fg:'#FFF',label:'INVEST.'}};
+const getClassif = l => {
+  if (l.tipo === 'RECEITA') return 'receita';
+  if (l.natureza === 'INVESTIMENTO' || l.categoria === 'INVESTIMENTO') return 'investimento';
+  if (l.natureza === 'PRÓ-LABORE' || l.categoria === 'PRÓ-LABORE') return 'retirada';
+  return 'desp_op';
+};
+const CC = {
+  receita:     {bg:'#8FA715',fg:'#0E0E0C',label:'RECEITA',icon:'💰',desc:'Entradas da empresa'},
+  desp_op:     {bg:'#C4502B',fg:'#fff',label:'DESP. OPERACIONAL',icon:'💸',desc:'Custos da operação'},
+  investimento:{bg:'#1A4F71',fg:'#fff',label:'INVESTIMENTO',icon:'🔧',desc:'Gera valor futuro'},
+  retirada:    {bg:'#6B3E9A',fg:'#fff',label:'PRÓ-LABORE / RETIRADA',icon:'💼',desc:'Retirada dos sócios'},
+};
+const CLASSIF_OPTS = [
+  {id:'receita',     tipo:'RECEITA',  natureza:'',               cat:null},
+  {id:'desp_op',     tipo:'DESPESA',  natureza:'DESPESA FIXA',   cat:null},
+  {id:'investimento',tipo:'DESPESA',  natureza:'INVESTIMENTO',   cat:'INVESTIMENTO'},
+  {id:'retirada',    tipo:'DESPESA',  natureza:'PRÓ-LABORE',     cat:'PRÓ-LABORE'},
+];
 const CAT_NAT={'HONORÁRIOS':'DESPESA FIXA','SERV. TERCEIROS':'DESPESA VARIÁVEL','SOFTWARES':'DESPESA FIXA','DESP. ADMINISTRATIVAS':'DESPESA FIXA','MARKETING':'DESPESA VARIÁVEL','PRÓ-LABORE':'DESPESA FIXA','INVESTIMENTO':'INVESTIMENTO','OUTROS':'DESPESA FIXA'};
 const SUBS={'HONORÁRIOS':['CONSULTORIA OPERACIONAL','CONSULTORIA GERENCIAL','PRODUÇÃO DE MATERIAIS','TREINAMENTO / MENTORIA','DIAGNÓSTICO'],'SERV. TERCEIROS':['DESIGN / DIAGRAMAÇÃO','FOTOGRAFIA','PROGRAMAÇÃO','FREELANCER'],'SOFTWARES':['ASSINATURA','DOMÍNIO / HOSPEDAGEM','OUTROS'],'DESP. ADMINISTRATIVAS':['HONORÁRIOS CONTADOR','TELEFONE / INTERNET','MATERIAL DE ESCRITÓRIO','IMPOSTOS / TAXAS','OUTRAS'],'MARKETING':['IMPRESSÃO / MATERIAIS','REDES SOCIAIS','OUTROS'],'PRÓ-LABORE':['RETIRADA'],'INVESTIMENTO':['EQUIPAMENTOS','CURSOS / CAPACITAÇÃO','OUTROS'],'OUTROS':['OUTROS']};
 const MS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -139,6 +157,8 @@ const EL={status:'PAGO',tipo:'DESPESA',natureza:'DESPESA FIXA',dataDoc:td(),cate
 function FormL({init,onSave,onClose}){
   const[f,setF]=useState(()=>({...EL,...(init||{}),id:(init?.id||uid())}));
   const S=(k,v)=>setF(p=>({...p,[k]:v}));
+  const classif = f.tipo==='RECEITA'?'receita':f.natureza==='INVESTIMENTO'||f.categoria==='INVESTIMENTO'?'investimento':f.natureza==='PRÓ-LABORE'||f.categoria==='PRÓ-LABORE'?'retirada':'desp_op';
+  const setClassif = id => {const opt=CLASSIF_OPTS.find(o=>o.id===id);if(!opt)return;setF(p=>({...p,tipo:opt.tipo,natureza:opt.natureza||(opt.tipo==='DESPESA'?'DESPESA FIXA':''),categoria:opt.cat||p.categoria,status:opt.tipo==='RECEITA'?'RECEBIDO':'PAGO'}));};
   useEffect(()=>{if(f.tipo==='RECEITA'){const fd=FORMAS[f.forma]||{taxa:0};const t=fd.taxa;const vt=f.vlrBruto?t*+f.vlrBruto:0;const vl=f.vlrBruto?+f.vlrBruto-vt:'';setF(p=>({...p,taxaPct:t,vlrTaxa:vt,vlrLiquido:vl}));};},[f.forma,f.vlrBruto,f.tipo]);
   useEffect(()=>{if(f.tipo==='RECEITA'&&!SR.includes(f.status))S('status','RECEBIDO');if(f.tipo==='DESPESA'&&!SD.includes(f.status))S('status','PAGO');},[f.tipo]);
   const sub=SUBS[f.categoria]||['OUTROS'];
@@ -146,7 +166,15 @@ function FormL({init,onSave,onClose}){
   const pagCustom=!PAGADORES.includes(f.pagador);
   const submit=e=>{e.preventDefault();onSave({...f});};
   return(<form onSubmit={submit}><div className="fg">
-    <Fld label="Tipo" h><select value={f.tipo} onChange={e=>S('tipo',e.target.value)}><option>RECEITA</option><option>DESPESA</option></select></Fld>
+    <Fld label="Classificação do Lançamento">
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:3}}>
+        {CLASSIF_OPTS.map(opt=>{const cc=CC[opt.id];const sel=classif===opt.id;return(<button key={opt.id} type="button" onClick={()=>setClassif(opt.id)} style={{padding:'11px 10px',borderRadius:8,border:'2px solid '+(sel?cc.bg:'var(--cinzaM)'),background:sel?cc.bg:'transparent',color:sel?cc.fg:'var(--cinzaE)',textAlign:'center',cursor:'pointer',transition:'all .15s'}}>
+          <div style={{fontSize:18,marginBottom:3}}>{cc.icon}</div>
+          <div style={{fontFamily:'var(--ff)',fontSize:11,fontWeight:700,letterSpacing:'.05em'}}>{cc.label}</div>
+          <div style={{fontSize:9,marginTop:2,opacity:.8}}>{cc.desc}</div>
+        </button>);})}
+      </div>
+    </Fld>
     <Fld label="Status" h><select value={f.status} onChange={e=>S('status',e.target.value)}>{(f.tipo==='RECEITA'?SR:SD).map(s=><option key={s}>{s}</option>)}</select></Fld>
     <Fld label="Data" h><input type="date" value={f.dataDoc} onChange={e=>S('dataDoc',e.target.value)}/></Fld>
     <Fld label="Competência" h><input type="month" value={f.competencia} onChange={e=>S('competencia',e.target.value)}/></Fld>
@@ -157,12 +185,7 @@ function FormL({init,onSave,onClose}){
       {catCustom&&<input style={{marginTop:6}} placeholder="Nome da categoria" value={f.categoria} onChange={e=>S('categoria',e.target.value)}/>}
     </Fld>
     {!catCustom&&<Fld label="Subcategoria"><input list="subcat-list" value={f.subcategoria} onChange={e=>S('subcategoria',e.target.value)} placeholder="Digitar ou escolher…"/><datalist id="subcat-list">{sub.map(s=><option key={s} value={s}/>)}</datalist></Fld>}
-    {f.tipo==='DESPESA'&&(<Fld label="Natureza">
-      <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:3}}>
-        {NATUREZAS.map(n=>{const nc=NAT_CLR[n];const sel=f.natureza===n;return <button key={n} type="button" onClick={()=>S('natureza',n)} style={{padding:'8px 12px',borderRadius:6,border:`1.5px solid ${nc.bg}`,background:sel?nc.bg:'transparent',color:sel?nc.fg:nc.bg,fontFamily:'var(--ff)',fontSize:12,fontWeight:700,minHeight:40}}>{nc.label}</button>;})}
-      </div>
-      <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:4}}>{f.natureza==='DESPESA FIXA'?'Recorrente, independe do volume':f.natureza==='DESPESA VARIÁVEL'?'Custo direto da entrega':'Gera retorno futuro'}</div>
-    </Fld>)}
+
     {f.tipo==='DESPESA'&&<Fld label="Recorrente?">
       <div style={{display:'flex',gap:8,marginBottom:f.recorrente?8:0}}>
         <button type="button" onClick={()=>S('recorrente',false)} style={{flex:1,padding:'9px 12px',borderRadius:6,border:'1.5px solid '+(f.recorrente?'var(--cinzaM)':'var(--lima)'),background:f.recorrente?'transparent':'var(--lima)',color:f.recorrente?'var(--cinzaE)':'var(--preto)',fontWeight:700,fontSize:13,minHeight:40}}>Compra única</button>
@@ -284,69 +307,114 @@ function ImportarExcel({onImport,onClose}){
 
 // ── RESUMO ────────────────────────────────────────────────────────
 function Resumo({lancamentos,setAba}){
-  const rec=lancamentos.filter(l=>l.tipo==='RECEITA'&&l.status==='RECEBIDO');
-  const des=lancamentos.filter(l=>l.tipo==='DESPESA'&&l.status==='PAGO');
-  const ar=lancamentos.filter(l=>l.status==='A RECEBER');
-  const tR=rec.reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
-  const tD=des.reduce((s,l)=>s+(+(l.vlrPago)||0),0);
-  const res=tR-tD; const tAR=ar.reduce((s,l)=>s+(+(l.vlrBruto)||0),0);
-  const mg=tR>0?res/tR:0;
-  const reembs=lancamentos.filter(l=>l.reembolso==='PENDENTE');
-  const tReemb=reembs.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
-  const alertas=lancamentos.filter(l=>{if(!l.dataPrevista||l.status==='RECEBIDO'||l.status==='PAGO')return false;const d=(new Date(l.dataPrevista)-new Date())/86400000;return d>=-1&&d<=7;});
-  const previstos=lancamentos.filter(l=>l.tipo==='DESPESA'&&l.status==='PREVISTO');
-  const recorrentes=lancamentos.filter(l=>l.recorrente&&l.tipo==='DESPESA');
-  const maxVis=Math.max(tR,tD,1);
-  const ano=new Date().getFullYear();
-  const porMes=MS.map((_,i)=>{const c=`${ano}-${String(i+1).padStart(2,'0')}`;const r=rec.filter(l=>l.competencia===c).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);const d=des.filter(l=>l.competencia===c).reduce((s,l)=>s+(+(l.vlrPago)||0),0);return{m:MS[i],r,d};}).filter(x=>x.r>0||x.d>0);
-  const maxB=Math.max(...porMes.flatMap(m=>[m.r,m.d]),1);
-  const porCat=Object.entries(des.reduce((a,l)=>({...a,[l.categoria||'Outros']:(a[l.categoria||'Outros']||0)+(+(l.vlrPago)||0)}),{})).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const porPag=PAGADORES.map(p=>({p,v:des.filter(l=>l.pagador===p).reduce((s,l)=>s+(+(l.vlrPago)||0),0),pend:reembs.filter(l=>l.pagador===p).reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0)})).filter(x=>x.v>0);
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const mes = new Date().toISOString().slice(0,7);
+  const hojeStr = hoje.toISOString().slice(0,10);
+
+  // Classificar todos lançamentos do mês atual
+  const doMes = lancamentos.filter(l=>(l.competencia||l.dataDoc||'').startsWith(mes));
+  const pagos  = doMes.filter(l=>l.status==='PAGO'||l.status==='RECEBIDO');
+
+  const rec    = pagos.filter(l=>getClassif(l)==='receita').reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
+  const despOp = pagos.filter(l=>getClassif(l)==='desp_op').reduce((s,l)=>s+(+(l.vlrPago)||0),0);
+  const inv    = pagos.filter(l=>getClassif(l)==='investimento').reduce((s,l)=>s+(+(l.vlrPago)||0),0);
+  const ret    = pagos.filter(l=>getClassif(l)==='retirada').reduce((s,l)=>s+(+(l.vlrPago)||0),0);
+
+  const resOp  = rec - despOp;                // Resultado Operacional
+  const resCx  = rec - despOp - inv - ret;    // Resultado Caixa
+  const mg     = rec>0?resOp/rec:0;
+
+  // Caixa total histórico
+  const caixaAtual = lancamentos.reduce((s,l)=>{
+    if(l.status==='RECEBIDO'||l.status==='PAGO'){const v=+(l.vlrPago||l.vlrLiquido)||0;return s+(getClassif(l)==='receita'?v:-v);}return s;
+  },0);
+
+  // A receber e reembolsos
+  const aReceber  = doMes.filter(l=>l.status==='A RECEBER');
+  const tAR       = aReceber.reduce((s,l)=>s+(+(l.vlrBruto)||0),0);
+  const reembs    = lancamentos.filter(l=>l.reembolso==='PENDENTE');
+  const tReemb    = reembs.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
+
+  // Alertas
+  const venc7 = lancamentos.filter(l=>{if(!l.dataDoc||l.status==='PAGO'||l.status==='RECEBIDO')return false;const d=(new Date(l.dataDoc+'T12:00:00')-hoje)/86400000;return d>=-1&&d<=7;});
+  const atrasados = lancamentos.filter(l=>{if(!l.dataDoc||l.status==='PAGO'||l.status==='RECEBIDO')return false;return new Date(l.dataDoc+'T12:00:00')<hoje;});
+
+  // Recorrentes do mês
+  const recorrentes = lancamentos.filter(l=>l.recorrente&&l.tipo==='DESPESA');
+
+  // Barras visuais
+  const maxV = Math.max(rec,despOp+inv+ret,1);
+  const pct = v=>Math.max(4,v/maxV*100);
+
+  // Gráfico mensal
+  const MNAMES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const ano = new Date().getFullYear();
+  const porMes = MNAMES.map((_,i)=>{
+    const m=`${ano}-${String(i+1).padStart(2,'0')}`;
+    const ml=lancamentos.filter(l=>(l.competencia||'').startsWith(m)&&(l.status==='PAGO'||l.status==='RECEBIDO'));
+    const r=ml.filter(l=>getClassif(l)==='receita').reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
+    const d=ml.filter(l=>getClassif(l)==='desp_op').reduce((s,l)=>s+(+(l.vlrPago)||0),0);
+    const iv=ml.filter(l=>getClassif(l)==='investimento').reduce((s,l)=>s+(+(l.vlrPago)||0),0);
+    return{m:MNAMES[i],r,d,iv,res:r-d};
+  }).filter(x=>x.r>0||x.d>0||x.iv>0);
+  const maxB=Math.max(...porMes.flatMap(m=>[m.r,m.d+m.iv]),1);
 
   return(<div className="au page">
     {/* ALERTAS */}
-    {(alertas.length>0||reembs.length>0)&&<div className="pc" style={{paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
-      {reembs.length>0&&<div className="warn-y" style={{cursor:'pointer'}} onClick={()=>setAba('lancamentos')}>💸 <strong>Reembolso pendente:</strong> {reembs.length} item{reembs.length>1?'s':''} · {brl(tReemb)}</div>}
-      {alertas.map(a=><div key={a.id} className="warn" style={{cursor:'pointer'}} onClick={()=>setAba('lancamentos')}>⚠️ <strong>{a.tipo==='RECEITA'?'A receber':'A pagar'}:</strong> {a.descricao} — {brl(a.vlrBruto)} em {dbr(a.dataPrevista)}</div>)}
-    </div>}
+    <div className="pc" style={{paddingTop:12,display:'flex',flexDirection:'column',gap:7}}>
+      {atrasados.length>0&&<div className="warn" onClick={()=>setAba('lancamentos')} style={{cursor:'pointer'}}>🔴 <strong>{atrasados.length} lançamento{atrasados.length>1?'s':''} atrasado{atrasados.length>1?'s':''}:</strong> {atrasados.slice(0,2).map(l=>l.descricao).join(', ')}{atrasados.length>2?` +${atrasados.length-2}`:''}</div>}
+      {venc7.length>0&&<div className="warn" onClick={()=>setAba('lancamentos')} style={{cursor:'pointer',borderLeftColor:'#F59E0B',background:'#FFFBEB'}}>🟡 <strong>{venc7.length} vencimento{venc7.length>1?'s':''} nos próximos 7 dias</strong></div>}
+      {reembs.length>0&&<div className="warn-y" onClick={()=>setAba('lancamentos')} style={{cursor:'pointer'}}>💸 <strong>Reembolso pendente:</strong> {reembs.length} item{reembs.length>1?'s':''} · {brl(tReemb)}</div>}
+      {aReceber.length>0&&<div style={{padding:'10px 14px',borderRadius:8,borderLeft:'3px solid var(--verde)',background:'#F0F7E6',fontSize:13,cursor:'pointer'}} onClick={()=>setAba('lancamentos')}>🟢 <strong>{brl(tAR)}</strong> a receber este mês ({aReceber.length} item{aReceber.length>1?'s':''})</div>}
+    </div>
 
-    {/* PAINEL INTEGRADO */}
-    <div className="pc" style={{paddingTop:12}}>
+    {/* PAINEL PRINCIPAL */}
+    <div className="pc">
       <div className="card" style={{padding:0,overflow:'hidden',marginBottom:16}}>
-        {/* Barra visual */}
-        <div style={{display:'flex',height:6}}>
-          <div style={{flex:tR/maxVis,background:'var(--lima)',transition:'flex .5s'}}/>
-          <div style={{flex:tD/maxVis,background:'var(--coral)',transition:'flex .5s'}}/>
-          <div style={{flex:Math.max(0,1-tR/maxVis-tD/maxVis),background:'var(--cinzaM)'}}/>
-        </div>
-        {/* Métricas principais */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',borderBottom:'1px solid var(--cinzaF)'}}>
-          {[['RECEITAS',tR,'var(--lima)'],['DESPESAS',tD,'var(--coral)'],['RESULTADO',res,res>=0?'var(--lima)':'var(--coral)']].map(([l,v,col])=>(
-            <div key={l} style={{padding:'16px 14px',borderRight:'1px solid var(--cinzaF)'}}>
-              <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:6}}>{l}</div>
-              <div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:col,lineHeight:1}}>{brl(v)}</div>
-            </div>
-          ))}
-        </div>
-        {/* Métricas secundárias */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'0'}}>
-          {[['A RECEBER',brl(tAR),'#60A9E0'],['MARGEM',pp(mg),mg>=.3?'var(--lima)':mg>=.1?'#FFD600':'var(--coral)'],['REEMBOLSO',reembs.length>0?brl(tReemb):'—',reembs.length>0?'var(--amarelo)':'var(--cinzaE)']].map(([l,v,col])=>(
-            <div key={l} style={{padding:'12px 14px',borderRight:'1px solid var(--cinzaF)',cursor:reembs.length>0&&l==='REEMBOLSO'?'pointer':'default'}} onClick={reembs.length>0&&l==='REEMBOLSO'?()=>setAba('lancamentos'):undefined}>
-              <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:4}}>{l}</div>
-              <div style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:col}}>{v}</div>
-            </div>
-          ))}
-        </div>
-        {/* Rodapé calendário */}
-        <div style={{padding:'10px 14px',background:'var(--cinzaF)',display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
-          <div style={{fontSize:11,color:'var(--cinzaE)',display:'flex',alignItems:'center',gap:4}}>
-            <span style={{fontWeight:700,color:'var(--preto)'}}>📅</span>
-            <span>Fatura fecha <strong>dia 29</strong></span>
-            <span style={{color:'var(--cinzaM)'}}>·</span>
-            <span>Pagamentos internos <strong>dia 2</strong></span>
+        {/* Resultado Operacional header */}
+        <div style={{padding:'14px 16px',borderBottom:'1px solid var(--cinzaF)',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+          <div>
+            <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:4}}>RESULTADO OPERACIONAL (MÊS)</div>
+            <div style={{fontFamily:'var(--ff)',fontSize:26,fontWeight:700,color:resOp>=0?'var(--verde)':'var(--coral)',lineHeight:1}}>{brl(resOp)}</div>
+            <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:3}}>Rec. {brl(rec)} - Desp. Op. {brl(despOp)} · Margem {pp(mg)}</div>
           </div>
-          {previstos.length>0&&<div style={{fontSize:11,color:'#92400E',fontWeight:600}}>⚠️ {previstos.length} despesa{previstos.length>1?'s':''} prevista{previstos.length>1?'s':''}</div>}
-          {recorrentes.length>0&&<div style={{fontSize:11,color:'var(--azul)',fontWeight:600}}>🔄 {recorrentes.length} recorrente{recorrentes.length>1?'s':''}</div>}
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:4}}>CAIXA ATUAL</div>
+            <div style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:700,color:caixaAtual>=0?'var(--preto)':'var(--coral)'}}>{brl(caixaAtual)}</div>
+            <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:3}}>Saldo histórico acumulado</div>
+          </div>
+        </div>
+        {/* Barra visual */}
+        <div style={{height:5,display:'flex'}}>
+          <div style={{flex:rec/Math.max(rec,despOp+inv+ret,1),background:'var(--lima)',transition:'flex .5s'}}/>
+          <div style={{flex:despOp/Math.max(rec,despOp+inv+ret,1),background:'var(--coral)',transition:'flex .5s'}}/>
+          <div style={{flex:inv/Math.max(rec,despOp+inv+ret,1),background:'var(--azul)',transition:'flex .5s'}}/>
+          <div style={{flex:ret/Math.max(rec,despOp+inv+ret,1),background:'#6B3E9A',transition:'flex .5s'}}/>
+        </div>
+        {/* 4 métricas */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr'}}>
+          {[
+            {l:'RECEITAS',v:rec,col:'var(--lima)',icon:'💰'},
+            {l:'DESP. OP.',v:despOp,col:'var(--coral)',icon:'💸'},
+            {l:'INVESTIM.',v:inv,col:'var(--azul)',icon:'🔧'},
+            {l:'PRÓ-LABORE',v:ret,col:'#6B3E9A',icon:'💼'},
+          ].map(({l,v,col,icon})=>(
+            <div key={l} style={{padding:'12px 10px',borderRight:'1px solid var(--cinzaF)'}}>
+              <div style={{fontSize:8,fontWeight:700,letterSpacing:'.08em',color:'var(--cinzaE)',marginBottom:4}}>{icon} {l}</div>
+              <div style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:col}}>{brl(v)}</div>
+            </div>
+          ))}
+        </div>
+        {/* Resultado caixa footer */}
+        <div style={{padding:'10px 14px',background:'var(--cinzaF)',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+          <div style={{fontSize:11,color:'var(--cinzaE)'}}>
+            📅 Fatura fecha <strong>dia 29</strong> · Pagamentos internos <strong>dia 2</strong>
+            {recorrentes.length>0&&<span style={{marginLeft:12,color:'var(--azul)',fontWeight:600}}>🔄 {recorrentes.length} recorrente{recorrentes.length>1?'s':''}</span>}
+          </div>
+          <div style={{textAlign:'right'}}>
+            <span style={{fontSize:9,color:'var(--cinzaE)',fontWeight:700,letterSpacing:'.08em',marginRight:6}}>RESULTADO CAIXA</span>
+            <span style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:resCx>=0?'var(--verde)':'var(--coral)'}}>{brl(resCx)}</span>
+          </div>
         </div>
       </div>
 
@@ -354,17 +422,35 @@ function Resumo({lancamentos,setAba}){
       {recorrentes.length>0&&<><SH>Recorrências ({new Date().toLocaleString('pt-BR',{month:'long'})})</SH>
       <div className="card" style={{marginBottom:16}}>
         {recorrentes.slice(0,5).map((l,i)=><div key={l.id} style={{padding:'11px 14px',borderBottom:i<recorrentes.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div><div style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:14}}>🔄 {l.descricao}</div><div style={{fontSize:11,color:'var(--cinzaE)',marginTop:2}}>{l.cartaoNome||l.categoria} · Fecha dia {l.cartaoDiaFecha||'29'}</div></div>
+          <div><div style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:14}}>🔄 {l.descricao}</div><div style={{fontSize:11,color:'var(--cinzaE)',marginTop:2}}>{l.cartaoNome||l.categoria} · {FREQ_LABEL?.[l.recorrenciaFreq]||'Mensal'}</div></div>
           <div style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:'var(--coral)'}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</div>
         </div>)}
       </div></>}
 
-      {porMes.length>0&&<><SH>Receitas vs Despesas {ano}</SH><div className="card" style={{padding:'16px 16px 12px',marginBottom:16}}><div style={{display:'flex',gap:7,alignItems:'flex-end',marginBottom:10,overflowX:'auto'}}>{porMes.map(({m,r,d})=>(<div className="bar-g" key={m}><div className="bar-w"><div className="bar" style={{flex:1,background:'var(--lima)',height:`${(r/maxB)*100}%`}}/><div className="bar" style={{flex:1,background:'var(--coral)',height:`${(d/maxB)*100}%`}}/></div><span style={{fontSize:9,color:'var(--cinzaE)',fontFamily:'var(--ff)',fontWeight:700}}>{m}</span></div>))}</div><div style={{display:'flex',gap:14}}>{[['var(--lima)','Receita'],['var(--coral)','Despesa']].map(([cl,l])=>(<span key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'var(--cinzaE)'}}><span style={{width:10,height:10,borderRadius:2,background:cl,display:'inline-block'}}/>{l}</span>))}</div></div></>}
-      {porPag.length>0&&<><SH>Despesas por Pagador</SH><div className="card" style={{marginBottom:16}}>{porPag.map(({p,v,pend},i)=><div key={p} style={{padding:'12px 14px',borderBottom:i<porPag.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:14}}>{p}</div>{pend>0&&<div style={{fontSize:11,color:'#92400E'}}>⏳ Pendente: {brl(pend)}</div>}</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--coral)'}}>{brl(v)}</div></div>)}</div></>}
-      {porCat.length>0&&<><SH>Despesas por Categoria</SH><div className="card" style={{marginBottom:20}}>{porCat.map(([cat,v],i)=>{const p=tD>0?v/tD:0;return(<div key={cat} style={{padding:'11px 14px',borderBottom:i<porCat.length-1?'1px solid var(--cinzaF)':'none'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:13}}>{cat}</span><span style={{fontSize:11,color:'var(--cinzaE)',fontFamily:'var(--ff)'}}>{brl(v)} <span style={{color:'var(--coral)'}}>{pp(p)}</span></span></div><div style={{height:4,borderRadius:99,background:'var(--cinzaF)'}}><div style={{height:'100%',width:`${p*100}%`,background:'var(--coral)',borderRadius:99}}/></div></div>);})}</div></>}
+      {/* GRÁFICO RECEITA vs DESP. OP. vs INVESTIMENTO */}
+      {porMes.length>0&&<><SH>Evolução Mensal {ano}</SH><div className="card" style={{padding:'16px 16px 12px',marginBottom:16}}>
+        <div style={{display:'flex',gap:7,alignItems:'flex-end',height:110,overflowX:'auto'}}>
+          {porMes.map(({m,r,d,iv})=>(
+            <div key={m} style={{flex:1,minWidth:40,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+              <div style={{display:'flex',gap:2,alignItems:'flex-end',width:'100%',justifyContent:'center',height:90}}>
+                <div style={{flex:1,background:'var(--lima)',borderRadius:'3px 3px 0 0',height:Math.max(2,r/maxB*88)+'px'}}/>
+                <div style={{flex:1,background:'var(--coral)',borderRadius:'3px 3px 0 0',height:Math.max(2,d/maxB*88)+'px'}}/>
+                {iv>0&&<div style={{flex:1,background:'var(--azul)',borderRadius:'3px 3px 0 0',height:Math.max(2,iv/maxB*88)+'px'}}/>}
+              </div>
+              <div style={{fontSize:9,color:'var(--cinzaE)',fontFamily:'var(--ff)',fontWeight:700}}>{m}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:14,marginTop:10,flexWrap:'wrap'}}>
+          {[['var(--lima)','💰 Receitas'],['var(--coral)','💸 Desp. Op.'],['var(--azul)','🔧 Invest.']].map(([cl,l])=>(
+            <span key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'var(--cinzaE)'}}><span style={{width:10,height:10,borderRadius:2,background:cl,display:'inline-block'}}/>{l}</span>
+          ))}
+        </div>
+      </div></>}
     </div>
   </div>);
 }
+
 // ── LANÇAMENTOS ───────────────────────────────────────────────────
 function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPurge,onImport}){
   const[modal,setModal]=useState(null);const[del,setDel]=useState(null);const[showImp,setShowImp]=useState(false);const[showLix,setShowLix]=useState(false);
@@ -433,18 +519,120 @@ function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPu
 // ── DRE ──────────────────────────────────────────────────────────
 function DRE({lancamentos}){
   const[ano,setAno]=useState(new Date().getFullYear());
-  const gV=(tipo,cats,mi,sts=['RECEBIDO','PAGO'],nats=[])=>{const c=`${ano}-${String(mi+1).padStart(2,'0')}`;return lancamentos.filter(l=>l.tipo===tipo&&sts.includes(l.status)&&l.competencia===c&&(cats.length===0||cats.includes(l.categoria))&&(nats.length===0||nats.includes(l.natureza))).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);};
-  const cp=MS.map((_,i)=>{const r=gV('RECEITA',[],i);const dv=gV('DESPESA',[],i,['PAGO'],['DESPESA VARIÁVEL']);const mb=r-dv;const df=gV('DESPESA',[],i,['PAGO'],['DESPESA FIXA']);const eb=mb-df;const inv=gV('DESPESA',[],i,['PAGO'],['INVESTIMENTO']);const rf=eb-inv;return{r,dv,mb,df,eb,inv,rf,mgBruta:r>0?mb/r:0,mgLiq:r>0?rf/r:0};});
-  const am=MS.map((_,i)=>i).filter(i=>cp[i].r>0||cp[i].rf!==0);const sm=am.length>0?am:[0,1,2];const tot=k=>sm.reduce((s,i)=>s+(cp[i][k]||0),0);
   const anos=[...new Set(lancamentos.map(l=>l.competencia?.slice(0,4)).filter(Boolean))].sort().reverse();
-  const ROWS=[{l:'RECEITA BRUTA',t:'g',fn:i=>cp[i].r,col:'var(--verde)'},{l:'Honorários / Consultoria',t:'i',fn:i=>gV('RECEITA',['HONORÁRIOS'],i)},{l:'Outros',t:'i',fn:i=>cp[i].r-gV('RECEITA',['HONORÁRIOS'],i)},{l:'(-) DESP. VARIÁVEL',t:'g2',fn:i=>cp[i].dv,col:'#6B3E9A'},{l:'Serv. Terceiros',t:'i',fn:i=>gV('DESPESA',['SERV. TERCEIROS'],i,['PAGO'],['DESPESA VARIÁVEL'])},{l:'Marketing',t:'i',fn:i=>gV('DESPESA',['MARKETING'],i,['PAGO'],['DESPESA VARIÁVEL'])},{l:'Outros var.',t:'i',fn:i=>cp[i].dv-gV('DESPESA',['SERV. TERCEIROS','MARKETING'],i,['PAGO'],['DESPESA VARIÁVEL'])},{l:'= MARGEM BRUTA',t:'T',k:'mb',col:'var(--lima)'},{l:'% Margem',t:'P',k:'mgBruta'},{l:'(-) DESP. FIXA',t:'g2',fn:i=>cp[i].df,col:'#1B3A5C'},{l:'Softwares',t:'i',fn:i=>gV('DESPESA',['SOFTWARES'],i,['PAGO'],['DESPESA FIXA'])},{l:'Desp. Administrativas',t:'i',fn:i=>gV('DESPESA',['DESP. ADMINISTRATIVAS'],i,['PAGO'],['DESPESA FIXA'])},{l:'Pró-labore / Retirada',t:'i',fn:i=>gV('DESPESA',['PRÓ-LABORE'],i,['PAGO'],['DESPESA FIXA'])},{l:'Outros (Fixos)',t:'i',fn:i=>cp[i].df-gV('DESPESA',['SOFTWARES','DESP. ADMINISTRATIVAS','PRÓ-LABORE'],i,['PAGO'],['DESPESA FIXA'])},{l:'= EBITDA',t:'T',k:'eb'},{l:'(-) INVESTIMENTO',t:'g2',fn:i=>cp[i].inv,col:'#B8860B'},{l:'= RESULTADO',t:'T',k:'rf',col:'var(--lima)'},{l:'% Margem Líq.',t:'P',k:'mgLiq'}];
+
+  const gM=(classifs,cats,mi,sts=['RECEBIDO','PAGO'])=>{
+    const m=`${ano}-${String(mi+1).padStart(2,'0')}`;
+    return lancamentos.filter(l=>
+      sts.includes(l.status)&&l.competencia===m&&
+      (classifs.length===0||classifs.includes(getClassif(l)))&&
+      (cats.length===0||cats.includes(l.categoria))
+    ).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
+  };
+
+  const cp=MS.map((_,i)=>{
+    const r    = gM(['receita'],[],i);
+    const dv   = gM(['desp_op'],['SERV. TERCEIROS','MARKETING'],i);
+    const mb   = r-dv;
+    const df   = gM(['desp_op'],[],i)-dv;  // fixed op = total op - variable
+    const resOp= mb-df;                    // Resultado Operacional
+    const plab = gM(['retirada'],[],i);
+    const inv  = gM(['investimento'],[],i);
+    const resCx= resOp-plab-inv;
+    return{r,dv,mb,df,resOp,plab,inv,resCx,
+      mgBruta:r>0?mb/r:0,mgOp:r>0?resOp/r:0};
+  });
+
+  const am=MS.map((_,i)=>i).filter(i=>cp[i].r>0||cp[i].resOp!==0);
+  const sm=am.length>0?am:[new Date().getMonth()];
+  const tot=k=>sm.reduce((s,i)=>s+(cp[i][k]||0),0);
+  const totFn=fn=>sm.reduce((s,i)=>s+(fn(i)||0),0);
+
+  const ROWS=[
+    {l:'RECEITA BRUTA',t:'h',k:'r',col:'#8FA715'},
+    {l:'↳ Honorários / Consultoria',t:'i',fn:i=>gM(['receita'],['HONORÁRIOS'],i)},
+    {l:'↳ Outros serviços',t:'i',fn:i=>cp[i].r-gM(['receita'],['HONORÁRIOS'],i)},
+    {l:'(-) DESPESAS VARIÁVEIS',t:'h',k:'dv',col:'#C4502B',neg:true},
+    {l:'↳ Serv. Terceiros',t:'i',fn:i=>gM(['desp_op'],['SERV. TERCEIROS'],i)},
+    {l:'↳ Marketing',t:'i',fn:i=>gM(['desp_op'],['MARKETING'],i)},
+    {l:'↳ Outros variáveis',t:'i',fn:i=>gM(['desp_op'],['SERV. TERCEIROS','MARKETING'],i)===0?0:cp[i].dv-gM(['desp_op'],['SERV. TERCEIROS','MARKETING'],i)},
+    {l:'= MARGEM BRUTA',t:'T',k:'mb',col:'#8FA715',pctK:'mgBruta'},
+    {l:'(-) DESPESAS FIXAS OP.',t:'h',k:'df',col:'#C4502B',neg:true},
+    {l:'↳ Softwares',t:'i',fn:i=>gM(['desp_op'],['SOFTWARES'],i)},
+    {l:'↳ Desp. Administrativas',t:'i',fn:i=>gM(['desp_op'],['DESP. ADMINISTRATIVAS'],i)},
+    {l:'↳ Outros fixos',t:'i',fn:i=>cp[i].df-gM(['desp_op'],['SOFTWARES','DESP. ADMINISTRATIVAS'],i)},
+    {l:'= RESULTADO OPERACIONAL',t:'T',k:'resOp',col:'#497A5D',pctK:'mgOp',bold:true},
+    {l:'(-) PRÓ-LABORE / RETIRADAS',t:'h',k:'plab',col:'#6B3E9A',neg:true},
+    {l:'(-) INVESTIMENTOS',t:'h',k:'inv',col:'#1A4F71',neg:true},
+    {l:'↳ Identidade Visual / Branding',t:'i',fn:i=>gM(['investimento'],['MARKETING'],i)},
+    {l:'↳ Sistemas / Software',t:'i',fn:i=>gM(['investimento'],['SOFTWARES'],i)},
+    {l:'↳ Equipamentos / Outros',t:'i',fn:i=>cp[i].inv-gM(['investimento'],['MARKETING','SOFTWARES'],i)},
+    {l:'= RESULTADO CAIXA',t:'T',k:'resCx',col:'#8FA715',bold:true},
+  ];
+
+  const Cel=({v,t,col,pct:isPct,bold})=>{
+    const clr=t==='h'?(col||'var(--preto)'):t==='T'?(v>=0?col||'var(--verde)':'var(--coral)'):v<0?'var(--coral)':'var(--cinzaE)';
+    return<td style={{padding:'5px 9px',textAlign:'right',fontFamily:'var(--ff)',fontSize:11,fontWeight:bold||t==='T'||t==='h'?700:400,color:clr,borderBottom:'1px solid var(--cinzaF)',background:t==='h'?col+'11':undefined}}>{v===0&&t==='i'?<span style={{color:'var(--cinzaM)'}}>—</span>:isPct?pp(v):brl(v)}</td>;
+  };
+
   return(<div className="au page pc" style={{paddingTop:12}}>
     <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12,flexWrap:'wrap'}}>
       <select value={ano} onChange={e=>setAno(+e.target.value)} style={{width:90,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 10px',fontSize:13,outline:'none',background:'var(--branco)'}}>{(anos.length?anos:[new Date().getFullYear()]).map(a=><option key={a}>{a}</option>)}</select>
       <button onClick={()=>exportExcel(lancamentos.filter(l=>l.competencia?.startsWith(String(ano))),'zeste_dre')} style={{display:'flex',alignItems:'center',gap:6,background:'#ECFDF5',border:'1.5px solid #10B981',borderRadius:8,padding:'9px 12px',fontSize:12,fontWeight:600,color:'#065F46',cursor:'pointer',minHeight:42}}>⬇ Excel</button>
       <button onClick={()=>exportPDF(lancamentos.filter(l=>l.competencia?.startsWith(String(ano))),`DRE ${ano}`)} style={{display:'flex',alignItems:'center',gap:6,background:'#EFF6FF',border:'1.5px solid var(--azul)',borderRadius:8,padding:'9px 12px',fontSize:12,fontWeight:600,color:'var(--azul)',cursor:'pointer',minHeight:42}}>🖨 PDF</button>
     </div>
-    <div style={{overflowX:'auto',borderRadius:12,boxShadow:'0 1px 8px rgba(0,0,0,.07)'}}><table style={{width:'100%',borderCollapse:'collapse',background:'var(--branco)',minWidth:320,fontSize:12}}><thead><tr style={{background:'var(--preto)'}}><th style={{padding:'9px 12px',textAlign:'left',color:'var(--lima)',fontFamily:'var(--ff)',fontSize:11,letterSpacing:'.1em',minWidth:140}}>CONTA</th>{sm.map(i=><th key={i} style={{padding:'8px 10px',textAlign:'right',color:'var(--lima)',fontFamily:'var(--ff)',fontSize:11}}>{MS[i]}</th>)}<th style={{padding:'8px 10px',textAlign:'right',color:'var(--lima)',fontFamily:'var(--ff)',fontSize:11,background:'var(--verde)'}}>TOTAL</th></tr></thead><tbody>{ROWS.map(({l,t,fn,k,col},ri)=>{const isG=t==='g'||t==='g2',isT=t==='T'||t==='P';const bgMap={g:'var(--preto)',g2:col+'22',T:'var(--cinzaF)',P:'var(--cinzaF)'};const bg=bgMap[t]||(ri%2===0?'var(--branco)':'#FAFAF6');const fgMap={g:'var(--lima)',g2:col};const fg=fgMap[t]||'var(--preto)';return(<tr key={l} style={{background:bg}}><td style={{padding:isG?'7px 12px':isT?'8px 12px 8px 18px':'6px 12px 6px 20px',fontFamily:isG?'var(--ff)':'var(--fb)',fontWeight:isG||isT?700:400,color:fg,fontSize:isG?11:12,borderBottom:`1px solid ${t==='g'?'#252525':'var(--cinzaF)'}`,borderLeft:t==='g2'?`3px solid ${col}`:'none'}}>{l}</td>{sm.map(i=>{const v=fn?fn(i):(cp[i][k]||0);const isPct=t==='P';return(<td key={i} style={{padding:'6px 10px',textAlign:'right',fontFamily:'var(--ff)',fontSize:12,fontWeight:isT||isG?700:400,color:t==='g'?'var(--lima)':t==='g2'?col:v<0?'var(--coral)':isT?(col||'var(--verde)'):'var(--cinzaE)',borderBottom:`1px solid ${t==='g'?'#252525':'var(--cinzaF)'}`,background:t==='g'?'var(--preto)':undefined}}>{v===0&&!isT?<span style={{color:'var(--cinzaM)'}}>—</span>:isPct?pp(v):brl(v)}</td>);})}<td style={{padding:'6px 10px',textAlign:'right',fontFamily:'var(--ff)',fontSize:12,fontWeight:700,background:'var(--verde)',color:'var(--branco)',borderBottom:'1px solid rgba(255,255,255,.1)'}}>{k?(t==='P'?pp(tot(k==='mgBruta'?'mb':k==='mgLiq'?'rf':k)/(tot(k==='mgBruta'||k==='mgLiq'?'r':k)||1)):brl(tot(k))):fn?brl(sm.reduce((s,i)=>s+(fn(i)||0),0)):'—'}</td></tr>);})}</tbody></table></div>
+
+    {/* LEGENDA */}
+    <div style={{display:'flex',gap:12,marginBottom:12,flexWrap:'wrap'}}>
+      {[['#8FA715','💰 Receitas'],['#C4502B','💸 Desp. Op.'],['#6B3E9A','💼 Pró-labore'],['#1A4F71','🔧 Investimentos']].map(([col,l])=>(
+        <span key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'var(--cinzaE)'}}><span style={{width:10,height:10,borderRadius:2,background:col,display:'inline-block'}}/>{l}</span>
+      ))}
+    </div>
+
+    <div style={{overflowX:'auto',borderRadius:12,boxShadow:'0 1px 8px rgba(0,0,0,.07)'}}>
+      <table style={{width:'100%',borderCollapse:'collapse',background:'var(--branco)',minWidth:320,fontSize:12}}>
+        <thead><tr style={{background:'var(--preto)'}}>
+          <th style={{padding:'9px 12px',textAlign:'left',color:'var(--lima)',fontFamily:'var(--ff)',fontSize:11,letterSpacing:'.1em',minWidth:180}}>CONTA</th>
+          {sm.map(i=><th key={i} style={{padding:'8px 10px',textAlign:'right',color:'var(--lima)',fontFamily:'var(--ff)',fontSize:11}}>{MS[i]}</th>)}
+          <th style={{padding:'8px 10px',textAlign:'right',color:'var(--lima)',fontFamily:'var(--ff)',fontSize:11,background:'var(--verde)'}}>TOTAL</th>
+        </tr></thead>
+        <tbody>
+          {ROWS.map(({l,t,k,fn,col,neg,pctK,bold},ri)=>{
+            const isH=t==='h',isT=t==='T',isI=t==='i';
+            const bg=isH?(col+'11'):(ri%2===0?'var(--branco)':'#FAFAF6');
+            const border=isH?`2px solid ${col}`:undefined;
+            const totV=k?tot(k):fn?totFn(fn):0;
+            const totPct=pctK?(tot(pctK==='mgBruta'?'mb':pctK==='mgOp'?'resOp':pctK)/(tot('r')||1)):null;
+            return(<tr key={l} style={{background:bg}}>
+              <td style={{padding:isT?'9px 14px 9px 12px':isI?'6px 12px 6px 22px':'7px 12px',fontFamily:isI?'var(--fb)':'var(--ff)',fontWeight:isH||isT?700:400,color:isH?col:isT?'var(--preto)':'var(--cinzaE)',fontSize:isH?11:12,borderBottom:`1px solid var(--cinzaF)`,borderLeft:border,background:isH?col+'11':undefined}}>{l}</td>
+              {sm.map(i=>{
+                const v=k?cp[i][k]:fn?fn(i):0;
+                const isPct=false;
+                return<Cel key={i} v={v} t={t} col={col} bold={bold}/>;
+              })}
+              <td style={{padding:'5px 9px',textAlign:'right',fontFamily:'var(--ff)',fontSize:11,fontWeight:700,background:'var(--verde)',color:'var(--branco)',borderBottom:'1px solid rgba(255,255,255,.1)'}}>
+                {totV===0&&isI?<span style={{opacity:.4}}>—</span>:brl(totV)}
+                {pctK&&totPct!==null&&<div style={{fontSize:9,opacity:.8}}>{pp(totPct)}</div>}
+              </td>
+            </tr>);
+          })}
+        </tbody>
+      </table>
+    </div>
+
+    {/* RESUMO EXECUTIVO */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginTop:16}} className="prev-grid">
+      {[
+        {l:'Resultado Operacional',v:tot('resOp'),col:'#497A5D',desc:'Receitas - Desp. Operacionais',icon:'📊'},
+        {l:'Resultado Caixa',v:tot('resCx'),col:'#1A4F71',desc:'Incluindo pró-labore e investimentos',icon:'💰'},
+      ].map(({l,v,col,desc,icon})=>(
+        <div key={l} className="card" style={{borderLeft:`4px solid ${col}`,padding:'14px 16px'}}>
+          <div style={{fontSize:10,color:'var(--cinzaE)',marginBottom:5}}>{icon} {l}</div>
+          <div style={{fontFamily:'var(--ff)',fontSize:22,fontWeight:700,color:v>=0?col:'var(--coral)'}}>{brl(v)}</div>
+          <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:3}}>{desc}</div>
+        </div>
+      ))}
+    </div>
   </div>);
 }
 
