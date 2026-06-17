@@ -3,8 +3,9 @@ import { useState, useEffect } from "react";
 // ── CORES ZESTE ──────────────────────────────────────────────
 const C = {
   lima: "#8FA715", verde: "#497A5D", azul: "#1A4F71",
-  terra: "#C4502B", off: "#F2EBD8", dark: "#1a1a1a",
-  muted: "#6b7280", border: "#e8e0cc", card: "#ffffff",
+  terra: "#C4502B", off: "#F2EBD8", dark: "#F2EBD8",
+  muted: "#888", border: "#2A2A2A", card: "#181818",
+  bg: "#0E0E0C", surface: "#181818", faint: "#555",
 };
 
 // ── SUPABASE (mock para preview — substituir pelas credenciais reais) ──
@@ -102,7 +103,7 @@ function BarChart({ items, color }) {
       {items.map((item, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ fontSize: 11, color: C.muted, width: 130, flexShrink: 0, textAlign: "right", lineHeight: 1.2 }}>{item.label}</div>
-          <div style={{ flex: 1, height: 10, background: "#f0ede5", borderRadius: 99, overflow: "hidden" }}>
+          <div style={{ flex: 1, height: 10, background: "#2A2A2A", borderRadius: 99, overflow: "hidden" }}>
             <div style={{ width: `${(item.value / max) * 100}%`, height: "100%", background: color, borderRadius: 99, transition: "width 0.8s ease" }} />
           </div>
           <div style={{ fontSize: 11, fontWeight: 800, fontFamily: "system-ui", width: 44, color: C.dark }}>{fmt(item.value)}</div>
@@ -216,7 +217,7 @@ export default function RedesSociais({onBack,token:tokenProp}) {
   const accentColor = rede === "instagram" ? C.terra : C.verde;
 
   return (
-    <div style={{ fontFamily: "'Nunito Sans', system-ui, sans-serif", background: C.off, minHeight: "100vh", color: C.dark }}>
+    <div style={{ fontFamily: "'Nunito Sans', system-ui, sans-serif", background: C.bg, minHeight: "100vh", color: C.dark }}>
 
       {/* HEADER */}
       <div style={{ background: C.azul, padding: "28px 20px 20px", position: "relative", overflow: "hidden" }}>
@@ -224,7 +225,7 @@ export default function RedesSociais({onBack,token:tokenProp}) {
         {onBack&&<button onClick={onBack} style={{color:C.lima,fontSize:24,background:"none",border:"none",cursor:"pointer",lineHeight:1,position:"absolute",left:14,top:14,minWidth:40,minHeight:40,display:"flex",alignItems:"center",justifyContent:"center",zIndex:10}}>‹</button>}
         <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, textTransform: "uppercase", color: C.lima, marginBottom: 6 }}>Marketing · Zeste</div>
         <div style={{ fontSize: 22, fontWeight: 900, color: "#fff", fontFamily: "system-ui" }}>Redes Sociais</div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 2 }}>Relatórios, métricas e insights</div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>Relatórios, métricas e insights</div>
 
         {/* SELETOR REDE */}
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>

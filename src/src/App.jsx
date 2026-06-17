@@ -56,7 +56,7 @@ select option { background: #181818; }
 .nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; padding: 12px 16px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; min-height: 44px; }
 .sidebar.collapsed .nav-btn { justify-content: center; gap: 0; padding: 12px 0; }
 .nav-btn.active { background: rgba(143,167,21,.12); border-left-color: #8FA715; }
-.nav-btn-label { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: .04em; color: #E8E0CC; white-space: nowrap; }
+.nav-btn-label { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 600; letter-spacing: .04em; color: #E8E0CC; white-space: nowrap; }
 .nav-btn.active .nav-btn-label { color: #8FA715; }
 .sidebar-user { padding: 12px 16px; border-top: 1px solid #2A2A2A; display: flex; align-items: center; gap: 8px; }
 .sidebar.collapsed .sidebar-user { justify-content: center; padding: 12px 0; }
@@ -75,7 +75,7 @@ select option { background: #181818; }
 .drawer-header { padding: 20px 16px 14px; border-bottom: 1px solid #2A2A2A; }
 .drawer-nav-btn { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: none; padding: 14px 20px; cursor: pointer; border-left: 3px solid transparent; min-height: 52px; transition: background .1s; }
 .drawer-nav-btn.active { background: rgba(143,167,21,.12); border-left-color: #8FA715; }
-.drawer-nav-label { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 600; color: #E8E0CC; }
+.drawer-nav-label { font-family: 'Barlow Condensed', sans-serif; font-size: 17px; font-weight: 600; color: #E8E0CC; }
 .drawer-nav-btn.active .drawer-nav-label { color: #8FA715; }
 
 /* ── BOTTOM NAV (mobile) ── */
@@ -172,7 +172,7 @@ const MODULOS = [
   { id: "dashboard",  icon: "📊", label: "Dashboard"  },
   { id: "comercial",  icon: "🤝", label: "Comercial"  },
   { id: "financeiro", icon: "💰", label: "Financeiro"  },
-  { id: "fichas",     icon: "🍽️", label: "Fichas"      },
+  { id: "fichas",     icon: "🍽️", label: "Fichas Técnicas e Produção" },
   { id: "drive",      icon: "📁", label: "Drive"       },
   { id: "marketing",  icon: "📱", label: "Marketing"   },
 ];
@@ -190,7 +190,7 @@ function Sidebar({ modulo, setModulo, user, onLogout, collapsed, setCollapsed })
       <nav className="sidebar-nav">
         {MODULOS.map(m => (
           <button key={m.id} className={`nav-btn${modulo === m.id ? " active" : ""}`} onClick={() => setModulo(m.id)}>
-            <span style={{ fontSize: 16 }}>{m.icon}</span>
+            {collapsed && <span style={{ fontSize: 16 }}>{m.icon}</span>}
             {!collapsed && <span className="nav-btn-label">{m.label}</span>}
           </button>
         ))}
@@ -323,7 +323,7 @@ function LoginScreen({ onLogin }) {
 // ── DASHBOARD ────────────────────────────────────────────────────
 function Dashboard() {
   const { token, user, setModulo } = useApp();
-  const [d, setD] = useState({ clientes:[], lancs:[], ings:[], pratos:[], loading:true });
+  const [d, setD] = useState({ clientes:[], lancs:[], ings:[], pratos:[], crm:[], loading:true });
   const mes = new Date().toISOString().slice(0, 7);
   const brl = v => v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const brlShort = v => { if(v==null||isNaN(v)) return '—'; const n=Number(v); if(n>=1000) return 'R$'+(n/1000).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'k'; return 'R$'+n.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0}); };
@@ -331,13 +331,15 @@ function Dashboard() {
 
   useEffect(() => {
     (async () => {
-      const [cl, ln, ig, pr] = await Promise.all([
+      const crmH = {"Content-Type":"application/json", apikey:SUPABASE_KEY, Authorization:`Bearer ${token||SUPABASE_KEY}`};
+      const [cl, ln, ig, pr, crm] = await Promise.all([
         db.from("clientes").select("id,nome,status,created_at", token),
         fetch(SUPABASE_URL+"/rest/v1/fin_lancamentos?deleted_at=is.null&order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
         fetch(SUPABASE_URL+"/rest/v1/fin_ingredientes?order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
         fetch(SUPABASE_URL+"/rest/v1/fin_pratos?deleted_at=is.null&order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
+        fetch(SUPABASE_URL+"/rest/v1/crm_contatos?deleted_at=is.null&select=id,data",{headers:crmH}).then(r=>r.json()).catch(()=>[]),
       ]);
-      setD({ clientes:Array.isArray(cl)?cl:[], lancs:Array.isArray(ln)?ln.map(r=>r.dados||r):[], ings:Array.isArray(ig)?ig.map(r=>r.dados||r):[], pratos:Array.isArray(pr)?pr.map(r=>r.dados||r):[], loading:false });
+      setD({ clientes:Array.isArray(cl)?cl:[], lancs:Array.isArray(ln)?ln.map(r=>r.dados||r):[], ings:Array.isArray(ig)?ig.map(r=>r.dados||r):[], pratos:Array.isArray(pr)?pr.map(r=>r.dados||r):[], crm:Array.isArray(crm)?crm.map(r=>({...r.data,_id:r.id})):[], loading:false });
     })();
   }, []);
 
@@ -379,6 +381,12 @@ function Dashboard() {
   const reembTotal = reembolsos.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
   const clAtivos = d.clientes.filter(c=>c.status==='Ativo').length;
 
+  // CRM Priority
+  const STAGE_PRI = {'Negociação / Proposta':0,'Leads':1,'Cliente':2,'Prospects':3,'Portas Fechadas':4};
+  const STAGE_COR = {'Negociação / Proposta':'#E8614B','Leads':'#F59E0B','Cliente':'#8FA715','Prospects':'#555','Portas Fechadas':'#333'};
+  const STAGE_BADGE = {'Negociação / Proposta':'NEGOCIAÇÃO','Leads':'LEAD','Cliente':'CLIENTE','Prospects':'PROSPECT','Portas Fechadas':'FECHADO'};
+  const crmPri = [...(d.crm||[])].filter(x=>x.stage!=='Portas Fechadas'&&x.stage!=='Prospects').sort((a,b)=>(STAGE_PRI[a.stage]??9)-(STAGE_PRI[b.stage]??9)).slice(0,5);
+
   const meses3 = [0,1,2].map(i=>{const dt=new Date();dt.setMonth(dt.getMonth()-i);return dt.toISOString().slice(0,7);}).reverse();
   const mesesData = meses3.map(m=>{const ml=d.lancs.filter(l=>(l.dataDoc||''). startsWith(m));return{m,rec:ml.filter(l=>l.tipo==='RECEITA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0),des:ml.filter(l=>l.tipo==='DESPESA').reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0)};});
   const maxBar = Math.max(...mesesData.map(m=>Math.max(m.rec,m.des)),1);
@@ -411,6 +419,24 @@ function Dashboard() {
           </button>
         ))}
       </div>
+      {/* CRM PRIORIDADES */}
+      {crmPri.length>0&&<div className="card" style={{marginBottom:16}}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#555',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span>PRIORIDADES CRM</span>
+          <button onClick={()=>setModulo('comercial')} style={{fontSize:10,color:'#8FA715',fontWeight:700,background:'none',border:'none',cursor:'pointer',letterSpacing:'.06em'}}>VER TODOS →</button>
+        </div>
+        {crmPri.map((ct,i)=>{const cor=STAGE_COR[ct.stage]||'#555';const ult=ct.historico?.slice(-1)[0];return(
+          <div key={ct._id||i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:i<crmPri.length-1?'1px solid #2A2A2A':'none'}}>
+            <div style={{width:3,alignSelf:'stretch',borderRadius:99,background:cor,flexShrink:0}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#F2EBD8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ct.name||ct.company||'—'}</div>
+              <div style={{fontSize:11,color:'#888',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ct.company&&ct.name?ct.company:ct.segmento||''}{ult?` · ${ult.nota?.slice(0,40)||''}`:''}</div>
+            </div>
+            <span style={{padding:'2px 7px',borderRadius:4,background:cor+'22',color:cor,fontSize:9,fontWeight:700,letterSpacing:'.06em',flexShrink:0}}>{STAGE_BADGE[ct.stage]||ct.stage}</span>
+          </div>
+        );})}
+      </div>}
+
       {pendencias>0&&<div className="card" style={{background:'#1a1710',border:'1px solid #3a3520',marginBottom:16}}>
         <div style={{fontSize:11,fontWeight:700,letterSpacing:'.09em',textTransform:'uppercase',color:'#F59E0B',marginBottom:10}}>⚠️ PENDÊNCIAS — {pendencias} item{pendencias>1?'s':''}</div>
         {reembolsos.length>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #2a2a20',alignItems:'center'}}><span style={{fontSize:13,color:'#F2EBD8'}}>💰 <b>{reembolsos.length}</b> reembolso pendente</span><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:'#F59E0B'}}>{brl(reembTotal)}</span></div>}

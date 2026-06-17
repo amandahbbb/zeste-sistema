@@ -535,7 +535,7 @@ export default function ComercialZeste({onBack,token:tokenProp}){
   // Sync token for CRM supabase calls
   if(tokenProp&&typeof window!=="undefined")window.__supabaseToken=tokenProp;
   const[activeSection,setActiveSection]=useState("filosofia");
-  const[showCRM,setShowCRM]=useState(false);
+  const[showCRM,setShowCRM]=useState(true);
 
   const current=MANUAL_SECTIONS.find(s=>s.id===activeSection);
 
@@ -560,7 +560,7 @@ export default function ComercialZeste({onBack,token:tokenProp}){
           color:showCRM?C.muted:"#0E0E0C",
           boxShadow:showCRM?"none":`0 0 14px ${C.yellow}55`,
         }}>
-          {showCRM?"◀ MANUAL":"📋 CRM"}
+          {showCRM?"☰ Diretrizes Comerciais":"📋 CRM"}
         </button>
       </div>
 

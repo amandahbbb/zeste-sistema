@@ -270,33 +270,82 @@ function Resumo({lancamentos,setAba}){
   const ar=lancamentos.filter(l=>l.status==='A RECEBER');
   const tR=rec.reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
   const tD=des.reduce((s,l)=>s+(+(l.vlrPago)||0),0);
-  const res=tR-tD;const tAR=ar.reduce((s,l)=>s+(+(l.vlrBruto)||0),0);const mg=tR>0?res/tR:0;
+  const res=tR-tD; const tAR=ar.reduce((s,l)=>s+(+(l.vlrBruto)||0),0);
+  const mg=tR>0?res/tR:0;
   const reembs=lancamentos.filter(l=>l.reembolso==='PENDENTE');
   const tReemb=reembs.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
   const alertas=lancamentos.filter(l=>{if(!l.dataPrevista||l.status==='RECEBIDO'||l.status==='PAGO')return false;const d=(new Date(l.dataPrevista)-new Date())/86400000;return d>=-1&&d<=7;});
+  const previstos=lancamentos.filter(l=>l.tipo==='DESPESA'&&l.status==='PREVISTO');
+  const recorrentes=lancamentos.filter(l=>l.recorrente&&l.tipo==='DESPESA');
+  const maxVis=Math.max(tR,tD,1);
   const ano=new Date().getFullYear();
   const porMes=MS.map((_,i)=>{const c=`${ano}-${String(i+1).padStart(2,'0')}`;const r=rec.filter(l=>l.competencia===c).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);const d=des.filter(l=>l.competencia===c).reduce((s,l)=>s+(+(l.vlrPago)||0),0);return{m:MS[i],r,d};}).filter(x=>x.r>0||x.d>0);
   const maxB=Math.max(...porMes.flatMap(m=>[m.r,m.d]),1);
   const porCat=Object.entries(des.reduce((a,l)=>({...a,[l.categoria||'Outros']:(a[l.categoria||'Outros']||0)+(+(l.vlrPago)||0)}),{})).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const porPag=PAGADORES.map(p=>({p,v:des.filter(l=>l.pagador===p).reduce((s,l)=>s+(+(l.vlrPago)||0),0),pend:reembs.filter(l=>l.pagador===p).reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0)})).filter(x=>x.v>0);
+
   return(<div className="au page">
+    {/* ALERTAS */}
     {(alertas.length>0||reembs.length>0)&&<div className="pc" style={{paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
       {reembs.length>0&&<div className="warn-y" style={{cursor:'pointer'}} onClick={()=>setAba('lancamentos')}>💸 <strong>Reembolso pendente:</strong> {reembs.length} item{reembs.length>1?'s':''} · {brl(tReemb)}</div>}
       {alertas.map(a=><div key={a.id} className="warn" style={{cursor:'pointer'}} onClick={()=>setAba('lancamentos')}>⚠️ <strong>{a.tipo==='RECEITA'?'A receber':'A pagar'}:</strong> {a.descricao} — {brl(a.vlrBruto)} em {dbr(a.dataPrevista)}</div>)}
     </div>}
-    <div className="kr">
-      {[['Receita',tR,'var(--lima)'],['Despesas',tD,'var(--coral)'],['Resultado',res,res>=0?'var(--lima)':'var(--coral)'],['A receber',tAR,'#60A9E0'],['Reembolso',tReemb,reembs.length>0?'var(--amarelo)':'var(--cinzaE)'],['Margem',pp(mg),mg>=.3?'var(--lima)':mg>=.1?'#FFD600':'var(--coral)']].map(([l,v,c])=>(
-        <div key={l} className="kpi" style={{borderLeftColor:c}}><div className="kpi-l" style={{color:c}}>{l}</div><div className="kpi-v" style={{color:c}}>{typeof v==='number'?brl(v):v}</div></div>
-      ))}
-    </div>
-    <div className="pc">
-      {porMes.length>0&&<><SH>Receitas vs Despesas {ano}</SH><div className="card" style={{padding:'16px 16px 12px',marginBottom:16}}><div style={{display:'flex',gap:7,alignItems:'flex-end',marginBottom:10,overflowX:'auto'}}>{porMes.map(({m,r,d})=>(<div className="bar-g" key={m}><div className="bar-w"><div className="bar" style={{flex:1,background:'var(--lima)',height:`${(r/maxB)*100}%`}}/><div className="bar" style={{flex:1,background:'var(--coral)',height:`${(d/maxB)*100}%`}}/></div><span style={{fontSize:9,color:'var(--cinzaE)',fontFamily:'var(--ff)',fontWeight:700}}>{m}</span></div>))}</div><div style={{display:'flex',gap:14}}>{[['var(--lima)','Receita'],['var(--coral)','Despesa']].map(([c,l])=>(<span key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'var(--cinzaE)'}}><span style={{width:10,height:10,borderRadius:2,background:c,display:'inline-block'}}/>{l}</span>))}</div></div></>}
+
+    {/* PAINEL INTEGRADO */}
+    <div className="pc" style={{paddingTop:12}}>
+      <div className="card" style={{padding:0,overflow:'hidden',marginBottom:16}}>
+        {/* Barra visual */}
+        <div style={{display:'flex',height:6}}>
+          <div style={{flex:tR/maxVis,background:'var(--lima)',transition:'flex .5s'}}/>
+          <div style={{flex:tD/maxVis,background:'var(--coral)',transition:'flex .5s'}}/>
+          <div style={{flex:Math.max(0,1-tR/maxVis-tD/maxVis),background:'var(--cinzaM)'}}/>
+        </div>
+        {/* Métricas principais */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',borderBottom:'1px solid var(--cinzaF)'}}>
+          {[['RECEITAS',tR,'var(--lima)'],['DESPESAS',tD,'var(--coral)'],['RESULTADO',res,res>=0?'var(--lima)':'var(--coral)']].map(([l,v,col])=>(
+            <div key={l} style={{padding:'16px 14px',borderRight:'1px solid var(--cinzaF)'}}>
+              <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:6}}>{l}</div>
+              <div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:col,lineHeight:1}}>{brl(v)}</div>
+            </div>
+          ))}
+        </div>
+        {/* Métricas secundárias */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',padding:'0'}}>
+          {[['A RECEBER',brl(tAR),'#60A9E0'],['MARGEM',pp(mg),mg>=.3?'var(--lima)':mg>=.1?'#FFD600':'var(--coral)'],['REEMBOLSO',reembs.length>0?brl(tReemb):'—',reembs.length>0?'var(--amarelo)':'var(--cinzaE)']].map(([l,v,col])=>(
+            <div key={l} style={{padding:'12px 14px',borderRight:'1px solid var(--cinzaF)',cursor:reembs.length>0&&l==='REEMBOLSO'?'pointer':'default'}} onClick={reembs.length>0&&l==='REEMBOLSO'?()=>setAba('lancamentos'):undefined}>
+              <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:4}}>{l}</div>
+              <div style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:col}}>{v}</div>
+            </div>
+          ))}
+        </div>
+        {/* Rodapé calendário */}
+        <div style={{padding:'10px 14px',background:'var(--cinzaF)',display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
+          <div style={{fontSize:11,color:'var(--cinzaE)',display:'flex',alignItems:'center',gap:4}}>
+            <span style={{fontWeight:700,color:'var(--preto)'}}>📅</span>
+            <span>Fatura fecha <strong>dia 29</strong></span>
+            <span style={{color:'var(--cinzaM)'}}>·</span>
+            <span>Pagamentos internos <strong>dia 2</strong></span>
+          </div>
+          {previstos.length>0&&<div style={{fontSize:11,color:'#92400E',fontWeight:600}}>⚠️ {previstos.length} despesa{previstos.length>1?'s':''} prevista{previstos.length>1?'s':''}</div>}
+          {recorrentes.length>0&&<div style={{fontSize:11,color:'var(--azul)',fontWeight:600}}>🔄 {recorrentes.length} recorrente{recorrentes.length>1?'s':''}</div>}
+        </div>
+      </div>
+
+      {/* RECORRENTES DO MÊS */}
+      {recorrentes.length>0&&<><SH>Recorrências ({new Date().toLocaleString('pt-BR',{month:'long'})})</SH>
+      <div className="card" style={{marginBottom:16}}>
+        {recorrentes.slice(0,5).map((l,i)=><div key={l.id} style={{padding:'11px 14px',borderBottom:i<recorrentes.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div><div style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:14}}>🔄 {l.descricao}</div><div style={{fontSize:11,color:'var(--cinzaE)',marginTop:2}}>{l.cartaoNome||l.categoria} · Fecha dia {l.cartaoDiaFecha||'29'}</div></div>
+          <div style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:'var(--coral)'}}>{brl(+(l.vlrPago||l.vlrBruto)||0)}</div>
+        </div>)}
+      </div></>}
+
+      {porMes.length>0&&<><SH>Receitas vs Despesas {ano}</SH><div className="card" style={{padding:'16px 16px 12px',marginBottom:16}}><div style={{display:'flex',gap:7,alignItems:'flex-end',marginBottom:10,overflowX:'auto'}}>{porMes.map(({m,r,d})=>(<div className="bar-g" key={m}><div className="bar-w"><div className="bar" style={{flex:1,background:'var(--lima)',height:`${(r/maxB)*100}%`}}/><div className="bar" style={{flex:1,background:'var(--coral)',height:`${(d/maxB)*100}%`}}/></div><span style={{fontSize:9,color:'var(--cinzaE)',fontFamily:'var(--ff)',fontWeight:700}}>{m}</span></div>))}</div><div style={{display:'flex',gap:14}}>{[['var(--lima)','Receita'],['var(--coral)','Despesa']].map(([cl,l])=>(<span key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'var(--cinzaE)'}}><span style={{width:10,height:10,borderRadius:2,background:cl,display:'inline-block'}}/>{l}</span>))}</div></div></>}
       {porPag.length>0&&<><SH>Despesas por Pagador</SH><div className="card" style={{marginBottom:16}}>{porPag.map(({p,v,pend},i)=><div key={p} style={{padding:'12px 14px',borderBottom:i<porPag.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:14}}>{p}</div>{pend>0&&<div style={{fontSize:11,color:'#92400E'}}>⏳ Pendente: {brl(pend)}</div>}</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--coral)'}}>{brl(v)}</div></div>)}</div></>}
       {porCat.length>0&&<><SH>Despesas por Categoria</SH><div className="card" style={{marginBottom:20}}>{porCat.map(([cat,v],i)=>{const p=tD>0?v/tD:0;return(<div key={cat} style={{padding:'11px 14px',borderBottom:i<porCat.length-1?'1px solid var(--cinzaF)':'none'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:13}}>{cat}</span><span style={{fontSize:11,color:'var(--cinzaE)',fontFamily:'var(--ff)'}}>{brl(v)} <span style={{color:'var(--coral)'}}>{pp(p)}</span></span></div><div style={{height:4,borderRadius:99,background:'var(--cinzaF)'}}><div style={{height:'100%',width:`${p*100}%`,background:'var(--coral)',borderRadius:99}}/></div></div>);})}</div></>}
     </div>
   </div>);
 }
-
 // ── LANÇAMENTOS ───────────────────────────────────────────────────
 function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPurge,onImport}){
   const[modal,setModal]=useState(null);const[del,setDel]=useState(null);const[showImp,setShowImp]=useState(false);const[showLix,setShowLix]=useState(false);
@@ -369,7 +418,7 @@ function DRE({lancamentos}){
   const cp=MS.map((_,i)=>{const r=gV('RECEITA',[],i);const dv=gV('DESPESA',[],i,['PAGO'],['DESPESA VARIÁVEL']);const mb=r-dv;const df=gV('DESPESA',[],i,['PAGO'],['DESPESA FIXA']);const eb=mb-df;const inv=gV('DESPESA',[],i,['PAGO'],['INVESTIMENTO']);const rf=eb-inv;return{r,dv,mb,df,eb,inv,rf,mgBruta:r>0?mb/r:0,mgLiq:r>0?rf/r:0};});
   const am=MS.map((_,i)=>i).filter(i=>cp[i].r>0||cp[i].rf!==0);const sm=am.length>0?am:[0,1,2];const tot=k=>sm.reduce((s,i)=>s+(cp[i][k]||0),0);
   const anos=[...new Set(lancamentos.map(l=>l.competencia?.slice(0,4)).filter(Boolean))].sort().reverse();
-  const ROWS=[{l:'RECEITA BRUTA',t:'g',fn:i=>cp[i].r,col:'var(--verde)'},{l:'Honorários',t:'i',fn:i=>gV('RECEITA',['HONORÁRIOS'],i)},{l:'Outros',t:'i',fn:i=>cp[i].r-gV('RECEITA',['HONORÁRIOS'],i)},{l:'(-) DESP. VARIÁVEL',t:'g2',fn:i=>cp[i].dv,col:'#6B3E9A'},{l:'Serv. Terceiros',t:'i',fn:i=>gV('DESPESA',['SERV. TERCEIROS'],i,['PAGO'],['DESPESA VARIÁVEL'])},{l:'Marketing',t:'i',fn:i=>gV('DESPESA',['MARKETING'],i,['PAGO'],['DESPESA VARIÁVEL'])},{l:'Outros var.',t:'i',fn:i=>cp[i].dv-gV('DESPESA',['SERV. TERCEIROS','MARKETING'],i,['PAGO'],['DESPESA VARIÁVEL'])},{l:'= MARGEM BRUTA',t:'T',k:'mb',col:'var(--lima)'},{l:'% Margem',t:'P',k:'mgBruta'},{l:'(-) DESP. FIXA',t:'g2',fn:i=>cp[i].df,col:'#1B3A5C'},{l:'Softwares',t:'i',fn:i=>gV('DESPESA',['SOFTWARES'],i,['PAGO'],['DESPESA FIXA'])},{l:'Administrativo',t:'i',fn:i=>gV('DESPESA',['DESP. ADMINISTRATIVAS'],i,['PAGO'],['DESPESA FIXA'])},{l:'Pró-labore',t:'i',fn:i=>gV('DESPESA',['PRÓ-LABORE'],i,['PAGO'],['DESPESA FIXA'])},{l:'Outros fixos',t:'i',fn:i=>cp[i].df-gV('DESPESA',['SOFTWARES','DESP. ADMINISTRATIVAS','PRÓ-LABORE'],i,['PAGO'],['DESPESA FIXA'])},{l:'= EBITDA',t:'T',k:'eb'},{l:'(-) INVESTIMENTO',t:'g2',fn:i=>cp[i].inv,col:'#B8860B'},{l:'= RESULTADO',t:'T',k:'rf',col:'var(--lima)'},{l:'% Margem Líq.',t:'P',k:'mgLiq'}];
+  const ROWS=[{l:'RECEITA BRUTA',t:'g',fn:i=>cp[i].r,col:'var(--verde)'},{l:'Honorários / Consultoria',t:'i',fn:i=>gV('RECEITA',['HONORÁRIOS'],i)},{l:'Outros',t:'i',fn:i=>cp[i].r-gV('RECEITA',['HONORÁRIOS'],i)},{l:'(-) DESP. VARIÁVEL',t:'g2',fn:i=>cp[i].dv,col:'#6B3E9A'},{l:'Serv. Terceiros',t:'i',fn:i=>gV('DESPESA',['SERV. TERCEIROS'],i,['PAGO'],['DESPESA VARIÁVEL'])},{l:'Marketing',t:'i',fn:i=>gV('DESPESA',['MARKETING'],i,['PAGO'],['DESPESA VARIÁVEL'])},{l:'Outros var.',t:'i',fn:i=>cp[i].dv-gV('DESPESA',['SERV. TERCEIROS','MARKETING'],i,['PAGO'],['DESPESA VARIÁVEL'])},{l:'= MARGEM BRUTA',t:'T',k:'mb',col:'var(--lima)'},{l:'% Margem',t:'P',k:'mgBruta'},{l:'(-) DESP. FIXA',t:'g2',fn:i=>cp[i].df,col:'#1B3A5C'},{l:'Softwares',t:'i',fn:i=>gV('DESPESA',['SOFTWARES'],i,['PAGO'],['DESPESA FIXA'])},{l:'Desp. Administrativas',t:'i',fn:i=>gV('DESPESA',['DESP. ADMINISTRATIVAS'],i,['PAGO'],['DESPESA FIXA'])},{l:'Pró-labore / Retirada',t:'i',fn:i=>gV('DESPESA',['PRÓ-LABORE'],i,['PAGO'],['DESPESA FIXA'])},{l:'Outros (Fixos)',t:'i',fn:i=>cp[i].df-gV('DESPESA',['SOFTWARES','DESP. ADMINISTRATIVAS','PRÓ-LABORE'],i,['PAGO'],['DESPESA FIXA'])},{l:'= EBITDA',t:'T',k:'eb'},{l:'(-) INVESTIMENTO',t:'g2',fn:i=>cp[i].inv,col:'#B8860B'},{l:'= RESULTADO',t:'T',k:'rf',col:'var(--lima)'},{l:'% Margem Líq.',t:'P',k:'mgLiq'}];
   return(<div className="au page pc" style={{paddingTop:12}}>
     <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12,flexWrap:'wrap'}}>
       <select value={ano} onChange={e=>setAno(+e.target.value)} style={{width:90,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 10px',fontSize:13,outline:'none',background:'var(--branco)'}}>{(anos.length?anos:[new Date().getFullYear()]).map(a=><option key={a}>{a}</option>)}</select>
