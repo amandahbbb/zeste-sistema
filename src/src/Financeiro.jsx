@@ -1151,6 +1151,166 @@ function Previsoes({lancamentos,setAba}){
   </div>);
 }
 
+
+// ── CENÁRIOS FINANCEIROS ──────────────────────────────────────────
+function Cenarios({lancamentos,clientes,token}){
+  const[crm,setCrm]=useState([]);
+  const[horizonte,setHorizonte]=useState(6);
+  const[loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    fetch(`${SB_URL}/rest/v1/crm_contatos?deleted_at=is.null&select=id,data`,{headers:sbH(token)})
+      .then(r=>r.json())
+      .then(rows=>setCrm(Array.isArray(rows)?rows.map(r=>({...r.data,_id:r.id})):[]))
+      .catch(()=>setCrm([]))
+      .finally(()=>setLoading(false));
+  },[]);
+
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  const meses=Array.from({length:horizonte},(_,i)=>{const d=new Date(hoje);d.setMonth(d.getMonth()+i);return d.toISOString().slice(0,7);});
+  const MS_LABEL=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  // Saldo histórico atual
+  const saldoAtual=lancamentos.reduce((s,l)=>{
+    if(l.status==='RECEBIDO'||l.status==='PAGO'){const v=+(l.vlrPago||l.vlrLiquido||l.vlrBruto)||0;return s+(getClassif(l)==='receita'?v:-v);}
+    return s;
+  },0);
+
+  // Ticket médio de clientes ativos
+  const clAtivos=clientes.filter(c=>c.statusProjeto==='ATIVO');
+  const avgDeal=clAtivos.length>0?clAtivos.reduce((s,c)=>s+(+(c.vlrContratado)||0),0)/clAtivos.length:3000;
+
+  // CRM por estágio
+  const crmNeg=crm.filter(c=>c.stage==='Negociação / Proposta');
+  const crmLeads=crm.filter(c=>c.stage==='Leads');
+
+  // Clientes em proposta/negociação
+  const clProposta=clientes.filter(c=>c.statusProjeto==='PROPOSTA'||c.statusProjeto==='NEGOCIAÇÃO');
+
+  // Recorrentes confirmados
+  const recorrDesps=lancamentos.filter(l=>l.recorrente&&l.tipo==='DESPESA');
+  const recorrRec=lancamentos.filter(l=>l.recorrente&&l.tipo==='RECEITA');
+  const tRecorrDesp=recorrDesps.reduce((s,l)=>s+(+(l.vlrBruto||l.vlrPago)||0),0);
+  const tRecorrRec=recorrRec.reduce((s,l)=>s+(+(l.vlrBruto)||0),0);
+
+  const calcMes=(m,cenario)=>{
+    // Despesas confirmadas
+    const despConf=lancamentos.filter(l=>l.tipo==='DESPESA'&&(l.status==='PREVISTO')&&(l.dataDoc||'').startsWith(m)).reduce((s,l)=>s+(+(l.vlrBruto)||0),0);
+    const desp=despConf+tRecorrDesp;
+    // Receita confirmada (A RECEBER com data)
+    const recConf=lancamentos.filter(l=>l.tipo==='RECEITA'&&l.status==='A RECEBER'&&(l.dataDoc||'').startsWith(m)).reduce((s,l)=>s+(+(l.vlrBruto)||0),0);
+    if(cenario==='conservador') return{rec:recConf,desp};
+    // Realista: + propostas em curso (distribuída pelos próximos 3 meses)
+    const idx=meses.indexOf(m);
+    const recProp=idx<3?clProposta.reduce((s,c)=>s+(+(c.vlrContratado)||avgDeal)/3,0):0;
+    if(cenario==='realista') return{rec:recConf+recProp+tRecorrRec,desp};
+    // Otimista: + CRM leads + negociações
+    const recCRM=idx<6?(crmNeg.length*avgDeal/3+crmLeads.length*avgDeal/6):0;
+    return{rec:recConf+recProp+recCRM+tRecorrRec,desp};
+  };
+
+  const SCEN=[
+    {id:'conservador',l:'📊 Conservador',desc:'Só A Receber confirmados',col:'#6B7280'},
+    {id:'realista',l:'🎯 Realista',desc:'Confirmados + propostas em negociação',col:'#1A4F71'},
+    {id:'otimista',l:'🚀 Otimista',desc:'Tudo + pipeline CRM completo',col:'#8FA715'},
+  ];
+
+  // Saldo acumulado por cenário
+  const acum=SCEN.map(s=>{
+    let acc=saldoAtual;
+    return meses.map(m=>{const{rec,desp}=calcMes(m,s.id);acc+=rec-desp;return{m,rec,desp,acc};});
+  });
+
+  // Totais (soma dos resultados mensais)
+  const totais=SCEN.map((s,si)=>({...s,total:acum[si].reduce((t,m)=>t+(m.rec-m.desp),0),saldoFinal:acum[si][acum[si].length-1]?.acc||saldoAtual}));
+
+  // Chart SVG
+  const allVals=[saldoAtual,...acum.flatMap(a=>a.map(m=>m.acc))];
+  const maxV=Math.max(...allVals,0);const minV=Math.min(...allVals,0);
+  const range=maxV-minV||1;
+  const W=520,H=110,PL=52,PT=8,PB=22,PR=8;
+  const cw=W-PL-PR,ch=H-PT-PB;
+  const cx=i=>PL+(i/(horizonte))*cw;
+  const cy=v=>PT+ch-(v-minV)/range*ch;
+  const pts=si=>[`${cx(0)},${cy(saldoAtual)}`,...acum[si].map((m,i)=>`${cx(i+1)},${cy(m.acc)}`)].join(' ');
+
+  return(<div className="au page pc" style={{paddingTop:12}}>
+    {loading&&<div style={{textAlign:'center',padding:40,color:'var(--cinzaE)',fontSize:13}}>Carregando dados do CRM…</div>}
+    {!loading&&<>
+      {/* SELETOR HORIZONTE */}
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        {[3,6,12].map(h=><button key={h} onClick={()=>setHorizonte(h)} style={{flex:1,padding:'9px 0',borderRadius:7,border:'1.5px solid '+(horizonte===h?'var(--lima)':'var(--cinzaM)'),background:horizonte===h?'var(--lima)':'transparent',color:horizonte===h?'var(--preto)':'var(--cinzaE)',fontFamily:'var(--ff)',fontSize:13,fontWeight:700,cursor:'pointer'}}>{h} meses</button>)}
+      </div>
+
+      {/* CARDS DOS CENÁRIOS */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:16}}>
+        {totais.map(s=><div key={s.id} className="card" style={{borderTop:`3px solid ${s.col}`,padding:'14px 14px'}}>
+          <div style={{fontSize:12,fontWeight:700,color:s.col,marginBottom:4}}>{s.l}</div>
+          <div style={{fontSize:10,color:'var(--cinzaE)',marginBottom:10}}>{s.desc}</div>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:'.08em',color:'var(--cinzaE)',marginBottom:3}}>RESULTADO PROJETADO</div>
+          <div style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:700,color:s.total>=0?s.col:'var(--coral)'}}>{brl(s.total)}</div>
+          <div style={{fontSize:9,color:'var(--cinzaE)',marginTop:6}}>Saldo final estimado</div>
+          <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:s.saldoFinal>=0?s.col:'var(--coral)'}}>{brl(s.saldoFinal)}</div>
+        </div>)}
+      </div>
+
+      {/* GRÁFICO */}
+      <div className="card" style={{padding:'14px 16px 10px',marginBottom:16}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.09em',color:'var(--cinzaE)',marginBottom:10}}>SALDO PROJETADO — PRÓXIMOS {horizonte} MESES</div>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:H,display:'block'}}>
+          {minV<0&&maxV>0&&<line x1={PL} y1={cy(0)} x2={W-PR} y2={cy(0)} stroke="var(--cinzaM)" strokeWidth="1" strokeDasharray="4,3"/>}
+          {SCEN.map((s,si)=><polyline key={s.id} points={pts(si)} fill="none" stroke={s.col} strokeWidth={si===1?2.5:1.8} strokeLinecap="round" strokeLinejoin="round" opacity={si===0?.5:1}/>)}
+          {['Hoje',...meses.map(m=>MS_LABEL[parseInt(m.slice(5))-1])].map((l,i)=><text key={i} x={cx(i)} y={H-4} textAnchor="middle" fontSize="9" fill="var(--cinzaE)" fontFamily="var(--ff)">{l}</text>)}
+        </svg>
+        <div style={{display:'flex',gap:16,marginTop:8,flexWrap:'wrap'}}>
+          {SCEN.map(s=><span key={s.id} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'var(--cinzaE)'}}><span style={{width:20,height:2.5,background:s.col,display:'inline-block',borderRadius:2}}/>{s.l}</span>)}
+        </div>
+      </div>
+
+      {/* TABELA MENSAL */}
+      <SH>Detalhes mês a mês</SH>
+      <div style={{overflowX:'auto',borderRadius:12,boxShadow:'0 1px 8px rgba(0,0,0,.06)',marginBottom:16}}>
+        <table style={{width:'100%',borderCollapse:'collapse',background:'var(--branco)',minWidth:400,fontSize:12}}>
+          <thead><tr style={{background:'var(--preto)'}}>
+            <th style={{padding:'8px 12px',textAlign:'left',color:'var(--lima)',fontFamily:'var(--ff)',fontSize:11}}>MÊS</th>
+            {SCEN.map(s=><th key={s.id} colSpan={2} style={{padding:'8px 10px',textAlign:'center',color:s.col,fontFamily:'var(--ff)',fontSize:10}}>{s.l}</th>)}
+          </tr>
+          <tr style={{background:'#1a1a1a'}}>
+            <th style={{padding:'5px 12px',textAlign:'left',color:'var(--cinzaE)',fontFamily:'var(--ff)',fontSize:10}}>COMPETÊNCIA</th>
+            {SCEN.map(s=>[<th key={s.id+'r'} style={{padding:'5px 8px',textAlign:'right',color:'#8FA715',fontFamily:'var(--ff)',fontSize:9}}>RECEITA</th>,
+              <th key={s.id+'s'} style={{padding:'5px 8px',textAlign:'right',color:s.col,fontFamily:'var(--ff)',fontSize:9}}>SALDO ACUM.</th>])}
+          </tr></thead>
+          <tbody>
+            {meses.map((m,mi)=>{
+              const label=MS_LABEL[parseInt(m.slice(5))-1]+'/'+m.slice(2,4);
+              return(<tr key={m} style={{background:mi%2===0?'var(--branco)':'#FAFAF6'}}>
+                <td style={{padding:'9px 12px',fontFamily:'var(--ff)',fontWeight:700,fontSize:12,borderBottom:'1px solid var(--cinzaF)'}}>{label}</td>
+                {acum.map((sa,si)=>[
+                  <td key={'r'+si} style={{padding:'9px 8px',textAlign:'right',fontFamily:'var(--ff)',fontSize:11,color:'var(--verde)',borderBottom:'1px solid var(--cinzaF)'}}>{brl(sa[mi].rec)}</td>,
+                  <td key={'s'+si} style={{padding:'9px 8px',textAlign:'right',fontFamily:'var(--ff)',fontWeight:700,fontSize:12,color:sa[mi].acc>=0?SCEN[si].col:'var(--coral)',borderBottom:'1px solid var(--cinzaF)',borderRight:'1px solid var(--cinzaF)'}}>{brl(sa[mi].acc)}</td>
+                ])}
+              </tr>);
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* PREMISSAS */}
+      <div className="card" style={{background:'var(--cinzaF)',padding:'14px 16px'}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.09em',color:'var(--cinzaE)',marginBottom:10}}>ℹ️ PREMISSAS DO CÁLCULO</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+          {[
+            ['📊 Conservador','Apenas lançamentos A RECEBER com data definida + despesas previstas + recorrências fixas'],
+            ['🎯 Realista','Conservador + '+clProposta.length+' cliente(s) em proposta ('+brl(clProposta.reduce((s,c)=>s+(+(c.vlrContratado)||avgDeal),0))+') distribuídos em 3 meses'],
+            ['🚀 Otimista','Realista + '+crmNeg.length+' negociações e '+crmLeads.length+' leads no CRM + recorrências de receita ('+brl(tRecorrRec)+'/mês)'],
+          ].map(([t,d])=><div key={t}><div style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:12,marginBottom:4}}>{t}</div><div style={{fontSize:11,color:'var(--cinzaE)',lineHeight:1.5}}>{d}</div></div>)}
+        </div>
+        <div style={{marginTop:12,fontSize:11,color:'var(--cinzaE)',fontStyle:'italic'}}>Ticket médio calculado: {brl(avgDeal)} · Saldo atual: {brl(saldoAtual)}</div>
+      </div>
+    </>}
+  </div>);
+}
+
 // ── ROOT ──────────────────────────────────────────────────────────
 export default function Financeiro({onBack,token}){
   const[lancamentos,setLancamentos]=useState([]);
@@ -1181,7 +1341,7 @@ export default function Financeiro({onBack,token}){
   const saveCliente=async item=>{await sync(async()=>{await sbUpsert('fin_clientes',item,token);setClientes(p=>p.some(c=>c.id===item.id)?p.map(c=>c.id===item.id?item:c):[item,...p]);});};
   const delCliente=async id=>{await sync(async()=>{await sbSoftDel('fin_clientes',id,token);setClientes(p=>p.filter(c=>c.id!==id));});};
 
-  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'receber',l:'RECEBER'},{id:'previsoes',l:'PREVISÕES'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'clientes',l:'CLIENTES'}];
+  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'cenarios',l:'CENÁRIOS'},{id:'receber',l:'RECEBER'},{id:'previsoes',l:'PREVISÕES'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'clientes',l:'CLIENTES'}];
   const fab=()=>{if(aba==='lancamentos')nL.current();else if(aba==='clientes')nC.current();else{setAba('lancamentos');setTimeout(()=>nL.current(),200);}};
 
   if(loading)return(<><style>{STYLE}</style><div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--cinzaF)'}}><div style={{textAlign:'center'}}><div style={{fontFamily:'var(--ff)',fontSize:32,fontWeight:800,color:'var(--verde)',letterSpacing:'.06em'}}>ZESTE</div><div style={{color:'var(--cinzaE)',fontSize:13,marginTop:4}}>Carregando do banco de dados…</div></div></div></>);
@@ -1205,6 +1365,7 @@ export default function Financeiro({onBack,token}){
     {aba==='resumo'&&<Resumo lancamentos={lancamentos} setAba={setAba}/>}
     {aba==='previsoes'&&<Previsoes lancamentos={lancamentos} setAba={setAba}/>}
     {aba==='lancamentos'&&<Lancamentos lancamentos={lancamentos} lixeira={lixeira} openNew={nL} onSave={saveLancamento} onDelete={softDelLancamento} onRestore={restoreLancamento} onPurge={purgeLancamento} onImport={importLancamentos}/>}
+    {aba==='cenarios'&&<Cenarios lancamentos={lancamentos} clientes={clientes} token={token}/>}
     {aba==='receber'&&<ContasReceber lancamentos={lancamentos} clientes={clientes} onSaveL={saveLancamento} setAba={setAba}/>}
     {aba==='dre'&&<DRE lancamentos={lancamentos}/>}
     {aba==='clientes'&&<Clientes clientes={clientes} onSave={saveCliente} onDelete={delCliente} openNew={nC} onSaveL={saveLancamento} lancamentos={lancamentos}/>}
