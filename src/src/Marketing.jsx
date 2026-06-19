@@ -1,3 +1,4 @@
+// Antonio font loaded in useEffect
 import { useState, useEffect } from "react";
 
 // ── CORES ZESTE ──────────────────────────────────────────────
@@ -142,6 +143,164 @@ Retorne APENAS o JSON, sem markdown.`;
 // ══════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ══════════════════════════════════════════════════════════════
+
+// ── GERADOR DE POSTS ──────────────────────────────────────────────
+const ABERTURAS = {
+  direto: ["Sem rodeio:", "Direto ao ponto:", "O que importa:"],
+  proximo: ["Bora falar sobre isso?", "Real de cozinha:", "Quem já viveu isso entende:"],
+  autoridade: ["Na prática, isso significa:", "O que a operação mostra:", "Dado da nossa experiência:"]
+};
+const CTAS = {
+  dica: ["Salva esse post pra aplicar na sua operação.", "Manda pra quem precisa ler isso hoje."],
+  case: ["Quer um diagnóstico assim pro seu negócio? Manda mensagem.", "Resultado real, processo real. Vamos conversar?"],
+  bastidores: ["Acompanha o dia a dia por aqui.", "É assim que a gente trabalha — sem fórmula mágica."],
+  convite: ["Garanta sua vaga pelo link na bio.", "Responde esse post que a gente te chama no direct."],
+  frase: ["Marca alguém que precisa ler isso.", "Guarda essa pra revisitar quando a rotina apertar."]
+};
+const TAGS_BASE = ["#zesteconsultoria","#gastronomia","#gestaodecozinha"];
+const TAGS_TIPO = {
+  dica: ["#dicadecozinha","#operacaodecozinha"],
+  case: ["#casedesucesso","#consultoriagastronomica"],
+  bastidores: ["#bastidores","#rotinadecozinha"],
+  convite: ["#vempraequipe","#agendaaberta"],
+  frase: ["#gastronomiaautoral","#mentalidadedecozinha"]
+};
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+
+function gerarLegenda(tipo,tom,titulo,subtitulo){
+  const ab = pick(ABERTURAS[tom]||ABERTURAS.direto);
+  const ct = pick(CTAS[tipo]||CTAS.dica);
+  return ab+"\n\n"+titulo+".\n"+subtitulo+"\n\n"+ct;
+}
+
+function PostGenerator(){
+  const [tipo,setTipo]   = useState("dica");
+  const [label,setLabel] = useState("O PROJETO");
+  const [titulo,setTitulo] = useState("Diagnóstico operacional");
+  const [sub,setSub]     = useState("Mapeamos cada etapa da cozinha antes de propor qualquer mudança.");
+  const [cor,setCor]     = useState("8FA715");
+  const [tom,setTom]     = useState("direto");
+  const [legenda,setLegenda] = useState("");
+  const [copied,setCopied]   = useState(false);
+  const [downloading,setDownloading] = useState(false);
+  const postRef = React.useRef(null);
+
+  // Load Antonio font + html2canvas
+  React.useEffect(()=>{
+    // Font
+    if(!document.querySelector('link[href*="Antonio"]')){
+      const l=document.createElement('link');l.rel='stylesheet';
+      l.href='https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&display=swap';
+      document.head.appendChild(l);
+    }
+    // html2canvas
+    if(!window.html2canvas){
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      document.head.appendChild(s);
+    }
+  },[]);
+
+  React.useEffect(()=>{setLegenda(gerarLegenda(tipo,tom,titulo,sub));},[tipo,tom,titulo,sub]);
+
+  const acento = "#"+cor;
+  const hashtags = [...TAGS_BASE,...(TAGS_TIPO[tipo]||[])].join(" ");
+
+  const copiar = ()=>{
+    navigator.clipboard.writeText(legenda+"\n\n"+hashtags);
+    setCopied(true); setTimeout(()=>setCopied(false),1500);
+  };
+
+  const baixar = ()=>{
+    if(!window.html2canvas||!postRef.current) return;
+    setDownloading(true);
+    window.html2canvas(postRef.current,{scale:3,useCORS:true}).then(canvas=>{
+      const a=document.createElement('a');a.download='post-zeste.png';a.href=canvas.toDataURL();a.click();
+    }).finally(()=>setDownloading(false));
+  };
+
+  const exportJson = ()=>{
+    const d={tipo,label,titulo,subtitulo:sub,cor,tom,legenda,hashtags};
+    const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+    const u=URL.createObjectURL(b);
+    const a=document.createElement('a');a.download='post-zeste.json';a.href=u;a.click();
+    URL.revokeObjectURL(u);
+  };
+
+  const inp = {width:'100%',border:'1px solid #D9D7CD',borderRadius:7,padding:'8px 10px',fontFamily:'inherit',fontSize:13,background:'#FCFBF9',color:'#1B1B1B',marginBottom:2};
+  const lbl = {fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',color:'#888',display:'block',marginTop:14,marginBottom:5};
+  const btn = (bg,col)=>({width:'100%',marginTop:10,padding:'10px 14px',borderRadius:8,border:'1px solid '+bg,background:bg,color:col,fontWeight:700,fontSize:13,cursor:'pointer'});
+
+  return(
+    <div style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:20,alignItems:'start'}}>
+
+      {/* CONTROLES */}
+      <div style={{background:'#fff',border:'1px solid #E3E1D9',borderRadius:12,padding:18}}>
+        <div>
+          <span style={lbl}>Tipo de post</span>
+          <select value={tipo} onChange={e=>{setTipo(e.target.value);setLegenda(gerarLegenda(e.target.value,tom,titulo,sub));}} style={inp}>
+            {[["dica","Dica / educativo"],["case","Case de cliente"],["bastidores","Bastidores"],["convite","Convite / CTA"],["frase","Frase / inspiracional"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+          </select>
+        </div>
+        <div>
+          <span style={lbl}>Label de seção</span>
+          <input style={inp} value={label} onChange={e=>setLabel(e.target.value)}/>
+        </div>
+        <div>
+          <span style={lbl}>Título principal</span>
+          <input style={inp} value={titulo} onChange={e=>setTitulo(e.target.value)}/>
+        </div>
+        <div>
+          <span style={lbl}>Subtítulo / descrição</span>
+          <textarea style={{...inp,resize:'vertical'}} rows={3} value={sub} onChange={e=>setSub(e.target.value)}/>
+        </div>
+        <div>
+          <span style={lbl}>Cor de destaque</span>
+          <select value={cor} onChange={e=>setCor(e.target.value)} style={inp}>
+            {[["8FA715","Verde Zeste"],["C4622D","Terracota"],["1A4F71","Azul aço"],["497A5D","Verde floresta"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+          </select>
+        </div>
+        <div>
+          <span style={lbl}>Tom da legenda</span>
+          <select value={tom} onChange={e=>{setTom(e.target.value);setLegenda(gerarLegenda(tipo,e.target.value,titulo,sub));}} style={inp}>
+            {[["direto","Direto"],["proximo","Próximo / acolhedor"],["autoridade","Autoridade técnica"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+          </select>
+        </div>
+        <button onClick={()=>setLegenda(gerarLegenda(tipo,tom,titulo,sub))} style={btn(acento,'#fff')}>Gerar variação de copy ↻</button>
+        <button onClick={baixar} disabled={downloading} style={{...btn('transparent','#555'),border:'1px solid #D9D7CD',marginTop:8}}>{downloading?'Gerando…':'Baixar imagem do post ⤓'}</button>
+      </div>
+
+      {/* PREVIEW + COPY */}
+      <div>
+        <div style={{display:'flex',justifyContent:'center',background:'#EDEBE3',borderRadius:12,padding:28}}>
+          <div ref={postRef} style={{width:360,height:360,background:'#1B1B1B',position:'relative',overflow:'hidden',flexShrink:0}}>
+            <div style={{position:'absolute',left:28,top:110,width:40,height:3,background:acento}}/>
+            <div style={{position:'absolute',left:28,top:122,fontSize:11,fontWeight:700,letterSpacing:'1.5px',color:acento}}>{label}</div>
+            <div style={{position:'absolute',left:28,top:156,right:28,fontFamily:"'Antonio','Helvetica Neue',Helvetica,Arial,sans-serif",fontWeight:600,fontSize:26,color:'#fff',lineHeight:1.2}}>{titulo}</div>
+            <div style={{position:'absolute',left:28,top:236,right:28,fontSize:13,color:'#888',lineHeight:1.55}}>{sub}</div>
+            <div style={{position:'absolute',left:28,bottom:18,fontSize:10,color:acento,letterSpacing:'0.5px',fontWeight:600}}>zeste consultoria gastronômica</div>
+          </div>
+        </div>
+
+        <div style={{marginTop:16,background:'#fff',border:'1px solid #E3E1D9',borderRadius:12,padding:18}}>
+          <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#888',marginBottom:8}}>Legenda</div>
+          <p style={{fontSize:13,lineHeight:1.65,whiteSpace:'pre-wrap',margin:'0 0 14px',color:'#1B1B1B'}}>{legenda}</p>
+          <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#888',marginBottom:8}}>Hashtags</div>
+          <p style={{fontSize:12,lineHeight:1.6,margin:'0 0 14px',color:'#2E5F8A'}}>{hashtags}</p>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            <button onClick={copiar} style={{...btn(copied?'#8FA715':'transparent',copied?'#fff':'#555'),border:'1px solid #D9D7CD',width:'auto',padding:'7px 14px',marginTop:0,fontSize:12}}>
+              {copied?'✓ Copiado!':'Copiar legenda + hashtags'}
+            </button>
+            <button onClick={exportJson} style={{...btn('transparent','#555'),border:'1px solid #D9D7CD',width:'auto',padding:'7px 14px',marginTop:0,fontSize:12}}>
+              Exportar JSON ⤓
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function RedesSociais({onBack,token:tokenProp}) {
   const [aba, setAba] = useState("dashboard"); // dashboard | cadastrar | historico
   const [rede, setRede] = useState("instagram");
@@ -243,7 +402,7 @@ export default function RedesSociais({onBack,token:tokenProp}) {
 
       {/* ABAS */}
       <div style={{ display: "flex", background: "#fff", borderBottom: `1px solid ${C.border}` }}>
-        {[["dashboard","📊 Dashboard"],["historico","📅 Histórico"],["cadastrar","➕ Cadastrar"],["insights","✨ Insights IA"]].map(([id, label]) => (
+        {[["dashboard","📊 Dashboard"],["historico","📅 Histórico"],["cadastrar","➕ Cadastrar"],["insights","✨ Insights IA"],["posts","🎨 Posts"]].map(([id, label]) => (
           <button key={id} onClick={() => setAba(id)}
             style={{ flex: 1, padding: "12px 4px", fontSize: 11, fontWeight: aba === id ? 800 : 600, border: "none", cursor: "pointer",
               background: "transparent", color: aba === id ? accentColor : C.muted,
@@ -254,6 +413,9 @@ export default function RedesSociais({onBack,token:tokenProp}) {
       </div>
 
       <div style={{ padding: "16px", maxWidth: 520, margin: "0 auto" }}>
+
+        {/* ── GERADOR DE POSTS ── */}
+        {aba === "posts" && <PostGenerator />}
 
         {/* ── DASHBOARD ── */}
         {aba === "dashboard" && (
