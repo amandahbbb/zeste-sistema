@@ -154,9 +154,12 @@ function Anexos({anexos=[],onChange}){const ref=useRef();const[prev,setPrev]=use
 // ── FORM LANÇAMENTO ───────────────────────────────────────────────
 const EL={status:'PAGO',tipo:'DESPESA',natureza:'DESPESA FIXA',dataDoc:td(),categoria:'OUTROS',subcategoria:'OUTROS',descricao:'',clienteFornecedor:'',projeto:'',competencia:'',forma:'PIX',vlrBruto:'',taxaPct:0,vlrTaxa:0,vlrLiquido:'',dataPrevista:td(),vlrPago:'',dataPago:td(),pagador:'ZESTE',reembolso:'',obs:'',anexos:[],cartao:'',cartaoNome:'',cartaoBandeira:'',cartaoUlt4:'',cartaoTitular:'',cartaoDiaFecha:'',cartaoDiaVence:'',recorrente:false,recorrenciaFreq:'mensal',isParcelado:false,nParcelas:2,diaParcela:'',parcelaAtual:'',parcelaTotal:''};
 
-function FormL({init,onSave,onClose}){
+function FormL({init,onSave,onClose,lancamentos=[]}){
   const[f,setF]=useState(()=>({...EL,...(init||{}),id:(init?.id||uid())}));
   const S=(k,v)=>setF(p=>({...p,[k]:v}));
+  const[sugs,setSugs]=useState([]);const[showSugs,setShowSugs]=useState(false);
+  const filterSugs=txt=>{if(!txt||txt.length<2){setSugs([]);return;}const seen=new Set();const r=lancamentos.filter(l=>l.descricao?.toLowerCase().includes(txt.toLowerCase())).sort((a,b)=>(b.dataDoc||'').localeCompare(a.dataDoc||'')).filter(l=>{if(seen.has(l.descricao))return false;seen.add(l.descricao);return true;}).slice(0,6);setSugs(r);};
+  const applySug=l=>{setF(p=>({...p,descricao:l.descricao,categoria:l.categoria||p.categoria,subcategoria:l.subcategoria||p.subcategoria,vlrBruto:l.vlrBruto||p.vlrBruto,forma:l.forma||p.forma,pagador:l.pagador||p.pagador,clienteFornecedor:l.clienteFornecedor||p.clienteFornecedor}));setSugs([]);setShowSugs(false);};
   const classif = f.tipo==='RECEITA'?'receita':f.natureza==='INVESTIMENTO'||f.categoria==='INVESTIMENTO'?'investimento':f.natureza==='PRÓ-LABORE'||f.categoria==='PRÓ-LABORE'?'retirada':'desp_op';
   const setClassif = id => {const opt=CLASSIF_OPTS.find(o=>o.id===id);if(!opt)return;setF(p=>({...p,tipo:opt.tipo,natureza:opt.natureza||(opt.tipo==='DESPESA'?'DESPESA FIXA':''),categoria:opt.cat||p.categoria,status:opt.tipo==='RECEITA'?'RECEBIDO':'PAGO'}));};
   useEffect(()=>{if(f.tipo==='RECEITA'){const fd=FORMAS[f.forma]||{taxa:0};const t=fd.taxa;const vt=f.vlrBruto?t*+f.vlrBruto:0;const vl=f.vlrBruto?+f.vlrBruto-vt:'';setF(p=>({...p,taxaPct:t,vlrTaxa:vt,vlrLiquido:vl}));};},[f.forma,f.vlrBruto,f.tipo]);
@@ -247,7 +250,25 @@ function FormL({init,onSave,onClose}){
         </div>}
       </>}
     </Fld>}
-    <Fld label="Descrição"><input required value={f.descricao} onChange={e=>S('descricao',e.target.value)} placeholder="Ex: Consultoria operacional cliente X"/></Fld>
+    <Fld label="Descrição">
+      <div style={{position:'relative'}}>
+        <input required value={f.descricao}
+          onChange={e=>{S('descricao',e.target.value);filterSugs(e.target.value);setShowSugs(true);}}
+          onFocus={()=>f.descricao.length>=2&&setShowSugs(true)}
+          onBlur={()=>setTimeout(()=>setShowSugs(false),200)}
+          placeholder="Ex: Consultoria operacional cliente X"/>
+        {showSugs&&sugs.length>0&&<div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--branco)',border:'1.5px solid var(--lima)',borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,.12)',zIndex:200,overflow:'hidden',marginTop:2}}>
+          {sugs.map((l,i)=><div key={i} onMouseDown={()=>applySug(l)}
+            style={{padding:'9px 12px',cursor:'pointer',borderBottom:i<sugs.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}
+            onMouseEnter={e=>e.currentTarget.style.background='var(--cinzaF)'}
+            onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+            <div><div style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:13}}>{l.descricao}</div><div style={{fontSize:11,color:'var(--cinzaE)',marginTop:1}}>{l.categoria}{l.clienteFornecedor?' · '+l.clienteFornecedor:''}</div></div>
+            <div style={{fontFamily:'var(--ff)',fontSize:13,fontWeight:700,color:getClassif(l)==='receita'?'var(--verde)':'var(--coral)',flexShrink:0,marginLeft:10}}>{brl(+(l.vlrBruto)||0)}</div>
+          </div>)}
+          <div style={{padding:'6px 12px',fontSize:10,color:'var(--cinzaE)',background:'var(--cinzaF)',borderTop:'1px solid var(--cinzaM)'}}>↑ Clique pra preencher automaticamente</div>
+        </div>}
+      </div>
+    </Fld>
     <Fld label="Cliente / Fornecedor" h><input value={f.clienteFornecedor} onChange={e=>S('clienteFornecedor',e.target.value)} placeholder="Nome"/></Fld>
     <Fld label="Projeto" h><input value={f.projeto} onChange={e=>S('projeto',e.target.value)} placeholder="Projeto"/></Fld>
     <Fld label="Forma de Pagamento" h><select value={f.forma} onChange={e=>S('forma',e.target.value)}>{Object.entries(FORMAS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}</select></Fld>
@@ -596,6 +617,21 @@ function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPu
   }).sort((a,b)=>(b.dataDoc||'').localeCompare(a.dataDoc||''));
   const tot=lst.reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido||l.vlrBruto)||0),0);
   const save=async item=>{await onSave(item);setModal(null);};
+  const[replicando,setReplicando]=useState(false);
+  const replicarMesAnt=async()=>{
+    const hoje=new Date();const mesAtual=hoje.toISOString().slice(0,7);
+    const d2=new Date();d2.setMonth(d2.getMonth()-1);const mesAnt=d2.toISOString().slice(0,7);
+    const doMesAnt=lancamentos.filter(l=>(l.competencia||l.dataDoc||'').startsWith(mesAnt)&&(l.status==='PAGO'||l.status==='RECEBIDO'));
+    if(!doMesAnt.length){alert('Nenhum lançamento encontrado no mês anterior.');return;}
+    if(!window.confirm('Replicar '+doMesAnt.length+' lançamento(s) de '+mesAnt+' para '+mesAtual+' com status PREVISTO/A RECEBER?'))return;
+    setReplicando(true);
+    for(const l of doMesAnt){
+      const novaData=l.dataDoc?mesAtual+l.dataDoc.slice(7):mesAtual+'-01';
+      await onSave({...l,id:uid(),dataDoc:novaData,competencia:mesAtual,status:l.tipo==='RECEITA'?'A RECEBER':'PREVISTO',vlrPago:'',dataPago:''});
+    }
+    setReplicando(false);
+    alert(doMesAnt.length+' lançamento(s) replicado(s) para '+mesAtual+'!');
+  };
   return(<div className="au page"><div className="pc" style={{paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
     <div className="filter-row">
       <input placeholder="🔍 Buscar…" value={ft.q} onChange={e=>setFt(p=>({...p,q:e.target.value}))}/>
@@ -607,6 +643,7 @@ function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPu
     </div>
     <div className="action-row">
       {lst.length>0&&<div style={{background:'var(--preto)',borderRadius:8,padding:'9px 12px',display:'flex',justifyContent:'space-between',alignItems:'center',flex:1,minWidth:160}}><span style={{fontFamily:'var(--ff)',fontSize:11,letterSpacing:'.1em',color:'var(--cinzaE)'}}>{lst.length} ITEM{lst.length!==1?'S':''}</span><span style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--lima)'}}>{brl(tot)}</span></div>}
+      <button className="action-btn" title="Replicar mês anterior" disabled={replicando} onClick={replicarMesAnt} style={{borderColor:'var(--azul)',color:'var(--azul)',background:'#EFF6FF'}}>{replicando?'⟳':'↻ Mês ant.'}</button>
       <button className="action-btn" style={{borderColor:'var(--cinzaM)',color:'var(--cinzaE)'}} onClick={()=>setShowImp(true)}>📂</button>
       <button className="action-btn" style={{borderColor:'#10B981',color:'#065F46',background:'#ECFDF5'}} onClick={()=>exportExcel(lst)}>⬇ XLS</button>
       <button className="action-btn" style={{borderColor:'var(--azul)',color:'var(--azul)',background:'#EFF6FF'}} onClick={()=>exportPDF(lst)}>🖨 PDF</button>
@@ -632,13 +669,16 @@ function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPu
           </div>
           <div style={{textAlign:'right',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
             <span style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:isR?'var(--verde)':'var(--coral)'}}>{isR?'+':'−'}{brl(vlr)}</span>
-            <button onClick={e=>{e.stopPropagation();setDel(l.id);}} style={{fontSize:14,color:'var(--coral)',lineHeight:1,minWidth:28,minHeight:28,display:'flex',alignItems:'center',justifyContent:'center'}}>🗑</button>
+            <div style={{display:'flex',gap:4}}>
+              <button title="Duplicar" onClick={e=>{e.stopPropagation();setModal({...l,id:uid(),dataDoc:new Date().toISOString().slice(0,10),competencia:new Date().toISOString().slice(0,7),status:l.tipo==='RECEITA'?'A RECEBER':'PREVISTO',vlrPago:'',dataPago:''});}} style={{fontSize:13,color:'var(--azul)',lineHeight:1,minWidth:28,minHeight:28,display:'flex',alignItems:'center',justifyContent:'center',background:'var(--cinzaF)',border:'none',borderRadius:5,cursor:'pointer'}}>⧉</button>
+              <button onClick={e=>{e.stopPropagation();setDel(l.id);}} style={{fontSize:14,color:'var(--coral)',lineHeight:1,minWidth:28,minHeight:28,display:'flex',alignItems:'center',justifyContent:'center',background:'none',border:'none',cursor:'pointer'}}>🗑</button>
+            </div>
           </div>
         </div>);
       })}
     </div>
   </div>
-  {modal&&<Modal title={modal==='new'?'Novo Lançamento':'Editar Lançamento'} onClose={()=>setModal(null)}><FormL init={modal!=='new'?modal:null} onSave={save} onClose={()=>setModal(null)}/></Modal>}
+  {modal&&<Modal title={modal==='new'?'Novo Lançamento':'Editar Lançamento'} onClose={()=>setModal(null)}><FormL init={modal!=='new'?modal:null} onSave={save} onClose={()=>setModal(null)} lancamentos={lancamentos}/></Modal>}
   {del&&<DelModal msg="Mover para a lixeira?" onConfirm={()=>{onDelete(del);setDel(null);}} onClose={()=>setDel(null)}/>}
   </div>);
 }
@@ -890,6 +930,21 @@ function Clientes({clientes,onSave,onDelete,openNew,onSaveL,lancamentos}){
   const[gerando,setGerando]=useState(null);
   useEffect(()=>{openNew.current=()=>setModal('new');},[]);
   const save=async item=>{await onSave(item);setModal(null);};
+  const[replicando,setReplicando]=useState(false);
+  const replicarMesAnt=async()=>{
+    const hoje=new Date();const mesAtual=hoje.toISOString().slice(0,7);
+    const d2=new Date();d2.setMonth(d2.getMonth()-1);const mesAnt=d2.toISOString().slice(0,7);
+    const doMesAnt=lancamentos.filter(l=>(l.competencia||l.dataDoc||'').startsWith(mesAnt)&&(l.status==='PAGO'||l.status==='RECEBIDO'));
+    if(!doMesAnt.length){alert('Nenhum lançamento encontrado no mês anterior.');return;}
+    if(!window.confirm('Replicar '+doMesAnt.length+' lançamento(s) de '+mesAnt+' para '+mesAtual+' com status PREVISTO/A RECEBER?'))return;
+    setReplicando(true);
+    for(const l of doMesAnt){
+      const novaData=l.dataDoc?mesAtual+l.dataDoc.slice(7):mesAtual+'-01';
+      await onSave({...l,id:uid(),dataDoc:novaData,competencia:mesAtual,status:l.tipo==='RECEITA'?'A RECEBER':'PREVISTO',vlrPago:'',dataPago:''});
+    }
+    setReplicando(false);
+    alert(doMesAnt.length+' lançamento(s) replicado(s) para '+mesAtual+'!');
+  };
   const gerarRecebimentos=async c=>{
     const items=gerarRecebimentosContrato(c);
     if(!items.length){alert('Preencha Valor e Data de Início para gerar recebimentos.');return;}
