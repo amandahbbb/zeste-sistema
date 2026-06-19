@@ -4,6 +4,7 @@ import Fichas from "./Fichas.jsx";
 import Comercial from "./Comercial.jsx";
 import RedesSociais from "./Marketing.jsx";
 import PortalCliente from "./PortalCliente.jsx";
+import BreakEven from "./BreakEven.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SUPABASE_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -171,6 +172,7 @@ const MODULOS = [
   { id: "fichas",     icon: "🍽️", label: "Fichas Técnicas e Produção" },
   { id: "drive",      icon: "📁", label: "Drive"       },
   { id: "marketing",  icon: "📱", label: "Marketing"   },
+  { id: "breakeven",  icon: "📉", label: "Break-even"  },
 ];
 
 // ── SIDEBAR DESKTOP ─────────────────────────────────────────────
@@ -655,6 +657,15 @@ export default function ZesteSistema() {
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user }}>
         <Comercial onBack={() => setModulo("dashboard")} token={session.token} />
+      </AppCtx.Provider>
+    </>
+  );
+
+  if (modulo === "breakeven") return (
+    <>
+      <style>{GLOBAL_STYLE}</style>
+      <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
+        <BreakEven onBack={() => setModulo("dashboard")} />
       </AppCtx.Provider>
     </>
   );
