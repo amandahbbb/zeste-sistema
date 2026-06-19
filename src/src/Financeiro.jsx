@@ -152,7 +152,7 @@ function FeeCalc({forma,vlrBruto,tipo}){if(tipo!=='RECEITA'||!vlrBruto||+vlrBrut
 function Anexos({anexos=[],onChange}){const ref=useRef();const[prev,setPrev]=useState(null);const add=async(files)=>{const p=await Promise.all(Array.from(files).map(compressImg));onChange([...anexos,...p]);};return(<div><div className="att-grid">{anexos.map((a,i)=>(<div key={i} style={{position:'relative'}}>{a.type==='image'?<img src={a.data} className="att-thumb" alt="" onClick={()=>setPrev(a)}/>:<div className="att-pdf" onClick={()=>setPrev(a)}><span style={{fontSize:22}}>📄</span><span style={{fontSize:9,color:'var(--cinzaE)'}}>{(a.name||'').slice(0,10)}</span></div>}<button onClick={()=>onChange(anexos.filter((_,j)=>j!==i))} style={{position:'absolute',top:-6,right:-6,width:20,height:20,borderRadius:'50%',background:'var(--coral)',color:'var(--branco)',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button></div>))}<div className="att-add" onClick={()=>ref.current.click()}><span style={{fontSize:22}}>📎</span><span>Anexo</span></div></div><input ref={ref} type="file" accept="image/*,application/pdf" capture="environment" multiple onChange={e=>add(e.target.files)}/>{prev&&(<Modal title={prev.name||'Comprovante'} onClose={()=>setPrev(null)}>{prev.type==='image'?<img src={prev.data} style={{width:'100%',borderRadius:8}} alt=""/>:<div style={{textAlign:'center',padding:32}}><span style={{fontSize:48}}>📄</span><p style={{marginTop:10,color:'var(--cinzaE)',marginBottom:14}}>{prev.name}</p><a href={prev.data} download={prev.name||'comprovante.pdf'} style={{color:'var(--azul)',fontWeight:600}}>⬇ Baixar PDF</a></div>}</Modal>)}</div>);}
 
 // ── FORM LANÇAMENTO ───────────────────────────────────────────────
-const EL={status:'PAGO',tipo:'DESPESA',natureza:'DESPESA FIXA',dataDoc:td(),categoria:'OUTROS',subcategoria:'OUTROS',descricao:'',clienteFornecedor:'',projeto:'',competencia:'',forma:'PIX',vlrBruto:'',taxaPct:0,vlrTaxa:0,vlrLiquido:'',dataPrevista:td(),vlrPago:'',dataPago:td(),pagador:'ZESTE',reembolso:'',obs:'',anexos:[],cartao:'',cartaoNome:'',cartaoBandeira:'',cartaoUlt4:'',cartaoTitular:'',cartaoDiaFecha:'',cartaoDiaVence:'',recorrente:false,recorrenciaFreq:'mensal',parcelaAtual:'',parcelaTotal:''};
+const EL={status:'PAGO',tipo:'DESPESA',natureza:'DESPESA FIXA',dataDoc:td(),categoria:'OUTROS',subcategoria:'OUTROS',descricao:'',clienteFornecedor:'',projeto:'',competencia:'',forma:'PIX',vlrBruto:'',taxaPct:0,vlrTaxa:0,vlrLiquido:'',dataPrevista:td(),vlrPago:'',dataPago:td(),pagador:'ZESTE',reembolso:'',obs:'',anexos:[],cartao:'',cartaoNome:'',cartaoBandeira:'',cartaoUlt4:'',cartaoTitular:'',cartaoDiaFecha:'',cartaoDiaVence:'',recorrente:false,recorrenciaFreq:'mensal',isParcelado:false,nParcelas:2,diaParcela:'',parcelaAtual:'',parcelaTotal:''};
 
 function FormL({init,onSave,onClose}){
   const[f,setF]=useState(()=>({...EL,...(init||{}),id:(init?.id||uid())}));
@@ -164,7 +164,28 @@ function FormL({init,onSave,onClose}){
   const sub=SUBS[f.categoria]||['OUTROS'];
   const catCustom=!CATS.includes(f.categoria);
   const pagCustom=!PAGADORES.includes(f.pagador);
-  const submit=e=>{e.preventDefault();onSave({...f});};
+  const[salvando,setSalvando]=useState(false);
+  const submit=async e=>{
+    e.preventDefault();
+    setSalvando(true);
+    try{
+      if(f.isParcelado&&+f.nParcelas>1&&f.vlrBruto){
+        const n=+f.nParcelas;
+        const vlrP=((+(f.vlrBruto)||0)/n).toFixed(2);
+        for(let i=0;i<n;i++){
+          const d=new Date((f.dataDoc||td())+'T12:00:00');
+          d.setMonth(d.getMonth()+i);
+          if(f.diaParcela) d.setDate(+f.diaParcela);
+          const dataStr=d.toISOString().slice(0,10);
+          await onSave({...f,id:i===0?f.id:uid(),vlrBruto:vlrP,vlrPago:f.status==='PAGO'?vlrP:'',
+            dataDoc:dataStr,competencia:dataStr.slice(0,7),dataPago:f.status==='PAGO'?dataStr:f.dataPago,
+            descricao:`${f.descricao} — Parcela ${i+1}/${n}`,parcelaAtual:i+1,parcelaTotal:n,isParcelado:false});
+        }
+      } else {
+        await onSave({...f});
+      }
+    } finally { setSalvando(false); }
+  };
   return(<form onSubmit={submit}><div className="fg">
     <Fld label="Classificação do Lançamento">
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:3}}>
@@ -201,6 +222,29 @@ function FormL({init,onSave,onClose}){
           <option value="anual">📅 Anual (uma vez por ano)</option>
         </select>
         <div style={{fontSize:11,color:'var(--verde)',fontWeight:600}}>✓ Projetado automaticamente na aba Previsões</div>
+      </>}
+    </Fld>}
+    {f.tipo==='DESPESA'&&<Fld label="Parcelado?">
+      <div style={{display:'flex',gap:8,marginBottom:f.isParcelado?8:0}}>
+        <button type="button" onClick={()=>S('isParcelado',false)} style={{flex:1,padding:'9px 12px',borderRadius:6,border:'1.5px solid '+(f.isParcelado?'var(--cinzaM)':'var(--coral)'),background:f.isParcelado?'transparent':'var(--coral)',color:f.isParcelado?'var(--cinzaE)':'var(--branco)',fontWeight:700,fontSize:13,minHeight:40}}>Compra à vista</button>
+        <button type="button" onClick={()=>S('isParcelado',true)} style={{flex:1,padding:'9px 12px',borderRadius:6,border:'1.5px solid '+(f.isParcelado?'var(--coral)':'var(--cinzaM)'),background:f.isParcelado?'var(--coral)':'transparent',color:f.isParcelado?'var(--branco)':'var(--cinzaE)',fontWeight:700,fontSize:13,minHeight:40}}>📋 Parcelado</button>
+      </div>
+      {f.isParcelado&&<>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+          <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',marginBottom:4,letterSpacing:'.06em'}}>Nº DE PARCELAS</div><input type="number" min="2" max="48" value={f.nParcelas} onChange={e=>S('nParcelas',+e.target.value)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'9px 10px',fontSize:14,textAlign:'center',fontFamily:'var(--ff)',fontWeight:700}}/></div>
+          <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',marginBottom:4,letterSpacing:'.06em'}}>DIA DO VENCIMENTO</div><input type="number" min="1" max="28" value={f.diaParcela} onChange={e=>S('diaParcela',e.target.value)} placeholder="Ex: 15" style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'9px 10px',fontSize:14,textAlign:'center',fontFamily:'var(--ff)'}}/></div>
+        </div>
+        {f.vlrBruto&&f.nParcelas>=2&&<div style={{background:'#FFF5F5',border:'1.5px solid var(--coral)',borderRadius:8,padding:'10px 13px',fontSize:12}}>
+          <div style={{fontWeight:700,color:'var(--coral)',marginBottom:6}}>📋 Serão criados {f.nParcelas} lançamentos:</div>
+          {Array.from({length:Math.min(f.nParcelas,4)},(_,i)=>{
+            const d=new Date((f.dataDoc||td())+'T12:00:00');d.setMonth(d.getMonth()+i);if(f.diaParcela)d.setDate(+f.diaParcela);
+            return<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',borderBottom:i<Math.min(f.nParcelas,4)-1?'1px dashed #f0c0c0':'none'}}>
+              <span style={{color:'var(--cinzaE)'}}>{f.descricao||'Descrição'} — Parcela {i+1}/{f.nParcelas}</span>
+              <span style={{fontFamily:'var(--ff)',fontWeight:700,color:'var(--coral)'}}>{brl((+(f.vlrBruto)||0)/f.nParcelas)}</span>
+            </div>;
+          })}
+          {f.nParcelas>4&&<div style={{fontSize:11,color:'var(--cinzaE)',marginTop:4}}>+{f.nParcelas-4} parcelas...</div>}
+        </div>}
       </>}
     </Fld>}
     <Fld label="Descrição"><input required value={f.descricao} onChange={e=>S('descricao',e.target.value)} placeholder="Ex: Consultoria operacional cliente X"/></Fld>
@@ -249,13 +293,73 @@ function FormL({init,onSave,onClose}){
     <Fld label="Comprovantes"><Anexos anexos={f.anexos} onChange={v=>S('anexos',v)}/></Fld>
   </div>
   <div style={{display:'flex',gap:9,justifyContent:'flex-end',marginTop:20,flexWrap:'wrap'}}>
-    <Btn v="g" onClick={onClose}>Cancelar</Btn><Btn v="p" icon="✓" type="submit">Salvar</Btn>
+    <Btn v="g" onClick={onClose}>Cancelar</Btn><Btn v="p" icon={salvando?"⏳":"✓"} type="submit" disabled={salvando}>{salvando?(f.isParcelado?'Salvando '+f.nParcelas+'x…':'Salvando…'):`Salvar${f.isParcelado&&+f.nParcelas>1?` (${f.nParcelas}x)`:''}` }</Btn>
   </div></form>);
 }
 
 // ── FORM CLIENTE ──────────────────────────────────────────────────
-const EC={cliente:'',estabelecimento:'',projeto:'',inicio:td(),prazo:'',statusProjeto:'PROPOSTA',vlrContratado:'',vlrRecebido:'',forma:'PIX',obs:'',anexos:[]};
-function FormC({init,onSave,onClose}){const[f,setF]=useState(()=>({...EC,...(init||{}),id:(init?.id||uid())}));const S=(k,v)=>setF(p=>({...p,[k]:v}));return(<form onSubmit={e=>{e.preventDefault();onSave({...f});}}><div className="fg"><Fld label="Nome do Cliente" h><input required value={f.cliente} onChange={e=>S('cliente',e.target.value)} placeholder="Nome"/></Fld><Fld label="Estabelecimento" h><input value={f.estabelecimento} onChange={e=>S('estabelecimento',e.target.value)} placeholder="Restaurante / Bar"/></Fld><Fld label="Projeto / Escopo"><input required value={f.projeto} onChange={e=>S('projeto',e.target.value)} placeholder="Descreva o escopo"/></Fld><Fld label="Status" h><select value={f.statusProjeto} onChange={e=>S('statusProjeto',e.target.value)}>{Object.keys(SPROJ).map(s=><option key={s}>{s}</option>)}</select></Fld><Fld label="Forma Pgto" h><select value={f.forma} onChange={e=>S('forma',e.target.value)}>{Object.entries(FORMAS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}</select></Fld><Fld label="Início" h><input type="date" value={f.inicio} onChange={e=>S('inicio',e.target.value)}/></Fld><Fld label="Prazo Previsto" h><input type="date" value={f.prazo} onChange={e=>S('prazo',e.target.value)}/></Fld><Fld label="Valor Contratado (R$)" h><input type="number" step="0.01" value={f.vlrContratado} onChange={e=>S('vlrContratado',e.target.value)} placeholder="0,00"/></Fld><Fld label="Valor Recebido (R$)" h><input type="number" step="0.01" value={f.vlrRecebido} onChange={e=>S('vlrRecebido',e.target.value)} placeholder="0,00"/></Fld><Fld label="Observações"><textarea rows={2} value={f.obs} onChange={e=>S('obs',e.target.value)} style={{resize:'vertical',minHeight:52}}/></Fld><Fld label="Contrato / Documentos"><Anexos anexos={f.anexos} onChange={v=>S('anexos',v)}/></Fld></div><div style={{display:'flex',gap:9,justifyContent:'flex-end',marginTop:20}}><Btn v="g" onClick={onClose}>Cancelar</Btn><Btn v="p" icon="✓" type="submit">Salvar</Btn></div></form>);}
+const EC={cliente:'',estabelecimento:'',projeto:'',inicio:td(),prazo:'',statusProjeto:'PROPOSTA',vlrContratado:'',vlrRecebido:'',forma:'PIX',obs:'',anexos:[],tipoCobranca:'unico',parcelas:1,diaPagamento:5,duracaoMeses:1,servicoTipo:'Consultoria'};
+function FormC({init,onSave,onClose}){
+  const[f,setF]=useState(()=>({...EC,...(init||{}),id:(init?.id||uid())}));
+  const S=(k,v)=>setF(p=>({...p,[k]:v}));
+  const vlrParcela = f.tipoCobranca==='parcelado'&&f.parcelas>0?(+(f.vlrContratado)||0)/f.parcelas:+(f.vlrContratado)||0;
+  // Custom installments state for 'parcelado' (free-form)
+  const[parcCustom,setParcCustom]=useState(()=>{
+    const n=+(init?.parcelas||2); const vlr=+(init?.vlrContratado||0);
+    return Array.from({length:n},(_,i)=>({id:i+1,valor:(vlr/n).toFixed(2),vencimento:''}));
+  });
+  const syncParcCustom=(nParcelas,vlrTotal)=>{
+    const n=+nParcelas||2; const vlr=+(vlrTotal)||0;
+    setParcCustom(prev=>{
+      const next=Array.from({length:n},(_,i)=>prev[i]||{id:i+1,valor:(vlr/n).toFixed(2),vencimento:''});
+      // Redistribute value equally when resizing
+      if(n!==prev.length) return next.map(p=>({...p,valor:(vlr/n).toFixed(2)}));
+      return next;
+    });
+  };
+  const updParc=(i,k,v)=>setParcCustom(prev=>prev.map((p,j)=>j===i?{...p,[k]:v}:p));
+  const addParc=()=>setParcCustom(prev=>[...prev,{id:prev.length+1,valor:'',vencimento:''}]);
+  const rmParc=i=>setParcCustom(prev=>prev.filter((_,j)=>j!==i));
+  return(<form onSubmit={e=>{e.preventDefault();onSave({...f,_parcCustom:f.tipoCobranca==='parcelado'?parcCustom:null});}}><div className="fg"><Fld label="Nome do Cliente" h><input required value={f.cliente} onChange={e=>S('cliente',e.target.value)} placeholder="Nome"/></Fld><Fld label="Estabelecimento" h><input value={f.estabelecimento} onChange={e=>S('estabelecimento',e.target.value)} placeholder="Restaurante / Bar"/></Fld><Fld label="Projeto / Escopo"><input required value={f.projeto} onChange={e=>S('projeto',e.target.value)} placeholder="Descreva o escopo"/></Fld><Fld label="Status" h><select value={f.statusProjeto} onChange={e=>S('statusProjeto',e.target.value)}>{Object.keys(SPROJ).map(s=><option key={s}>{s}</option>)}</select></Fld><Fld label="Forma Pgto" h><select value={f.forma} onChange={e=>S('forma',e.target.value)}>{Object.entries(FORMAS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}</select></Fld><Fld label="Início" h><input type="date" value={f.inicio} onChange={e=>S('inicio',e.target.value)}/></Fld><Fld label="Prazo Previsto" h><input type="date" value={f.prazo} onChange={e=>S('prazo',e.target.value)}/></Fld><Fld label="Valor Contratado (R$)" h><input type="number" step="0.01" value={f.vlrContratado} onChange={e=>S('vlrContratado',e.target.value)} placeholder="0,00"/></Fld><Fld label="Valor Recebido (R$)" h><input type="number" step="0.01" value={f.vlrRecebido} onChange={e=>S('vlrRecebido',e.target.value)} placeholder="0,00"/></Fld><Fld label="Tipo de Cobrança">
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7,marginTop:3}}>
+        {[['unico','💳 Único','Pagamento em uma vez'],['parcelado','📋 Parcelado','Dividido em parcelas'],['mensal','🔄 Mensal','Valor recorrente mensal']].map(([id,l,desc])=>(
+          <button key={id} type="button" onClick={()=>S('tipoCobranca',id)} style={{padding:'9px 8px',borderRadius:7,border:'2px solid '+(f.tipoCobranca===id?'var(--verde)':'var(--cinzaM)'),background:f.tipoCobranca===id?'var(--verde)':'transparent',color:f.tipoCobranca===id?'var(--branco)':'var(--cinzaE)',cursor:'pointer',textAlign:'center'}}>
+            <div style={{fontFamily:'var(--ff)',fontSize:11,fontWeight:700}}>{l}</div>
+            <div style={{fontSize:9,marginTop:2,opacity:.8}}>{desc}</div>
+          </button>
+        ))}
+      </div>
+    </Fld>
+    {f.tipoCobranca==='parcelado'&&<><Fld label="Nº de Parcelas" h><input type="number" min="2" max="36" value={f.parcelas} onChange={e=>S('parcelas',+e.target.value)} placeholder="Ex: 3"/></Fld><Fld label="Dia do Pagamento" h><input type="number" min="1" max="28" value={f.diaPagamento} onChange={e=>S('diaPagamento',+e.target.value)} placeholder="Ex: 5"/></Fld></>}
+    {f.tipoCobranca==='mensal'&&<><Fld label="Duração (meses)" h><input type="number" min="1" max="60" value={f.duracaoMeses} onChange={e=>S('duracaoMeses',+e.target.value)} placeholder="Ex: 6"/></Fld><Fld label="Dia do Pagamento" h><input type="number" min="1" max="28" value={f.diaPagamento} onChange={e=>S('diaPagamento',+e.target.value)} placeholder="Ex: 5"/></Fld></>}
+    {f.tipoCobranca==='parcelado'&&f.vlrContratado&&<div style={{marginTop:4}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+        <div style={{fontSize:11,fontWeight:700,color:'var(--verde)',letterSpacing:'.05em'}}>📋 PARCELAS — defina valor e vencimento</div>
+        <button type="button" onClick={addParc} style={{fontSize:11,padding:'4px 10px',borderRadius:6,border:'1px solid var(--verde)',color:'var(--verde)',background:'transparent',cursor:'pointer',fontWeight:700}}>+ Parcela</button>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {parcCustom.map((p,i)=>(
+          <div key={p.id} style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr auto',gap:6,alignItems:'center',background:'var(--cinzaF)',borderRadius:8,padding:'8px 10px'}}>
+            <span style={{fontFamily:'var(--ff)',fontSize:12,fontWeight:700,color:'var(--cinzaE)',minWidth:24}}>{i+1}×</span>
+            <div><div style={{fontSize:9,color:'var(--cinzaE)',marginBottom:2,fontWeight:700}}>VALOR (R$)</div><input type="number" step="0.01" value={p.valor} onChange={e=>updParc(i,'valor',e.target.value)} placeholder="0,00" style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13,fontFamily:'var(--ff)',fontWeight:700,color:'var(--verde)'}}/></div>
+            <div><div style={{fontSize:9,color:'var(--cinzaE)',marginBottom:2,fontWeight:700}}>VENCIMENTO</div><input type="date" value={p.vencimento} onChange={e=>updParc(i,'vencimento',e.target.value)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13}}/></div>
+            {parcCustom.length>1&&<button type="button" onClick={()=>rmParc(i)} style={{background:'#FEE2E2',border:'none',borderRadius:6,color:'var(--coral)',padding:'6px 8px',cursor:'pointer',fontSize:13}}>✕</button>}
+          </div>
+        ))}
+      </div>
+      <div style={{display:'flex',justifyContent:'space-between',marginTop:6,padding:'8px 10px',background:'#F0F7E6',borderRadius:7}}>
+        <span style={{fontSize:12,color:'var(--cinzaE)'}}>Total definido</span>
+        <span style={{fontFamily:'var(--ff)',fontWeight:700,color:'var(--verde)',fontSize:14}}>{brl(parcCustom.reduce((s,p)=>s+(+(p.valor)||0),0))}</span>
+      </div>
+    </div>}
+    {f.tipoCobranca==='mensal'&&f.vlrContratado&&<div style={{padding:'10px 14px',background:'var(--cinzaF)',borderRadius:8,fontSize:12,color:'var(--cinzaE)'}}>
+      🔄 {brl(+(f.vlrContratado)||0)}/mês por {f.duracaoMeses} {f.duracaoMeses===1?'mês':'meses'} · todo dia {f.diaPagamento}
+    </div>}
+    <Fld label="Observações"><textarea rows={2} value={f.obs} onChange={e=>S('obs',e.target.value)} style={{resize:'vertical',minHeight:52}}/></Fld>
+    <Fld label="Contrato / Documentos"><Anexos anexos={f.anexos} onChange={v=>S('anexos',v)}/></Fld>
+    </div><div style={{display:'flex',gap:9,justifyContent:'flex-end',marginTop:20}}>
+    <Btn v="g" onClick={onClose}>Cancelar</Btn><Btn v="p" icon="✓" type="submit">Salvar</Btn>
+  </div></form>);}
 function DelModal({msg,onConfirm,onClose}){return <Modal title="Confirmar" onClose={onClose}><p style={{color:'var(--cinzaE)',marginBottom:20,lineHeight:1.5}}>{msg}</p><div style={{display:'flex',gap:9,justifyContent:'flex-end'}}><Btn v="g" onClick={onClose}>Cancelar</Btn><Btn v="d" onClick={onConfirm} icon="🗑">Excluir</Btn></div></Modal>;}
 
 // ── LIXEIRA ───────────────────────────────────────────────────────
@@ -417,6 +521,29 @@ function Resumo({lancamentos,setAba}){
           </div>
         </div>
       </div>
+
+      {/* INDICADORES */}
+      {(()=>{
+        const mrr = lancamentos.filter(l=>l.recorrente&&getClassif(l)==='receita').reduce((s,l)=>s+(+(l.vlrBruto)||0),0);
+        const clientesComRec = [...new Set(lancamentos.filter(l=>getClassif(l)==='receita'&&(l.status==='RECEBIDO')).map(l=>l.clienteFornecedor).filter(Boolean))];
+        const recTotal = lancamentos.filter(l=>getClassif(l)==='receita'&&l.status==='RECEBIDO').reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
+        const ticketMedio = clientesComRec.length>0?recTotal/clientesComRec.length:0;
+        if(!mrr&&!ticketMedio) return null;
+        return(<><SH>Indicadores</SH><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:16}}>
+          {[
+            {l:'MRR',v:brl(mrr),desc:'Receita Recorrente Mensal',col:'var(--verde)',ic:'📈'},
+            {l:'Ticket Médio',v:brl(ticketMedio),desc:`${clientesComRec.length} cliente${clientesComRec.length!==1?'s':''} ativos`,col:'var(--azul)',ic:'🎯'},
+            {l:'Receita Total',v:brl(recTotal),desc:'Histórico acumulado',col:'var(--lima)',ic:'💰'},
+          ].map(({l,v,desc,col,ic})=>(
+            <div key={l} className="card" style={{padding:'12px 12px',textAlign:'center'}}>
+              <div style={{fontSize:10,marginBottom:4}}>{ic}</div>
+              <div style={{fontSize:9,fontWeight:700,letterSpacing:'.08em',color:'var(--cinzaE)',marginBottom:4}}>{l}</div>
+              <div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:col}}>{v}</div>
+              <div style={{fontSize:10,color:'var(--cinzaE)',marginTop:3}}>{desc}</div>
+            </div>
+          ))}
+        </div></>);
+      })()}
 
       {/* RECORRENTES DO MÊS */}
       {recorrentes.length>0&&<><SH>Recorrências ({new Date().toLocaleString('pt-BR',{month:'long'})})</SH>
@@ -636,14 +763,150 @@ function DRE({lancamentos}){
   </div>);
 }
 
+
+// ── CONTAS A RECEBER ──────────────────────────────────────────────
+function gerarRecebimentosContrato(cliente){
+  const {tipoCobranca,parcelas=1,diaPagamento=5,duracaoMeses=1,vlrContratado,inicio,projeto,cliente:nome,forma,_parcCustom} = cliente;
+  const vlr = +(vlrContratado)||0;
+  if(!vlr||!inicio) return [];
+  const base = new Date(inicio+'T12:00:00');
+  const mkLanc = (data,vlrBruto,desc) => ({
+    id:uid(),tipo:'RECEITA',natureza:'',status:'A RECEBER',
+    categoria:'HONORÁRIOS',subcategoria:'CONSULTORIA',
+    descricao:desc,clienteFornecedor:nome,projeto,
+    dataDoc:data,competencia:data.slice(0,7),
+    vlrBruto,vlrLiquido:vlrBruto,vlrPago:'',dataPago:'',
+    forma:forma||'PIX',pagador:'ZESTE',reembolso:'',obs:'',anexos:[],
+    recorrente:tipoCobranca==='mensal',recorrenciaFreq:'mensal'
+  });
+  if(tipoCobranca==='unico'){
+    const d=new Date(base);d.setDate(diaPagamento||5);
+    return[mkLanc(d.toISOString().slice(0,10),vlr,projeto)];
+  }
+  if(tipoCobranca==='parcelado'){
+    if(_parcCustom&&_parcCustom.length>0){
+      return _parcCustom.map((p,i)=>mkLanc(p.vencimento||base.toISOString().slice(0,10),+(p.valor)||0,`${projeto} — Parcela ${i+1}/${_parcCustom.length}`));
+    }
+    return Array.from({length:+parcelas},(_,i)=>{
+      const d=new Date(base);d.setMonth(d.getMonth()+i);d.setDate(diaPagamento||5);
+      return mkLanc(d.toISOString().slice(0,10),vlr/+parcelas,`${projeto} — Parcela ${i+1}/${parcelas}`);
+    });
+  }
+  if(tipoCobranca==='mensal'){
+    return Array.from({length:+duracaoMeses},(_,i)=>{
+      const d=new Date(base);d.setMonth(d.getMonth()+i);d.setDate(diaPagamento||5);
+      return mkLanc(d.toISOString().slice(0,10),vlr,`${projeto} — ${new Date(d).toLocaleString('pt-BR',{month:'long',year:'numeric'})}`);
+    });
+  }
+  return[];
+}
+
+function ContasReceber({lancamentos,clientes,onSaveL,setAba}){
+  const[filtro,setFiltro]=useState('pendente');
+  const[marcando,setMarcando]=useState(null);
+
+  const hoje = new Date().toISOString().slice(0,10);
+  const receitasPendentes = lancamentos.filter(l=>l.tipo==='RECEITA'&&(l.status==='A RECEBER'||l.status==='PREVISTO'));
+  const receitasRecebidas = lancamentos.filter(l=>l.tipo==='RECEITA'&&l.status==='RECEBIDO');
+  const atrasadas = receitasPendentes.filter(l=>(l.dataDoc||'')>''&&l.dataDoc<hoje);
+  const pendentes  = receitasPendentes.filter(l=>!l.dataDoc||(l.dataDoc>=hoje));
+
+  const tPrev = receitasPendentes.reduce((s,l)=>s+(+(l.vlrBruto)||0),0);
+  const tRec  = receitasRecebidas.reduce((s,l)=>s+(+(l.vlrPago||l.vlrBruto)||0),0);
+  const tAtr  = atrasadas.reduce((s,l)=>s+(+(l.vlrBruto)||0),0);
+
+  const mostrar = filtro==='todos'?receitasPendentes:filtro==='atrasado'?atrasadas:pendentes;
+
+  // Agrupar por cliente
+  const porCliente = mostrar.reduce((acc,l)=>{
+    const k=l.clienteFornecedor||'Sem cliente';
+    if(!acc[k]) acc[k]=[];
+    acc[k].push(l);
+    return acc;
+  },{});
+
+  const marcarRecebido = async l => {
+    setMarcando(l.id);
+    await onSaveL({...l,status:'RECEBIDO',vlrPago:l.vlrBruto,dataPago:hoje});
+    setMarcando(null);
+  };
+
+  const isAtrasado = l => (l.dataDoc||'')>''&&l.dataDoc<hoje;
+
+  return(<div className="au page pc" style={{paddingTop:12}}>
+    {/* SUMMARY */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:16}}>
+      {[['A RECEBER',tPrev,'var(--lima)','💰'],[`RECEBIDO (mês)`,tRec,'var(--verde)','✅'],['EM ATRASO',tAtr,'var(--coral)','⚠️']].map(([l,v,col,ic])=>(
+        <div key={l} className="card" style={{padding:'12px 14px',borderLeft:'3px solid '+col}}>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:'.08em',color:'var(--cinzaE)',marginBottom:5}}>{ic} {l}</div>
+          <div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:col}}>{brl(v)}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* FILTROS */}
+    <div style={{display:'flex',gap:7,marginBottom:14,flexWrap:'wrap'}}>
+      {[['pendente','Pendentes'],['atrasado','⚠ Atrasadas'],['todos','Todas']].map(([id,l])=>(
+        <button key={id} onClick={()=>setFiltro(id)} style={{padding:'7px 14px',borderRadius:7,border:'1.5px solid '+(filtro===id?'var(--verde)':'var(--cinzaM)'),background:filtro===id?'var(--verde)':'transparent',color:filtro===id?'var(--branco)':'var(--cinzaE)',fontSize:12,fontWeight:700,cursor:'pointer'}}>{l}</button>
+      ))}
+      <div style={{flex:1}}/>
+      <button onClick={()=>setAba('clientes')} style={{padding:'7px 14px',borderRadius:7,border:'1.5px solid var(--lima)',color:'var(--lima)',background:'transparent',fontSize:12,fontWeight:700,cursor:'pointer'}}>+ Novo contrato</button>
+    </div>
+
+    {/* LISTA */}
+    {Object.entries(porCliente).length===0&&<div style={{textAlign:'center',padding:40,color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhuma conta a receber</div>}
+    {Object.entries(porCliente).map(([cliente,items])=>(
+      <div key={cliente} className="card" style={{padding:0,overflow:'hidden',marginBottom:12}}>
+        <div style={{padding:'10px 14px',background:'var(--cinzaF)',borderBottom:'1px solid var(--cinzaF)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:14,color:'var(--verde)'}}>{cliente}</div>
+          <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'var(--lima)'}}>{brl(items.reduce((s,l)=>s+(+(l.vlrBruto)||0),0))}</div>
+        </div>
+        {items.sort((a,b)=>(a.dataDoc||'').localeCompare(b.dataDoc||'')).map((l,i)=>{
+          const atrasado=isAtrasado(l);
+          const diff=l.dataDoc?Math.round((new Date(l.dataDoc+'T12:00:00')-new Date())/86400000):null;
+          return(
+            <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',borderBottom:i<items.length-1?'1px solid var(--cinzaF)':'none',background:atrasado?'#FFF5F5':'transparent',flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:2}}>
+                  {atrasado&&<span style={{fontSize:9,background:'#FEE2E2',color:'var(--coral)',borderRadius:3,padding:'1px 5px',fontWeight:700}}>ATRASADO {Math.abs(diff)}d</span>}
+                  {!atrasado&&diff!==null&&diff<=7&&<span style={{fontSize:9,background:'#FFFBEB',color:'#92400E',borderRadius:3,padding:'1px 5px',fontWeight:700}}>vence em {diff}d</span>}
+                  <span style={{fontFamily:'var(--ff)',fontWeight:700,fontSize:13}}>{l.descricao}</span>
+                </div>
+                <div style={{fontSize:11,color:'var(--cinzaE)'}}>{l.dataDoc?new Date(l.dataDoc+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'}):''}{l.forma?' · '+l.forma:''}</div>
+              </div>
+              <div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--lima)',flexShrink:0}}>{brl(+(l.vlrBruto)||0)}</div>
+              <button onClick={()=>marcarRecebido(l)} disabled={marcando===l.id} style={{padding:'8px 13px',borderRadius:7,border:'1.5px solid var(--verde)',background:marcando===l.id?'var(--verde)':'transparent',color:marcando===l.id?'var(--branco)':'var(--verde)',fontSize:11,fontWeight:700,cursor:'pointer',flexShrink:0}}>{marcando===l.id?'✓ Salvo!':'✓ Recebido'}</button>
+            </div>
+          );
+        })}
+      </div>
+    ))}
+  </div>);
+}
+
 // ── CLIENTES ──────────────────────────────────────────────────────
-function Clientes({clientes,onSave,onDelete,openNew}){
+function Clientes({clientes,onSave,onDelete,openNew,onSaveL,lancamentos}){
   const[modal,setModal]=useState(null);const[del,setDel]=useState(null);
+  const[gerando,setGerando]=useState(null);
   useEffect(()=>{openNew.current=()=>setModal('new');},[]);
   const save=async item=>{await onSave(item);setModal(null);};
+  const gerarRecebimentos=async c=>{
+    const items=gerarRecebimentosContrato(c);
+    if(!items.length){alert('Preencha Valor e Data de Início para gerar recebimentos.');return;}
+    setGerando(c.id);
+    for(const l of items) await onSaveL(l);
+    setGerando(null);
+    alert(items.length+' recebimento'+(items.length>1?'s':'')+' criado'+(items.length>1?'s':'')+' em Contas a Receber!');
+  };
+  const temRecebimentos = c => (lancamentos||[]).some(l=>l.tipo==='RECEITA'&&l.clienteFornecedor===c.cliente&&(l.status==='A RECEBER'||l.status==='RECEBIDO'));
   return(<div className="au page pc" style={{paddingTop:12}}><div style={{display:'flex',flexDirection:'column',gap:12}}>
     {clientes.length===0&&<div style={{textAlign:'center',padding:48,color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhum cliente cadastrado</div>}
-    {clientes.map(c=>{const aR=Math.max(0,(+(c.vlrContratado)||0)-(+(c.vlrRecebido)||0));const pR=c.vlrContratado>0?Math.min(1,c.vlrRecebido/c.vlrContratado):0;const sp=SPROJ[c.statusProjeto]||{bg:'var(--cinzaE)',fg:'var(--branco)'};return(<div key={c.id} className="card" style={{borderLeft:`4px solid ${sp.bg}`}}><div style={{padding:'14px 15px'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,flexWrap:'wrap',marginBottom:10}}><div><div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:2}}><span style={{fontFamily:'var(--ff)',fontSize:19,fontWeight:700,color:'var(--verde)'}}>{c.cliente}</span><span className="tag" style={{background:sp.bg,color:sp.fg}}>{c.statusProjeto}</span></div><div style={{fontSize:12,color:'var(--cinzaE)'}}>{c.estabelecimento}</div><div style={{fontSize:13,fontWeight:600,marginTop:2}}>{c.projeto}</div></div><div style={{display:'flex',gap:7}}><button onClick={()=>setModal(c)} style={{background:'var(--cinzaF)',borderRadius:7,padding:'9px 13px',fontSize:14,fontWeight:600,color:'var(--azul)',minHeight:44}}>✏️</button><button onClick={()=>setDel(c.id)} style={{background:'var(--cinzaF)',borderRadius:7,padding:'9px 13px',fontSize:14,color:'var(--coral)',minHeight:44}}>🗑</button></div></div>
+    {clientes.map(c=>{const aR=Math.max(0,(+(c.vlrContratado)||0)-(+(c.vlrRecebido)||0));const pR=c.vlrContratado>0?Math.min(1,c.vlrRecebido/c.vlrContratado):0;const sp=SPROJ[c.statusProjeto]||{bg:'var(--cinzaE)',fg:'var(--branco)'};return(<div key={c.id} className="card" style={{borderLeft:`4px solid ${sp.bg}`}}><div style={{padding:'14px 15px'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,flexWrap:'wrap',marginBottom:10}}><div><div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:2}}><span style={{fontFamily:'var(--ff)',fontSize:19,fontWeight:700,color:'var(--verde)'}}>{c.cliente}</span><span className="tag" style={{background:sp.bg,color:sp.fg}}>{c.statusProjeto}</span></div><div style={{fontSize:12,color:'var(--cinzaE)'}}>{c.estabelecimento}</div><div style={{fontSize:13,fontWeight:600,marginTop:2}}>{c.projeto}</div></div><div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+              {c.vlrContratado&&!temRecebimentos(c)&&<button onClick={()=>gerarRecebimentos(c)} disabled={gerando===c.id} style={{padding:'9px 12px',borderRadius:7,border:'1.5px solid var(--verde)',background:gerando===c.id?'var(--verde)':'transparent',color:gerando===c.id?'var(--branco)':'var(--verde)',fontSize:11,fontWeight:700,cursor:'pointer',minHeight:44}}>{gerando===c.id?'Gerando…':'📅 Gerar Recebimentos'}</button>}
+              {temRecebimentos(c)&&<span style={{fontSize:10,padding:'4px 8px',background:'#ECFDF5',color:'#065F46',borderRadius:5,fontWeight:600,alignSelf:'center'}}>✓ Recebimentos gerados</span>}
+              <button onClick={()=>setModal(c)} style={{background:'var(--cinzaF)',borderRadius:7,padding:'9px 13px',fontSize:14,fontWeight:600,color:'var(--azul)',minHeight:44}}>✏️</button>
+              <button onClick={()=>setDel(c.id)} style={{background:'var(--cinzaF)',borderRadius:7,padding:'9px 13px',fontSize:14,color:'var(--coral)',minHeight:44}}>🗑</button>
+            </div></div>
     <div style={{display:'flex',gap:16,flexWrap:'wrap',marginBottom:10}}>{[{l:'Contratado',v:c.vlrContratado,col:'var(--preto)'},{l:'Recebido',v:c.vlrRecebido,col:'var(--verde)'},{l:'A receber',v:aR,col:aR>0?'var(--coral)':'var(--cinzaE)'}].map(({l,v,col})=>(<div key={l}><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.07em',textTransform:'uppercase',marginBottom:2}}>{l}</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:col}}>{brl(v)}</div></div>))}</div>
     {c.vlrContratado>0&&(<div style={{marginBottom:8}}><div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--cinzaE)',marginBottom:3}}><span>Progresso</span><span style={{fontWeight:700,color:pR>=1?'var(--verde)':'var(--azul)'}}>{pp(pR)}</span></div><div style={{height:5,borderRadius:99,background:'var(--cinzaF)'}}><div style={{height:'100%',width:`${pR*100}%`,background:pR>=1?'var(--verde)':'var(--lima)',borderRadius:99}}/></div></div>)}
     {c.obs&&<div style={{fontSize:12,color:'var(--cinzaE)',fontStyle:'italic'}}>{c.obs}</div>}
@@ -918,7 +1181,7 @@ export default function Financeiro({onBack,token}){
   const saveCliente=async item=>{await sync(async()=>{await sbUpsert('fin_clientes',item,token);setClientes(p=>p.some(c=>c.id===item.id)?p.map(c=>c.id===item.id?item:c):[item,...p]);});};
   const delCliente=async id=>{await sync(async()=>{await sbSoftDel('fin_clientes',id,token);setClientes(p=>p.filter(c=>c.id!==id));});};
 
-  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'previsoes',l:'PREVISÕES'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'clientes',l:'CLIENTES'}];
+  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'receber',l:'RECEBER'},{id:'previsoes',l:'PREVISÕES'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'clientes',l:'CLIENTES'}];
   const fab=()=>{if(aba==='lancamentos')nL.current();else if(aba==='clientes')nC.current();else{setAba('lancamentos');setTimeout(()=>nL.current(),200);}};
 
   if(loading)return(<><style>{STYLE}</style><div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--cinzaF)'}}><div style={{textAlign:'center'}}><div style={{fontFamily:'var(--ff)',fontSize:32,fontWeight:800,color:'var(--verde)',letterSpacing:'.06em'}}>ZESTE</div><div style={{color:'var(--cinzaE)',fontSize:13,marginTop:4}}>Carregando do banco de dados…</div></div></div></>);
@@ -942,8 +1205,9 @@ export default function Financeiro({onBack,token}){
     {aba==='resumo'&&<Resumo lancamentos={lancamentos} setAba={setAba}/>}
     {aba==='previsoes'&&<Previsoes lancamentos={lancamentos} setAba={setAba}/>}
     {aba==='lancamentos'&&<Lancamentos lancamentos={lancamentos} lixeira={lixeira} openNew={nL} onSave={saveLancamento} onDelete={softDelLancamento} onRestore={restoreLancamento} onPurge={purgeLancamento} onImport={importLancamentos}/>}
+    {aba==='receber'&&<ContasReceber lancamentos={lancamentos} clientes={clientes} onSaveL={saveLancamento} setAba={setAba}/>}
     {aba==='dre'&&<DRE lancamentos={lancamentos}/>}
-    {aba==='clientes'&&<Clientes clientes={clientes} onSave={saveCliente} onDelete={delCliente} openNew={nC}/>}
+    {aba==='clientes'&&<Clientes clientes={clientes} onSave={saveCliente} onDelete={delCliente} openNew={nC} onSaveL={saveLancamento} lancamentos={lancamentos}/>}
     <button className="fab" onClick={fab}>+</button>
   </>);
 }
