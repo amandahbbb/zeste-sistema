@@ -1,5 +1,5 @@
 // Antonio font loaded in useEffect
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ── CORES ZESTE ──────────────────────────────────────────────
 const C = {
@@ -183,10 +183,10 @@ function PostGenerator(){
   const [legenda,setLegenda] = useState("");
   const [copied,setCopied]   = useState(false);
   const [downloading,setDownloading] = useState(false);
-  const postRef = React.useRef(null);
+  const postRef = useRef(null);
 
   // Load Antonio font + html2canvas
-  React.useEffect(()=>{
+  useEffect(()=>{
     // Font
     if(!document.querySelector('link[href*="Antonio"]')){
       const l=document.createElement('link');l.rel='stylesheet';
@@ -201,7 +201,7 @@ function PostGenerator(){
     }
   },[]);
 
-  React.useEffect(()=>{setLegenda(gerarLegenda(tipo,tom,titulo,sub));},[tipo,tom,titulo,sub]);
+  useEffect(()=>{setLegenda(gerarLegenda(tipo,tom,titulo,sub));},[tipo,tom,titulo,sub]);
 
   const acento = "#"+cor;
   const hashtags = [...TAGS_BASE,...(TAGS_TIPO[tipo]||[])].join(" ");
