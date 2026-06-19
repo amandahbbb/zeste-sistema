@@ -403,12 +403,13 @@ export default function RedesSociais({onBack,token:tokenProp}) {
       </div>
 
       {/* ABAS */}
-      <div style={{ display: "flex", background: "#fff", borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ display: "flex", background: "#0E0E0C", borderBottom: "1px solid #2A2A2A", overflowX: "auto" }}>
         {[["dashboard","📊 Dashboard"],["historico","📅 Histórico"],["cadastrar","➕ Cadastrar"],["insights","✨ Insights IA"],["posts","🎨 Posts"]].map(([id, label]) => (
           <button key={id} onClick={() => setAba(id)}
-            style={{ flex: 1, padding: "12px 4px", fontSize: 11, fontWeight: aba === id ? 800 : 600, border: "none", cursor: "pointer",
-              background: "transparent", color: aba === id ? accentColor : C.muted,
-              borderBottom: aba === id ? `2px solid ${accentColor}` : "2px solid transparent" }}>
+            style={{ flex: 1, padding: "12px 8px", fontSize: 11, fontWeight: aba === id ? 800 : 600, border: "none", cursor: "pointer",
+              background: "transparent", color: aba === id ? "#8FA715" : "#555",
+              borderBottom: aba === id ? "2px solid #8FA715" : "2px solid transparent",
+              whiteSpace: "nowrap", letterSpacing: ".04em", fontFamily: "'Barlow Condensed', sans-serif" }}>
             {label}
           </button>
         ))}
