@@ -145,55 +145,51 @@ Retorne APENAS o JSON, sem markdown.`;
 // ══════════════════════════════════════════════════════════════
 
 // ── GERADOR DE POSTS ──────────────────────────────────────────────
-const ABERTURAS = {
-  direto: ["Sem rodeio:", "Direto ao ponto:", "O que importa:"],
-  proximo: ["Bora falar sobre isso?", "Real de cozinha:", "Quem já viveu isso entende:"],
-  autoridade: ["Na prática, isso significa:", "O que a operação mostra:", "Dado da nossa experiência:"]
-};
-const CTAS = {
-  dica: ["Salva esse post pra aplicar na sua operação.", "Manda pra quem precisa ler isso hoje."],
-  case: ["Quer um diagnóstico assim pro seu negócio? Manda mensagem.", "Resultado real, processo real. Vamos conversar?"],
-  bastidores: ["Acompanha o dia a dia por aqui.", "É assim que a gente trabalha — sem fórmula mágica."],
-  convite: ["Garanta sua vaga pelo link na bio.", "Responde esse post que a gente te chama no direct."],
-  frase: ["Marca alguém que precisa ler isso.", "Guarda essa pra revisitar quando a rotina apertar."]
-};
-const TAGS_BASE = ["#zesteconsultoria","#gastronomia","#gestaodecozinha"];
-const TAGS_TIPO = {
-  dica: ["#dicadecozinha","#operacaodecozinha"],
-  case: ["#casedesucesso","#consultoriagastronomica"],
-  bastidores: ["#bastidores","#rotinadecozinha"],
-  convite: ["#vempraequipe","#agendaaberta"],
-  frase: ["#gastronomiaautoral","#mentalidadedecozinha"]
-};
-const pick = arr => arr[Math.floor(Math.random()*arr.length)];
-
-function gerarLegenda(tipo,tom,titulo,subtitulo){
-  const ab = pick(ABERTURAS[tom]||ABERTURAS.direto);
-  const ct = pick(CTAS[tipo]||CTAS.dica);
-  return ab+"\n\n"+titulo+".\n"+subtitulo+"\n\n"+ct;
-}
+const TIPOS_POST = [
+  ["educativo","💡 Educativo / Dica"],
+  ["case","📌 Case de cliente"],
+  ["bastidores","🎬 Bastidores"],
+  ["reflexao","🧠 Reflexão / Conceito"],
+  ["convite","📣 Convite / CTA"],
+  ["xeh","✍️ Formato 'X é:'"],
+];
+const TONS_POST = [
+  ["editorial","Editorial (Swiss Style, implícito)"],
+  ["proximo","Próximo / acolhedor"],
+  ["autoridade","Autoridade técnica"],
+  ["provocativo","Provocativo / questionador"],
+];
+const HASHTAGS_DEFAULT = "#zesteconsultoria #gastronomia #gestaodecozinha";
 
 function PostGenerator(){
-  const [tipo,setTipo]   = useState("dica");
-  const [label,setLabel] = useState("O PROJETO");
-  const [titulo,setTitulo] = useState("Diagnóstico operacional");
-  const [sub,setSub]     = useState("Mapeamos cada etapa da cozinha antes de propor qualquer mudança.");
-  const [cor,setCor]     = useState("8FA715");
-  const [tom,setTom]     = useState("direto");
-  const [legenda,setLegenda] = useState("");
-  const [copied,setCopied]   = useState(false);
-  const [downloading,setDownloading] = useState(false);
+  const [tema, setTema]       = useState("");
+  const [contexto, setCtx]    = useState("");
+  const [tipo, setTipo]       = useState("educativo");
+  const [tom, setTom]         = useState("editorial");
+  const [cor, setCor]         = useState("8FA715");
+  const [label, setLabel]     = useState("ZESTE");
+  const [gerando, setGerando] = useState(false);
+  const [erro, setErro]       = useState("");
+  const [variacao, setVariacao] = useState(0); // 0 = principal, 1 = variação
+
+  // Campos editáveis — preenchidos pelo usuário ou pela IA
+  const [titulo, setTitulo]     = useState("Diagnóstico operacional");
+  const [subtitulo, setSubtitulo] = useState("Mapeamos cada etapa antes de propor qualquer mudança.");
+  const [legenda, setLegenda]   = useState("");
+  const [hashtags, setHashtags] = useState(HASHTAGS_DEFAULT);
+  const [varTitulo, setVarTitulo]   = useState("");
+  const [varLegenda, setVarLegenda] = useState("");
+
+  const [copied, setCopied]   = useState(false);
+  const [downloading, setDl]  = useState(false);
   const postRef = useRef(null);
 
-  // Load Antonio font + html2canvas
   useEffect(()=>{
-    // Font
     if(!document.querySelector('link[href*="Antonio"]')){
       const l=document.createElement('link');l.rel='stylesheet';
       l.href='https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&display=swap';
       document.head.appendChild(l);
     }
-    // html2canvas
     if(!window.html2canvas){
       const s=document.createElement('script');
       s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
@@ -201,98 +197,157 @@ function PostGenerator(){
     }
   },[]);
 
-  useEffect(()=>{setLegenda(gerarLegenda(tipo,tom,titulo,sub));},[tipo,tom,titulo,sub]);
+  const gerarComIA = async () => {
+    if(!tema.trim()){setErro("Digite um tema ou conceito primeiro.");return;}
+    setGerando(true); setErro("");
+    try{
+      const res = await fetch("/.netlify/functions/generate-post",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({tema,tipo,tom,contexto})
+      });
+      const data = await res.json();
+      if(data.error){setErro(data.error);return;}
+      if(data.titulo)    setTitulo(data.titulo);
+      if(data.subtitulo) setSubtitulo(data.subtitulo);
+      if(data.legenda)   setLegenda(data.legenda);
+      if(data.hashtags)  setHashtags(data.hashtags);
+      if(data.variacao_titulo)  setVarTitulo(data.variacao_titulo);
+      if(data.variacao_legenda) setVarLegenda(data.variacao_legenda);
+      setVariacao(0);
+    }catch(e){setErro("Erro de conexão. Verifique a configuração da API.");}
+    finally{setGerando(false);}
+  };
 
+  const tituloAtivo  = variacao===0 ? titulo  : (varTitulo||titulo);
+  const legendaAtiva = variacao===0 ? legenda : (varLegenda||legenda);
   const acento = "#"+cor;
-  const hashtags = [...TAGS_BASE,...(TAGS_TIPO[tipo]||[])].join(" ");
 
-  const copiar = ()=>{
-    navigator.clipboard.writeText(legenda+"\n\n"+hashtags);
+  const copiar = () => {
+    navigator.clipboard.writeText(legendaAtiva+"\n\n"+hashtags);
     setCopied(true); setTimeout(()=>setCopied(false),1500);
   };
 
-  const baixar = ()=>{
+  const baixar = () => {
     if(!window.html2canvas||!postRef.current) return;
-    setDownloading(true);
-    window.html2canvas(postRef.current,{scale:3,useCORS:true}).then(canvas=>{
-      const a=document.createElement('a');a.download='post-zeste.png';a.href=canvas.toDataURL();a.click();
-    }).finally(()=>setDownloading(false));
+    setDl(true);
+    window.html2canvas(postRef.current,{scale:3,useCORS:true})
+      .then(canvas=>{const a=document.createElement("a");a.download="post-zeste.png";a.href=canvas.toDataURL();a.click();})
+      .finally(()=>setDl(false));
   };
 
-  const exportJson = ()=>{
-    const d={tipo,label,titulo,subtitulo:sub,cor,tom,legenda,hashtags};
-    const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
-    const u=URL.createObjectURL(b);
-    const a=document.createElement('a');a.download='post-zeste.json';a.href=u;a.click();
-    URL.revokeObjectURL(u);
-  };
-
-  const inp = {width:'100%',border:'1px solid #D9D7CD',borderRadius:7,padding:'8px 10px',fontFamily:'inherit',fontSize:13,background:'#FCFBF9',color:'#1B1B1B',marginBottom:2};
-  const lbl = {fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',color:'#888',display:'block',marginTop:14,marginBottom:5};
-  const btn = (bg,col)=>({width:'100%',marginTop:10,padding:'10px 14px',borderRadius:8,border:'1px solid '+bg,background:bg,color:col,fontWeight:700,fontSize:13,cursor:'pointer'});
+  const inp  = {width:"100%",border:"1px solid #D9D7CD",borderRadius:7,padding:"8px 10px",fontFamily:"inherit",fontSize:13,background:"#FCFBF9",color:"#1B1B1B",marginTop:4};
+  const lbl  = {fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"#888",display:"block",marginTop:14};
+  const btnP = (bg,fg)=>({padding:"10px 16px",borderRadius:8,border:"1px solid "+bg,background:bg,color:fg,fontWeight:700,fontSize:13,cursor:"pointer"});
 
   return(
-    <div style={{display:'grid',gridTemplateColumns:'300px 1fr',gap:20,alignItems:'start'}}>
+    <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:20,alignItems:"start"}}>
 
-      {/* CONTROLES */}
-      <div style={{background:'#fff',border:'1px solid #E3E1D9',borderRadius:12,padding:18}}>
-        <div>
-          <span style={lbl}>Tipo de post</span>
-          <select value={tipo} onChange={e=>{setTipo(e.target.value);setLegenda(gerarLegenda(e.target.value,tom,titulo,sub));}} style={inp}>
-            {[["dica","Dica / educativo"],["case","Case de cliente"],["bastidores","Bastidores"],["convite","Convite / CTA"],["frase","Frase / inspiracional"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
-          </select>
+      {/* ── PAINEL ESQUERDO ── */}
+      <div style={{background:"#fff",border:"1px solid #E3E1D9",borderRadius:12,padding:18}}>
+
+        {/* TEMA LIVRE */}
+        <div style={{background:"#F0F7E6",borderRadius:10,padding:"12px 14px",marginBottom:6}}>
+          <span style={{...lbl,marginTop:0,color:"#497A5D"}}>✍️ TEMA / CONCEITO</span>
+          <textarea style={{...inp,resize:"vertical",background:"#fff"}} rows={3}
+            value={tema} onChange={e=>setTema(e.target.value)}
+            placeholder="ex: o silêncio que um cardápio mal formatado gera na operação"/>
+          <span style={lbl}>Contexto adicional (opcional)</span>
+          <input style={inp} value={contexto} onChange={e=>setCtx(e.target.value)}
+            placeholder="ex: para donos de restaurante em expansão"/>
         </div>
-        <div>
-          <span style={lbl}>Label de seção</span>
-          <input style={inp} value={label} onChange={e=>setLabel(e.target.value)}/>
-        </div>
-        <div>
-          <span style={lbl}>Título principal</span>
-          <input style={inp} value={titulo} onChange={e=>setTitulo(e.target.value)}/>
-        </div>
-        <div>
-          <span style={lbl}>Subtítulo / descrição</span>
-          <textarea style={{...inp,resize:'vertical'}} rows={3} value={sub} onChange={e=>setSub(e.target.value)}/>
-        </div>
-        <div>
-          <span style={lbl}>Cor de destaque</span>
-          <select value={cor} onChange={e=>setCor(e.target.value)} style={inp}>
-            {[["8FA715","Verde Zeste"],["C4622D","Terracota"],["1A4F71","Azul aço"],["497A5D","Verde floresta"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
-          </select>
-        </div>
-        <div>
-          <span style={lbl}>Tom da legenda</span>
-          <select value={tom} onChange={e=>{setTom(e.target.value);setLegenda(gerarLegenda(tipo,e.target.value,titulo,sub));}} style={inp}>
-            {[["direto","Direto"],["proximo","Próximo / acolhedor"],["autoridade","Autoridade técnica"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
-          </select>
-        </div>
-        <button onClick={()=>setLegenda(gerarLegenda(tipo,tom,titulo,sub))} style={btn(acento,'#fff')}>Gerar variação de copy ↻</button>
-        <button onClick={baixar} disabled={downloading} style={{...btn('transparent','#555'),border:'1px solid #D9D7CD',marginTop:8}}>{downloading?'Gerando…':'Baixar imagem do post ⤓'}</button>
+
+        <span style={lbl}>Tipo de post</span>
+        <select style={inp} value={tipo} onChange={e=>setTipo(e.target.value)}>
+          {TIPOS_POST.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+        </select>
+
+        <span style={lbl}>Tom editorial</span>
+        <select style={inp} value={tom} onChange={e=>setTom(e.target.value)}>
+          {TONS_POST.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+        </select>
+
+        <span style={lbl}>Cor de destaque</span>
+        <select style={inp} value={cor} onChange={e=>setCor(e.target.value)}>
+          {[["8FA715","Lima (Verde Zeste)"],["C4502B","Terracota"],["1A4F71","Azul aço"],["497A5D","Verde floresta"],["F2EBD8","Off-white"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+        </select>
+
+        <span style={lbl}>Label de seção</span>
+        <input style={inp} value={label} onChange={e=>setLabel(e.target.value)} placeholder="ex: O PROJETO"/>
+
+        {/* BOTÃO IA */}
+        <button onClick={gerarComIA} disabled={gerando}
+          style={{...btnP("#8FA715","#0E0E0C"),width:"100%",marginTop:14,fontSize:14,
+            background:gerando?"#6B7A10":"#8FA715"}}>
+          {gerando?"✦ Gerando com IA…":"✦ Gerar com IA"}
+        </button>
+
+        {erro&&<div style={{marginTop:8,padding:"8px 10px",background:"#FEE2E2",borderRadius:7,fontSize:12,color:"#991B1B"}}>{erro}</div>}
+
+        <button onClick={baixar} disabled={downloading}
+          style={{...btnP("transparent","#555"),border:"1px solid #D9D7CD",width:"100%",marginTop:8,fontSize:12}}>
+          {downloading?"Gerando…":"⤓ Baixar imagem PNG"}
+        </button>
       </div>
 
-      {/* PREVIEW + COPY */}
+      {/* ── PAINEL DIREITO ── */}
       <div>
-        <div style={{display:'flex',justifyContent:'center',background:'#EDEBE3',borderRadius:12,padding:28}}>
-          <div ref={postRef} style={{width:360,height:360,background:'#1B1B1B',position:'relative',overflow:'hidden',flexShrink:0}}>
-            <div style={{position:'absolute',left:28,top:110,width:40,height:3,background:acento}}/>
-            <div style={{position:'absolute',left:28,top:122,fontSize:11,fontWeight:700,letterSpacing:'1.5px',color:acento}}>{label}</div>
-            <div style={{position:'absolute',left:28,top:156,right:28,fontFamily:"'Antonio','Helvetica Neue',Helvetica,Arial,sans-serif",fontWeight:600,fontSize:26,color:'#fff',lineHeight:1.2}}>{titulo}</div>
-            <div style={{position:'absolute',left:28,top:236,right:28,fontSize:13,color:'#888',lineHeight:1.55}}>{sub}</div>
-            <div style={{position:'absolute',left:28,bottom:18,fontSize:10,color:acento,letterSpacing:'0.5px',fontWeight:600}}>zeste consultoria gastronômica</div>
+        {/* PREVIEW DO POST */}
+        <div style={{display:"flex",justifyContent:"center",background:"#EDEBE3",borderRadius:12,padding:28,marginBottom:16}}>
+          <div ref={postRef} style={{width:360,height:360,background:"#1B1B1B",position:"relative",overflow:"hidden",flexShrink:0}}>
+            <div style={{position:"absolute",left:28,top:110,width:40,height:3,background:acento}}/>
+            <div style={{position:"absolute",left:28,top:122,fontSize:11,fontWeight:700,letterSpacing:"1.5px",color:acento}}>{label}</div>
+            <div style={{position:"absolute",left:28,top:156,right:28,fontFamily:"'Antonio','Helvetica Neue',Helvetica,Arial,sans-serif",fontWeight:600,fontSize:26,color:"#fff",lineHeight:1.2}}>{tituloAtivo}</div>
+            <div style={{position:"absolute",left:28,top:240,right:28,fontSize:13,color:"#888",lineHeight:1.5}}>{subtitulo}</div>
+            <div style={{position:"absolute",left:28,bottom:18,fontSize:10,color:acento,letterSpacing:"0.5px",fontWeight:600}}>zeste consultoria gastronômica</div>
           </div>
         </div>
 
-        <div style={{marginTop:16,background:'#fff',border:'1px solid #E3E1D9',borderRadius:12,padding:18}}>
-          <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#888',marginBottom:8}}>Legenda</div>
-          <p style={{fontSize:13,lineHeight:1.65,whiteSpace:'pre-wrap',margin:'0 0 14px',color:'#1B1B1B'}}>{legenda}</p>
-          <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',color:'#888',marginBottom:8}}>Hashtags</div>
-          <p style={{fontSize:12,lineHeight:1.6,margin:'0 0 14px',color:'#2E5F8A'}}>{hashtags}</p>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            <button onClick={copiar} style={{...btn(copied?'#8FA715':'transparent',copied?'#fff':'#555'),border:'1px solid #D9D7CD',width:'auto',padding:'7px 14px',marginTop:0,fontSize:12}}>
-              {copied?'✓ Copiado!':'Copiar legenda + hashtags'}
+        {/* CAMPOS EDITÁVEIS */}
+        <div style={{background:"#fff",border:"1px solid #E3E1D9",borderRadius:12,padding:18}}>
+
+          {/* VARIAÇÕES */}
+          {varTitulo&&<div style={{display:"flex",gap:8,marginBottom:14}}>
+            {[["Principal",0],["Variação IA",1]].map(([l,i])=>(
+              <button key={i} onClick={()=>setVariacao(i)}
+                style={{padding:"5px 14px",borderRadius:20,border:"1.5px solid "+(variacao===i?"#8FA715":"#D9D7CD"),
+                  background:variacao===i?"#8FA715":"transparent",color:variacao===i?"#0E0E0C":"#888",
+                  fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                {l}
+              </button>
+            ))}
+          </div>}
+
+          {/* TÍTULO */}
+          <span style={lbl}>Título do post</span>
+          <input style={inp} value={variacao===0?titulo:varTitulo}
+            onChange={e=>variacao===0?setTitulo(e.target.value):setVarTitulo(e.target.value)}/>
+
+          <span style={lbl}>Subtítulo (aparece no post visual)</span>
+          <input style={inp} value={subtitulo} onChange={e=>setSubtitulo(e.target.value)}/>
+
+          <span style={lbl}>Legenda Instagram</span>
+          <textarea style={{...inp,resize:"vertical"}} rows={6}
+            value={variacao===0?legenda:varLegenda}
+            onChange={e=>variacao===0?setLegenda(e.target.value):setVarLegenda(e.target.value)}
+            placeholder="A legenda vai aparecer aqui após gerar com IA, ou escreva livremente..."/>
+
+          <span style={lbl}>Hashtags</span>
+          <input style={inp} value={hashtags} onChange={e=>setHashtags(e.target.value)}/>
+
+          <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
+            <button onClick={copiar}
+              style={{...btnP(copied?"#8FA715":"transparent",copied?"#0E0E0C":"#555"),
+                border:"1px solid "+(copied?"#8FA715":"#D9D7CD"),padding:"7px 14px",fontSize:12}}>
+              {copied?"✓ Copiado!":"📋 Copiar legenda + hashtags"}
             </button>
-            <button onClick={exportJson} style={{...btn('transparent','#555'),border:'1px solid #D9D7CD',width:'auto',padding:'7px 14px',marginTop:0,fontSize:12}}>
-              Exportar JSON ⤓
+            <button onClick={()=>{
+              const d={tipo,tom,label,titulo:tituloAtivo,subtitulo,legenda:legendaAtiva,hashtags};
+              const b=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
+              const u=URL.createObjectURL(b);const a=document.createElement("a");
+              a.download="post-zeste.json";a.href=u;a.click();URL.revokeObjectURL(u);
+            }} style={{...btnP("transparent","#555"),border:"1px solid #D9D7CD",padding:"7px 14px",fontSize:12}}>
+              ⤓ Exportar JSON
             </button>
           </div>
         </div>
