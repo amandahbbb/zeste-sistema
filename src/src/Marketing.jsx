@@ -378,25 +378,27 @@ export default function RedesSociais({onBack,token:tokenProp}) {
   return (
     <div style={{ fontFamily: "'Nunito Sans', system-ui, sans-serif", background: C.bg, minHeight: "100vh", color: C.dark }}>
 
-      {/* HEADER */}
-      <div style={{ background: C.azul, padding: "28px 20px 20px", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", right: -40, top: -40, width: 200, height: 200, background: C.lima, borderRadius: "50%", opacity: 0.1 }} />
-        {onBack&&<button onClick={onBack} style={{color:C.lima,fontSize:24,background:"none",border:"none",cursor:"pointer",lineHeight:1,position:"absolute",left:14,top:14,minWidth:40,minHeight:40,display:"flex",alignItems:"center",justifyContent:"center",zIndex:10}}>‹</button>}
-        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3, textTransform: "uppercase", color: C.lima, marginBottom: 6 }}>Marketing · Zeste</div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: "#fff", fontFamily: "system-ui" }}>Redes Sociais</div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>Relatórios, métricas e insights</div>
-
-        {/* SELETOR REDE */}
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          {[{ id: "instagram", label: "📸 Instagram" }, { id: "whatsapp", label: "💬 WhatsApp" }].map(r => (
-            <button key={r.id} onClick={() => { setRede(r.id); setInsights(null); }}
-              style={{ padding: "6px 14px", borderRadius: 20, border: "1px solid", fontSize: 12, fontWeight: 700, cursor: "pointer",
-                background: rede === r.id ? "rgba(255,255,255,0.15)" : "transparent",
-                borderColor: rede === r.id ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.2)",
-                color: rede === r.id ? "#fff" : "rgba(255,255,255,0.5)" }}>
-              {r.label}
-            </button>
-          ))}
+      {/* HEADER — padrão Financeiro */}
+      <div style={{background:'#0E0E0C',position:'sticky',top:0,zIndex:300,borderBottom:'1px solid #2A2A2A'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            {onBack&&<button onClick={onBack} style={{color:'#8FA715',fontSize:24,padding:'0 6px 0 0',lineHeight:1,minWidth:36,minHeight:36,display:'flex',alignItems:'center',background:'none',border:'none',cursor:'pointer'}}>‹</button>}
+            <div style={{display:'flex',alignItems:'baseline',gap:7}}>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:800,color:'#8FA715',letterSpacing:'.06em'}}>ZESTE</span>
+              <span style={{fontSize:9,color:'#555',letterSpacing:'.14em'}}>MARKETING</span>
+            </div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            {/* SELETOR REDE */}
+            {[{ id: "instagram", label: "📸 Instagram" }, { id: "whatsapp", label: "💬 WhatsApp" }].map(r => (
+              <button key={r.id} onClick={() => { setRede(r.id); setInsights(null); }}
+                style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "none",
+                  borderColor: rede === r.id ? "#8FA715" : "#2A2A2A",
+                  color: rede === r.id ? "#8FA715" : "#555" }}>
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
