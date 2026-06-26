@@ -696,10 +696,27 @@ function DRE({lancamentos}){
       (cats.length===0||cats.includes(l.categoria))
     ).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
   };
+  // Soma investimentos por subcategoria (investimentos têm categoria='INVESTIMENTO')
+  const gInvSub=(subs,mi,sts=['RECEBIDO','PAGO'])=>{
+    const m=`${ano}-${String(mi+1).padStart(2,'0')}`;
+    return lancamentos.filter(l=>
+      sts.includes(l.status)&&l.competencia===m&&getClassif(l)==='investimento'&&
+      (subs.length===0||subs.some(sub=>(l.subcategoria||'').toUpperCase().includes(sub)))
+    ).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
+  };
+
+  // Despesa variável = natureza DESPESA VARIÁVEL (fonte de verdade), não categoria fixa
+  const gVar=(mi,sts=['RECEBIDO','PAGO'])=>{
+    const m=`${ano}-${String(mi+1).padStart(2,'0')}`;
+    return lancamentos.filter(l=>
+      sts.includes(l.status)&&l.competencia===m&&getClassif(l)==='desp_op'&&
+      (l.natureza==='DESPESA VARIÁVEL'||CAT_NAT[l.categoria]==='DESPESA VARIÁVEL')
+    ).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
+  };
 
   const cp=MS.map((_,i)=>{
     const r    = gM(['receita'],[],i);
-    const dv   = gM(['desp_op'],['SERV. TERCEIROS','MARKETING'],i);
+    const dv   = gVar(i);                   // despesas variáveis (por natureza)
     const mb   = r-dv;
     const df   = gM(['desp_op'],[],i)-dv;  // fixed op = total op - variable
     const resOp= mb-df;                    // Resultado Operacional
@@ -710,7 +727,7 @@ function DRE({lancamentos}){
       mgBruta:r>0?mb/r:0,mgOp:r>0?resOp/r:0};
   });
 
-  const am=MS.map((_,i)=>i).filter(i=>cp[i].r>0||cp[i].resOp!==0);
+  const am=MS.map((_,i)=>i).filter(i=>cp[i].r>0||cp[i].resOp!==0||cp[i].inv>0||cp[i].plab>0);
   const sm=am.length>0?am:[new Date().getMonth()];
   const tot=k=>sm.reduce((s,i)=>s+(cp[i][k]||0),0);
   const totFn=fn=>sm.reduce((s,i)=>s+(fn(i)||0),0);
@@ -718,22 +735,22 @@ function DRE({lancamentos}){
   const ROWS=[
     {l:'RECEITA BRUTA',t:'h',k:'r',col:'#8FA715'},
     {l:'↳ Honorários / Consultoria',t:'i',fn:i=>gM(['receita'],['HONORÁRIOS'],i)},
-    {l:'↳ Outros serviços',t:'i',fn:i=>cp[i].r-gM(['receita'],['HONORÁRIOS'],i)},
+    {l:'↳ Outros serviços',t:'i',fn:i=>Math.max(0,cp[i].r-gM(['receita'],['HONORÁRIOS'],i))},
     {l:'(-) DESPESAS VARIÁVEIS',t:'h',k:'dv',col:'#C4502B',neg:true},
     {l:'↳ Serv. Terceiros',t:'i',fn:i=>gM(['desp_op'],['SERV. TERCEIROS'],i)},
     {l:'↳ Marketing',t:'i',fn:i=>gM(['desp_op'],['MARKETING'],i)},
-    {l:'↳ Outros variáveis',t:'i',fn:i=>gM(['desp_op'],['SERV. TERCEIROS','MARKETING'],i)===0?0:cp[i].dv-gM(['desp_op'],['SERV. TERCEIROS','MARKETING'],i)},
+    {l:'↳ Outros variáveis',t:'i',fn:i=>Math.max(0,cp[i].dv-gM(['desp_op'],['SERV. TERCEIROS','MARKETING'],i))},
     {l:'= MARGEM BRUTA',t:'T',k:'mb',col:'#8FA715',pctK:'mgBruta'},
     {l:'(-) DESPESAS FIXAS OP.',t:'h',k:'df',col:'#C4502B',neg:true},
     {l:'↳ Softwares',t:'i',fn:i=>gM(['desp_op'],['SOFTWARES'],i)},
     {l:'↳ Desp. Administrativas',t:'i',fn:i=>gM(['desp_op'],['DESP. ADMINISTRATIVAS'],i)},
-    {l:'↳ Outros fixos',t:'i',fn:i=>cp[i].df-gM(['desp_op'],['SOFTWARES','DESP. ADMINISTRATIVAS'],i)},
+    {l:'↳ Outros fixos',t:'i',fn:i=>Math.max(0,cp[i].df-gM(['desp_op'],['SOFTWARES','DESP. ADMINISTRATIVAS'],i))},
     {l:'= RESULTADO OPERACIONAL',t:'T',k:'resOp',col:'#497A5D',pctK:'mgOp',bold:true},
     {l:'(-) PRÓ-LABORE / RETIRADAS',t:'h',k:'plab',col:'#6B3E9A',neg:true},
     {l:'(-) INVESTIMENTOS',t:'h',k:'inv',col:'#1A4F71',neg:true},
-    {l:'↳ Identidade Visual / Branding',t:'i',fn:i=>gM(['investimento'],['MARKETING'],i)},
-    {l:'↳ Sistemas / Software',t:'i',fn:i=>gM(['investimento'],['SOFTWARES'],i)},
-    {l:'↳ Equipamentos / Outros',t:'i',fn:i=>cp[i].inv-gM(['investimento'],['MARKETING','SOFTWARES'],i)},
+    {l:'↳ Identidade Visual / Branding',t:'i',fn:i=>gInvSub(['BRANDING','IDENTIDADE','MARKETING','DESIGN'],i)},
+    {l:'↳ Sistemas / Software',t:'i',fn:i=>gInvSub(['SISTEMA','SOFTWARE','APP','SITE','WEB'],i)},
+    {l:'↳ Equipamentos / Outros',t:'i',fn:i=>{const total=cp[i].inv;const id=gInvSub(['BRANDING','IDENTIDADE','MARKETING','DESIGN'],i);const sw=gInvSub(['SISTEMA','SOFTWARE','APP','SITE','WEB'],i);return Math.max(0,total-id-sw);}},
     {l:'= RESULTADO CAIXA',t:'T',k:'resCx',col:'#8FA715',bold:true},
   ];
 
