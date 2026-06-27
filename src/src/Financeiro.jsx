@@ -233,6 +233,12 @@ function FormL({init,onSave,onClose,lancamentos=[]}){
         <button type="button" onClick={()=>S('isParcelado',true)} style={{flex:1,padding:'9px 12px',borderRadius:6,border:'1.5px solid '+(f.isParcelado?'var(--coral)':'var(--cinzaM)'),background:f.isParcelado?'var(--coral)':'transparent',color:f.isParcelado?'var(--branco)':'var(--cinzaE)',fontWeight:700,fontSize:13,minHeight:40}}>📋 Parcelado</button>
       </div>
       {f.isParcelado&&<>
+        <div style={{marginBottom:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',marginBottom:4,letterSpacing:'.06em'}}>FORMA DE PAGAMENTO (aplicada em todas as parcelas)</div>
+          <select value={f.forma} onChange={e=>S('forma',e.target.value)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'9px 10px',fontSize:14}}>
+            {Object.keys(FORMAS).map(k=><option key={k} value={k}>{FORMAS[k].icon} {FORMAS[k].label}</option>)}
+          </select>
+        </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
           <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',marginBottom:4,letterSpacing:'.06em'}}>Nº DE PARCELAS</div><input type="number" min="2" max="48" value={f.nParcelas} onChange={e=>S('nParcelas',+e.target.value)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'9px 10px',fontSize:14,textAlign:'center',fontFamily:'var(--ff)',fontWeight:700}}/></div>
           <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',marginBottom:4,letterSpacing:'.06em'}}>DIA DO VENCIMENTO</div><input type="number" min="1" max="28" value={f.diaParcela} onChange={e=>S('diaParcela',e.target.value)} placeholder="Ex: 15" style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'9px 10px',fontSize:14,textAlign:'center',fontFamily:'var(--ff)'}}/></div>
