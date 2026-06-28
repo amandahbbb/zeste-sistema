@@ -345,7 +345,7 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter}){
 // ── FICHAS TAB ────────────────────────────────────────────────────
 function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFilter}){
   const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);
-  const filtered=fichasCalc.filter(f=>(!q||normNome(f.nome).includes(normNome(q)))&&(!clienteFilter||f._cliente===clienteFilter||f._cliente==='zeste'));
+  const filtered=fichasCalc.filter(f=>(!q||normNome(f.nome).includes(normNome(q)))&&(!clienteFilter||f._cliente===clienteFilter));
   return(<div className="ft-page">
     <div className="ft-search"><input placeholder="🔍 Buscar ficha…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/><button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEditForm({})}>+ Nova</button></div>
     <div className="ft-pc"><div className="ft-card">
@@ -392,7 +392,7 @@ function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFil
 // ── PRATOS TAB ────────────────────────────────────────────────────
 function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFilter}){
   const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);
-  const filtered=pratosCalc.filter(p=>(!q||normNome(p.nome).includes(normNome(q)))&&(!clienteFilter||p._cliente===clienteFilter||p._cliente==='zeste'));
+  const filtered=pratosCalc.filter(p=>(!q||normNome(p.nome).includes(normNome(q)))&&(!clienteFilter||p._cliente===clienteFilter));
   const categorias=[...new Set(filtered.map(p=>p.categoria||'Sem categoria'))];
   return(<div className="ft-page">
     <div className="ft-search"><input placeholder="🔍 Buscar prato…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/><button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEditForm({})}>+ Novo</button></div>
@@ -695,21 +695,23 @@ function TabEstoque({ingredientes,onSave,clienteFilter}){
 }
 
 // ── RESUMO TAB ────────────────────────────────────────────────────
-function TabResumo({ingredientes,fichasCalc,pratosCalc}){
-  const pratosComPreco=pratosCalc.filter(p=>p.precoVenda>0);
+function TabResumo({ingredientes,fichasCalc,pratosCalc,clienteFilter}){
+  const pratosVis=clienteFilter?pratosCalc.filter(p=>p._cliente===clienteFilter):pratosCalc;
+  const fichasVis=clienteFilter?fichasCalc.filter(f=>f._cliente===clienteFilter):fichasCalc;
+  const pratosComPreco=pratosVis.filter(p=>p.precoVenda>0);
   const cmvMedio=pratosComPreco.length>0?pratosComPreco.reduce((s,p)=>s+p.cmv,0)/pratosComPreco.length:0;
   const custoMedio=pratosComPreco.length>0?pratosComPreco.reduce((s,p)=>s+p.custoTotal,0)/pratosComPreco.length:0;
-  const categorias=[...new Set(pratosCalc.map(p=>p.categoria||'Sem categoria'))];
+  const categorias=[...new Set(pratosVis.map(p=>p.categoria||'Sem categoria'))];
   return(<div className="ft-page">
     <div className="ft-kr">
       <div className="ft-kpi" style={{borderColor:'var(--lima)'}}><div className="ft-kpi-l" style={{color:'var(--lima)'}}>Ingredientes</div><div className="ft-kpi-v" style={{color:'var(--lima)'}}>{ingredientes.length}</div></div>
-      <div className="ft-kpi" style={{borderColor:'var(--azul)'}}><div className="ft-kpi-l" style={{color:'var(--azul)'}}>Fichas</div><div className="ft-kpi-v" style={{color:'var(--azul)'}}>{fichasCalc.length}</div></div>
-      <div className="ft-kpi" style={{borderColor:'var(--coral)'}}><div className="ft-kpi-l" style={{color:'var(--coral)'}}>Pratos</div><div className="ft-kpi-v" style={{color:'var(--coral)'}}>{pratosCalc.length}</div></div>
+      <div className="ft-kpi" style={{borderColor:'var(--azul)'}}><div className="ft-kpi-l" style={{color:'var(--azul)'}}>Fichas</div><div className="ft-kpi-v" style={{color:'var(--azul)'}}>{fichasVis.length}</div></div>
+      <div className="ft-kpi" style={{borderColor:'var(--coral)'}}><div className="ft-kpi-l" style={{color:'var(--coral)'}}>Pratos</div><div className="ft-kpi-v" style={{color:'var(--coral)'}}>{pratosVis.length}</div></div>
       {pratosComPreco.length>0&&<><div className="ft-kpi" style={{borderColor:cmvColor(cmvMedio)}}><div className="ft-kpi-l" style={{color:cmvColor(cmvMedio)}}>CMV Médio</div><div className="ft-kpi-v" style={{color:cmvColor(cmvMedio)}}>{pct(cmvMedio)}</div></div>
       <div className="ft-kpi" style={{borderColor:'var(--cinzaE)'}}><div className="ft-kpi-l" style={{color:'var(--cinzaE)'}}>Custo Médio/Prato</div><div className="ft-kpi-v" style={{color:'var(--branco)'}}>{brl(custoMedio)}</div></div></>}
     </div>
     <div className="ft-pc">
-      {categorias.map(cat=>{const pratos=pratosCalc.filter(p=>(p.categoria||'Sem categoria')===cat&&p.precoVenda>0);if(!pratos.length)return null;return(<div key={cat}>
+      {categorias.map(cat=>{const pratos=pratosVis.filter(p=>(p.categoria||'Sem categoria')===cat&&p.precoVenda>0);if(!pratos.length)return null;return(<div key={cat}>
         <SH>{cat}</SH>
         <div className="ft-card" style={{marginBottom:16}}>
           {pratos.map((p,i)=>(<div key={p.id} style={{padding:'12px 14px',borderBottom:i<pratos.length-1?'1px solid var(--cinzaF)':'none'}}>
@@ -727,7 +729,7 @@ function TabResumo({ingredientes,fichasCalc,pratosCalc}){
         </div>
       </div>);})}
       {fichasCalc.length>0&&<><SH>Top 10 — Fichas mais caras (custo/kg)</SH><div className="ft-card" style={{marginBottom:20}}>
-        {[...fichasCalc].sort((a,b)=>b._custoPorKg-a._custoPorKg).slice(0,10).map((f,i)=>(<div key={f.id} style={{padding:'10px 14px',borderBottom:i<9?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        {[...fichasVis].sort((a,b)=>b._custoPorKg-a._custoPorKg).slice(0,10).map((f,i)=>(<div key={f.id} style={{padding:'10px 14px',borderBottom:i<9?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <span style={{fontSize:13,fontWeight:600}}>{f.nome}</span>
           <span style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'var(--coral)'}}>{brl(f._custoPorKg)}/kg</span>
         </div>))}
@@ -864,7 +866,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
       </div>
       <nav className="ft-nav">{TABS.map((t,i)=>(<span key={t.id}>{i>0&&<div style={{width:1,background:'#252525',margin:'10px 0',flexShrink:0}}/>}<div className={`ft-tab${aba===t.id?' on':''}`} onClick={()=>setAba(t.id)}>{t.l}</div></span>))}</nav>
     </div>
-    {aba==='resumo'&&<TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc}/>}
+    {aba==='resumo'&&<TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc} clienteFilter={clienteFilter}/>}
     {aba==='ingredientes'&&<TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter}/>}
     {aba==='fichas'&&<TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter}/>}
     {aba==='pratos'&&<TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter}/>}

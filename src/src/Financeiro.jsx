@@ -652,7 +652,7 @@ function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPu
         <button type="button" onClick={()=>setShowCatFilter(v=>!v)} style={{padding:'8px 12px',borderRadius:7,border:'1.5px solid '+(ft.cats.length>0?'var(--lima)':'var(--cinzaM)'),background:ft.cats.length>0?'#F0F7E6':'var(--branco)',color:ft.cats.length>0?'var(--verde)':'var(--cinzaE)',fontSize:13,cursor:'pointer',fontWeight:ft.cats.length>0?700:400,whiteSpace:'nowrap'}}>
           🏷 Categorias{ft.cats.length>0?` (${ft.cats.length})`:''}
         </button>
-        {showCatFilter&&<div style={{position:'absolute',top:'100%',left:0,marginTop:4,background:'var(--branco)',border:'1.5px solid var(--cinzaM)',borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,.15)',zIndex:300,minWidth:200,padding:8}}>
+        {showCatFilter&&<div style={{position:'absolute',top:'100%',right:0,marginTop:4,background:'var(--branco)',border:'1.5px solid var(--cinzaM)',borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,.15)',zIndex:300,minWidth:220,maxHeight:340,overflowY:'auto',padding:8}}>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,paddingBottom:6,borderBottom:'1px solid var(--cinzaF)'}}>
             <button type="button" onClick={()=>setFt(p=>({...p,cats:[...CATS]}))} style={{fontSize:11,color:'var(--verde)',background:'none',border:'none',cursor:'pointer',fontWeight:700}}>Todas</button>
             <button type="button" onClick={()=>setFt(p=>({...p,cats:[]}))} style={{fontSize:11,color:'var(--coral)',background:'none',border:'none',cursor:'pointer',fontWeight:700}}>Limpar</button>
@@ -713,12 +713,14 @@ function DRE({lancamentos}){
   const[ano,setAno]=useState(new Date().getFullYear());
   const[showDetalhe,setShowDetalhe]=useState(true);
   const[gruposVisiveis,setGruposVisiveis]=useState({receita:true,variavel:true,fixa:true,prolabore:true,investimento:true});
-  const anos=[...new Set(lancamentos.map(l=>l.competencia?.slice(0,4)).filter(Boolean))].sort().reverse();
+  // Competência com fallback: usa campo competencia, ou deriva de dataDoc (lançamentos antigos/importados)
+  const getComp=l=>l.competencia||(l.dataDoc?l.dataDoc.slice(0,7):'')||(l.dataPago?l.dataPago.slice(0,7):'');
+  const anos=[...new Set(lancamentos.map(l=>getComp(l)?.slice(0,4)).filter(Boolean))].sort().reverse();
 
   const gM=(classifs,cats,mi,sts=['RECEBIDO','PAGO'])=>{
     const m=`${ano}-${String(mi+1).padStart(2,'0')}`;
     return lancamentos.filter(l=>
-      sts.includes(l.status)&&l.competencia===m&&
+      sts.includes(l.status)&&getComp(l)===m&&
       (classifs.length===0||classifs.includes(getClassif(l)))&&
       (cats.length===0||cats.includes(l.categoria))
     ).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
@@ -727,7 +729,7 @@ function DRE({lancamentos}){
   const gInvSub=(subs,mi,sts=['RECEBIDO','PAGO'])=>{
     const m=`${ano}-${String(mi+1).padStart(2,'0')}`;
     return lancamentos.filter(l=>
-      sts.includes(l.status)&&l.competencia===m&&getClassif(l)==='investimento'&&
+      sts.includes(l.status)&&getComp(l)===m&&getClassif(l)==='investimento'&&
       (subs.length===0||subs.some(sub=>(l.subcategoria||'').toUpperCase().includes(sub)))
     ).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
   };
@@ -736,7 +738,7 @@ function DRE({lancamentos}){
   const gVar=(mi,sts=['RECEBIDO','PAGO'])=>{
     const m=`${ano}-${String(mi+1).padStart(2,'0')}`;
     return lancamentos.filter(l=>
-      sts.includes(l.status)&&l.competencia===m&&getClassif(l)==='desp_op'&&
+      sts.includes(l.status)&&getComp(l)===m&&getClassif(l)==='desp_op'&&
       (l.natureza==='DESPESA VARIÁVEL'||CAT_NAT[l.categoria]==='DESPESA VARIÁVEL')
     ).reduce((s,l)=>s+(+(l.vlrPago||l.vlrLiquido)||0),0);
   };
