@@ -101,7 +101,7 @@ const CLASSIF_OPTS = [
   {id:'retirada',    tipo:'DESPESA',  natureza:'PRÓ-LABORE',     cat:'PRÓ-LABORE'},
 ];
 const CAT_NAT={'HONORÁRIOS':'DESPESA FIXA','SERV. TERCEIROS':'DESPESA VARIÁVEL','SOFTWARES':'DESPESA FIXA','DESP. ADMINISTRATIVAS':'DESPESA FIXA','MARKETING':'DESPESA VARIÁVEL','PRÓ-LABORE':'DESPESA FIXA','INVESTIMENTO':'INVESTIMENTO','OUTROS':'DESPESA FIXA'};
-const SUBS={'HONORÁRIOS':['CONSULTORIA OPERACIONAL','CONSULTORIA GERENCIAL','PRODUÇÃO DE MATERIAIS','TREINAMENTO / MENTORIA','DIAGNÓSTICO'],'SERV. TERCEIROS':['DESIGN / DIAGRAMAÇÃO','FOTOGRAFIA','PROGRAMAÇÃO','FREELANCER'],'SOFTWARES':['ASSINATURA','DOMÍNIO / HOSPEDAGEM','OUTROS'],'DESP. ADMINISTRATIVAS':['HONORÁRIOS CONTADOR','TELEFONE / INTERNET','MATERIAL DE ESCRITÓRIO','IMPOSTOS / TAXAS','OUTRAS'],'MARKETING':['IMPRESSÃO / MATERIAIS','REDES SOCIAIS','OUTROS'],'PRÓ-LABORE':['RETIRADA'],'INVESTIMENTO':['EQUIPAMENTOS','CURSOS / CAPACITAÇÃO','OUTROS'],'OUTROS':['OUTROS']};
+const SUBS={'HONORÁRIOS':['CONSULTORIA OPERACIONAL','CONSULTORIA GERENCIAL','PRODUÇÃO DE MATERIAIS','TREINAMENTO / MENTORIA','DIAGNÓSTICO'],'SERV. TERCEIROS':['DESIGN / DIAGRAMAÇÃO','FOTOGRAFIA','PROGRAMAÇÃO','FREELANCER'],'SOFTWARES':['ASSINATURA','DOMÍNIO / HOSPEDAGEM','OUTROS'],'DESP. ADMINISTRATIVAS':['HONORÁRIOS CONTADOR','TELEFONE / INTERNET','MATERIAL DE ESCRITÓRIO','IMPOSTOS / TAXAS','OUTRAS'],'MARKETING':['IMPRESSÃO / MATERIAIS','REDES SOCIAIS','OUTROS'],'PRÓ-LABORE':['RETIRADA'],'INVESTIMENTO':['IDENTIDADE VISUAL / BRANDING','SISTEMAS / SOFTWARE','EQUIPAMENTOS','CURSOS / CAPACITAÇÃO','OUTROS'],'OUTROS':['OUTROS']};
 const MS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const SR=['RECEBIDO','A RECEBER','CANCELADO'];
 const SD=['PAGO','PREVISTO','CANCELADO'];
@@ -608,7 +608,8 @@ function Resumo({lancamentos,setAba}){
 // ── LANÇAMENTOS ───────────────────────────────────────────────────
 function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPurge,onImport}){
   const[modal,setModal]=useState(null);const[del,setDel]=useState(null);const[showImp,setShowImp]=useState(false);const[showLix,setShowLix]=useState(false);
-  const[ft,setFt]=useState({tipo:'',status:'',ano:'',mes:'',pagador:'',reembolso:'',q:''});
+  const[ft,setFt]=useState({tipo:'',status:'',ano:'',mes:'',pagador:'',reembolso:'',q:'',cats:[]});
+  const[showCatFilter,setShowCatFilter]=useState(false);
   useEffect(()=>{openNew.current=()=>setModal('new');},[]);
   const anos=[...new Set(lancamentos.map(l=>l.dataDoc?.slice(0,4)).filter(Boolean))].sort().reverse();
   const lst=lancamentos.filter(l=>{
@@ -618,6 +619,7 @@ function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPu
     if(ft.mes&&l.dataDoc?.slice(5,7)!==ft.mes)return false;
     if(ft.pagador&&l.pagador!==ft.pagador)return false;
     if(ft.reembolso&&l.reembolso!==ft.reembolso)return false;
+    if(ft.cats.length>0&&!ft.cats.includes(l.categoria))return false;
     if(ft.q){const q=ft.q.toLowerCase();if(!l.descricao?.toLowerCase().includes(q)&&!l.clienteFornecedor?.toLowerCase().includes(q)&&!l.categoria?.toLowerCase().includes(q))return false;}
     return true;
   }).sort((a,b)=>(b.dataDoc||'').localeCompare(a.dataDoc||''));
@@ -646,6 +648,23 @@ function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPu
       <select value={ft.mes} onChange={e=>setFt(p=>({...p,mes:e.target.value}))}><option value="">Mês</option>{MS.map((m,i)=><option key={i} value={String(i+1).padStart(2,'0')}>{m}</option>)}</select>
       <select value={ft.pagador} onChange={e=>setFt(p=>({...p,pagador:e.target.value}))}><option value="">Pagador</option>{PAGADORES.map(p=><option key={p}>{p}</option>)}</select>
       <select value={ft.reembolso} onChange={e=>setFt(p=>({...p,reembolso:e.target.value}))}><option value="">Reembolso</option><option value="PENDENTE">⏳ Pendente</option><option value="CONCLUÍDO">✅ Concluído</option></select>
+      <div style={{position:'relative'}}>
+        <button type="button" onClick={()=>setShowCatFilter(v=>!v)} style={{padding:'8px 12px',borderRadius:7,border:'1.5px solid '+(ft.cats.length>0?'var(--lima)':'var(--cinzaM)'),background:ft.cats.length>0?'#F0F7E6':'var(--branco)',color:ft.cats.length>0?'var(--verde)':'var(--cinzaE)',fontSize:13,cursor:'pointer',fontWeight:ft.cats.length>0?700:400,whiteSpace:'nowrap'}}>
+          🏷 Categorias{ft.cats.length>0?` (${ft.cats.length})`:''}
+        </button>
+        {showCatFilter&&<div style={{position:'absolute',top:'100%',left:0,marginTop:4,background:'var(--branco)',border:'1.5px solid var(--cinzaM)',borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,.15)',zIndex:300,minWidth:200,padding:8}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,paddingBottom:6,borderBottom:'1px solid var(--cinzaF)'}}>
+            <button type="button" onClick={()=>setFt(p=>({...p,cats:[...CATS]}))} style={{fontSize:11,color:'var(--verde)',background:'none',border:'none',cursor:'pointer',fontWeight:700}}>Todas</button>
+            <button type="button" onClick={()=>setFt(p=>({...p,cats:[]}))} style={{fontSize:11,color:'var(--coral)',background:'none',border:'none',cursor:'pointer',fontWeight:700}}>Limpar</button>
+          </div>
+          {CATS.map(cat=>(
+            <label key={cat} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 4px',cursor:'pointer',fontSize:13}}>
+              <input type="checkbox" checked={ft.cats.includes(cat)} onChange={e=>setFt(p=>({...p,cats:e.target.checked?[...p.cats,cat]:p.cats.filter(c=>c!==cat)}))} style={{width:16,height:16}}/>
+              {cat}
+            </label>
+          ))}
+        </div>}
+      </div>
     </div>
     <div className="action-row">
       {lst.length>0&&<div style={{background:'var(--preto)',borderRadius:8,padding:'9px 12px',display:'flex',justifyContent:'space-between',alignItems:'center',flex:1,minWidth:160}}><span style={{fontFamily:'var(--ff)',fontSize:11,letterSpacing:'.1em',color:'var(--cinzaE)'}}>{lst.length} ITEM{lst.length!==1?'S':''}</span><span style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--lima)'}}>{brl(tot)}</span></div>}
@@ -692,6 +711,8 @@ function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPu
 // ── DRE ──────────────────────────────────────────────────────────
 function DRE({lancamentos}){
   const[ano,setAno]=useState(new Date().getFullYear());
+  const[showDetalhe,setShowDetalhe]=useState(true);
+  const[gruposVisiveis,setGruposVisiveis]=useState({receita:true,variavel:true,fixa:true,prolabore:true,investimento:true});
   const anos=[...new Set(lancamentos.map(l=>l.competencia?.slice(0,4)).filter(Boolean))].sort().reverse();
 
   const gM=(classifs,cats,mi,sts=['RECEBIDO','PAGO'])=>{
@@ -739,26 +760,30 @@ function DRE({lancamentos}){
   const totFn=fn=>sm.reduce((s,i)=>s+(fn(i)||0),0);
 
   const ROWS=[
-    {l:'RECEITA BRUTA',t:'h',k:'r',col:'#8FA715'},
-    {l:'↳ Honorários / Consultoria',t:'i',fn:i=>gM(['receita'],['HONORÁRIOS'],i)},
-    {l:'↳ Outros serviços',t:'i',fn:i=>Math.max(0,cp[i].r-gM(['receita'],['HONORÁRIOS'],i))},
-    {l:'(-) DESPESAS VARIÁVEIS',t:'h',k:'dv',col:'#C4502B',neg:true},
-    {l:'↳ Serv. Terceiros',t:'i',fn:i=>gM(['desp_op'],['SERV. TERCEIROS'],i)},
-    {l:'↳ Marketing',t:'i',fn:i=>gM(['desp_op'],['MARKETING'],i)},
-    {l:'↳ Outros variáveis',t:'i',fn:i=>Math.max(0,cp[i].dv-gM(['desp_op'],['SERV. TERCEIROS','MARKETING'],i))},
-    {l:'= MARGEM BRUTA',t:'T',k:'mb',col:'#8FA715',pctK:'mgBruta'},
-    {l:'(-) DESPESAS FIXAS OP.',t:'h',k:'df',col:'#C4502B',neg:true},
-    {l:'↳ Softwares',t:'i',fn:i=>gM(['desp_op'],['SOFTWARES'],i)},
-    {l:'↳ Desp. Administrativas',t:'i',fn:i=>gM(['desp_op'],['DESP. ADMINISTRATIVAS'],i)},
-    {l:'↳ Outros fixos',t:'i',fn:i=>Math.max(0,cp[i].df-gM(['desp_op'],['SOFTWARES','DESP. ADMINISTRATIVAS'],i))},
-    {l:'= RESULTADO OPERACIONAL',t:'T',k:'resOp',col:'#497A5D',pctK:'mgOp',bold:true},
-    {l:'(-) PRÓ-LABORE / RETIRADAS',t:'h',k:'plab',col:'#6B3E9A',neg:true},
-    {l:'(-) INVESTIMENTOS',t:'h',k:'inv',col:'#1A4F71',neg:true},
-    {l:'↳ Identidade Visual / Branding',t:'i',fn:i=>gInvSub(['BRANDING','IDENTIDADE','MARKETING','DESIGN'],i)},
-    {l:'↳ Sistemas / Software',t:'i',fn:i=>gInvSub(['SISTEMA','SOFTWARE','APP','SITE','WEB'],i)},
-    {l:'↳ Equipamentos / Outros',t:'i',fn:i=>{const total=cp[i].inv;const id=gInvSub(['BRANDING','IDENTIDADE','MARKETING','DESIGN'],i);const sw=gInvSub(['SISTEMA','SOFTWARE','APP','SITE','WEB'],i);return Math.max(0,total-id-sw);}},
-    {l:'= RESULTADO CAIXA',t:'T',k:'resCx',col:'#8FA715',bold:true},
-  ];
+    {l:'RECEITA BRUTA',t:'h',k:'r',col:'#8FA715',g:'receita'},
+    {l:'↳ Honorários / Consultoria',t:'i',fn:i=>gM(['receita'],['HONORÁRIOS'],i),g:'receita'},
+    {l:'↳ Outros serviços',t:'i',fn:i=>Math.max(0,cp[i].r-gM(['receita'],['HONORÁRIOS'],i)),g:'receita'},
+    {l:'(-) DESPESAS VARIÁVEIS',t:'h',k:'dv',col:'#C4502B',neg:true,g:'variavel'},
+    {l:'↳ Serv. Terceiros',t:'i',fn:i=>gM(['desp_op'],['SERV. TERCEIROS'],i),g:'variavel'},
+    {l:'↳ Marketing',t:'i',fn:i=>gM(['desp_op'],['MARKETING'],i),g:'variavel'},
+    {l:'↳ Outros variáveis',t:'i',fn:i=>Math.max(0,cp[i].dv-gM(['desp_op'],['SERV. TERCEIROS','MARKETING'],i)),g:'variavel'},
+    {l:'= MARGEM BRUTA',t:'T',k:'mb',col:'#8FA715',pctK:'mgBruta',g:'total'},
+    {l:'(-) DESPESAS FIXAS OP.',t:'h',k:'df',col:'#C4502B',neg:true,g:'fixa'},
+    {l:'↳ Softwares',t:'i',fn:i=>gM(['desp_op'],['SOFTWARES'],i),g:'fixa'},
+    {l:'↳ Desp. Administrativas',t:'i',fn:i=>gM(['desp_op'],['DESP. ADMINISTRATIVAS'],i),g:'fixa'},
+    {l:'↳ Outros fixos',t:'i',fn:i=>Math.max(0,cp[i].df-gM(['desp_op'],['SOFTWARES','DESP. ADMINISTRATIVAS'],i)),g:'fixa'},
+    {l:'= RESULTADO OPERACIONAL',t:'T',k:'resOp',col:'#497A5D',pctK:'mgOp',bold:true,g:'total'},
+    {l:'(-) PRÓ-LABORE / RETIRADAS',t:'h',k:'plab',col:'#6B3E9A',neg:true,g:'prolabore'},
+    {l:'(-) INVESTIMENTOS',t:'h',k:'inv',col:'#1A4F71',neg:true,g:'investimento'},
+    {l:'↳ Identidade Visual / Branding',t:'i',fn:i=>gInvSub(['BRANDING','IDENTIDADE','MARKETING','DESIGN'],i),g:'investimento'},
+    {l:'↳ Sistemas / Software',t:'i',fn:i=>gInvSub(['SISTEMA','SOFTWARE','APP','SITE','WEB'],i),g:'investimento'},
+    {l:'↳ Equipamentos / Outros',t:'i',fn:i=>{const total=cp[i].inv;const id=gInvSub(['BRANDING','IDENTIDADE','MARKETING','DESIGN'],i);const sw=gInvSub(['SISTEMA','SOFTWARE','APP','SITE','WEB'],i);return Math.max(0,total-id-sw);},g:'investimento'},
+    {l:'= RESULTADO CAIXA',t:'T',k:'resCx',col:'#8FA715',bold:true,g:'total'},
+  ].filter(row=>{
+    if(!showDetalhe&&row.t==='i')return false;
+    if(row.g!=='total'&&!gruposVisiveis[row.g])return false;
+    return true;
+  });
 
   const Cel=({v,t,col,pct:isPct,bold})=>{
     const clr=t==='h'?(col||'var(--preto)'):t==='T'?(v>=0?col||'var(--verde)':'var(--coral)'):v<0?'var(--coral)':'var(--cinzaE)';
@@ -770,12 +795,13 @@ function DRE({lancamentos}){
       <select value={ano} onChange={e=>setAno(+e.target.value)} style={{width:90,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 10px',fontSize:13,outline:'none',background:'var(--branco)'}}>{(anos.length?anos:[new Date().getFullYear()]).map(a=><option key={a}>{a}</option>)}</select>
       <button onClick={()=>exportExcel(lancamentos.filter(l=>l.competencia?.startsWith(String(ano))),'zeste_dre')} style={{display:'flex',alignItems:'center',gap:6,background:'#ECFDF5',border:'1.5px solid #10B981',borderRadius:8,padding:'9px 12px',fontSize:12,fontWeight:600,color:'#065F46',cursor:'pointer',minHeight:42}}>⬇ Excel</button>
       <button onClick={()=>exportPDF(lancamentos.filter(l=>l.competencia?.startsWith(String(ano))),`DRE ${ano}`)} style={{display:'flex',alignItems:'center',gap:6,background:'#EFF6FF',border:'1.5px solid var(--azul)',borderRadius:8,padding:'9px 12px',fontSize:12,fontWeight:600,color:'var(--azul)',cursor:'pointer',minHeight:42}}>🖨 PDF</button>
+      <button onClick={()=>setShowDetalhe(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,background:showDetalhe?'#F0F7E6':'var(--branco)',border:'1.5px solid '+(showDetalhe?'var(--lima)':'var(--cinzaM)'),borderRadius:8,padding:'9px 12px',fontSize:12,fontWeight:600,color:showDetalhe?'var(--verde)':'var(--cinzaE)',cursor:'pointer',minHeight:42}}>{showDetalhe?'▾ Detalhado':'▸ Resumido'}</button>
     </div>
 
-    {/* LEGENDA */}
-    <div style={{display:'flex',gap:12,marginBottom:12,flexWrap:'wrap'}}>
-      {[['#8FA715','💰 Receitas'],['#C4502B','💸 Desp. Op.'],['#6B3E9A','💼 Pró-labore'],['#1A4F71','🔧 Investimentos']].map(([col,l])=>(
-        <span key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'var(--cinzaE)'}}><span style={{width:10,height:10,borderRadius:2,background:col,display:'inline-block'}}/>{l}</span>
+    {/* FILTRO DE GRUPOS */}
+    <div style={{display:'flex',gap:7,marginBottom:12,flexWrap:'wrap'}}>
+      {[['receita','💰 Receitas','#8FA715'],['variavel','📉 Desp. Variáveis','#C4502B'],['fixa','🏢 Desp. Fixas','#C4502B'],['prolabore','💼 Pró-labore','#6B3E9A'],['investimento','🔧 Investimentos','#1A4F71']].map(([g,l,col])=>(
+        <button key={g} onClick={()=>setGruposVisiveis(p=>({...p,[g]:!p[g]}))} style={{padding:'6px 12px',borderRadius:20,border:'1.5px solid '+(gruposVisiveis[g]?col:'var(--cinzaM)'),background:gruposVisiveis[g]?col:'transparent',color:gruposVisiveis[g]?'#fff':'var(--cinzaE)',fontSize:11,fontWeight:700,cursor:'pointer'}}>{l}</button>
       ))}
     </div>
 
