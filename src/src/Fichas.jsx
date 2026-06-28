@@ -8,7 +8,7 @@ async function sbLoad(table,t){try{const r=await fetch(`${SB_URL}/rest/v1/${tabl
 async function sbLoadAll(table,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?order=created_at.desc`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(r=>r.dados||r):[];}catch{return[];}}
 async function sbUpsert(table,item,clienteId,t){await fetch(`${SB_URL}/rest/v1/${table}`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,cliente_id:clienteId||'zeste',dados:item,updated_at:new Date().toISOString()})});}
 async function sbDel(table,id,t){await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:sbH(t),body:JSON.stringify({deleted_at:new Date().toISOString()})});}
-async function sbInsertIng(item,t){await fetch(`${SB_URL}/rest/v1/fin_ingredientes`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,dados:item,updated_at:new Date().toISOString()})});}
+async function sbInsertIng(item,clienteId,t){await fetch(`${SB_URL}/rest/v1/fin_ingredientes`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,cliente_id:clienteId||'zeste',dados:item,updated_at:new Date().toISOString()})});}
 
 // ── UTILITÁRIOS ───────────────────────────────────────────────────
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -313,9 +313,9 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc})
 }
 
 // ── INGREDIENTES TAB ──────────────────────────────────────────────
-function TabIngredientes({ingredientes,onSave,onDelete}){
+function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter}){
   const[q,setQ]=useState('');const[edit,setEdit]=useState(null);
-  const filtered=ingredientes.filter(i=>!q||normNome(i.nome).includes(normNome(q)));
+  const filtered=ingredientes.filter(i=>(!q||normNome(i.nome).includes(normNome(q)))&&(!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente));
   return(<div className="ft-page">
     <div className="ft-search"><input placeholder="🔍 Buscar ingrediente…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/><button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEdit({id:uid(),nome:'',un:'KG',p:0,fc:1,fk:1})}>+ Novo</button></div>
     <div className="ft-pc"><div className="ft-card">
@@ -595,9 +595,9 @@ function QRLabels({ingredientes,onClose}){
 }
 
 // ── ESTOQUE TAB ───────────────────────────────────────────────────
-function TabEstoque({ingredientes,onSave}){
+function TabEstoque({ingredientes,onSave,clienteFilter}){
   const[q,setQ]=useState('');const[mov,setMov]=useState(null);
-  const filtered=ingredientes.filter(i=>!q||normNome(i.nome).includes(normNome(q)));
+  const filtered=ingredientes.filter(i=>(!q||normNome(i.nome).includes(normNome(q)))&&(!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente));
   const comEstoque=filtered.filter(i=>(i.estoque||0)>0||(i.estoqueMin||0)>0);
   const semEstoque=filtered.filter(i=>!i.estoque&&!i.estoqueMin);
   const baixos=ingredientes.filter(i=>i.estoqueMin>0&&(i.estoque||0)<i.estoqueMin);
@@ -778,12 +778,12 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
 
   async function loadAll(){
     setLoading(true);
-    let[ings,fics,prts]=await Promise.all([sbLoadAll('fin_ingredientes',token),sbLoad('fin_fichas',token),sbLoad('fin_pratos',token)]);
+    let[ings,fics,prts]=await Promise.all([sbLoad('fin_ingredientes',token),sbLoad('fin_fichas',token),sbLoad('fin_pratos',token)]);
     // Se vazio, semear dados iniciais
     if(ings.length===0){
       setSyncing(true);
       const seedIngs=SEED_ING.map(i=>({...i,id:i.id||uid()}));
-      await Promise.all(seedIngs.map(i=>sbInsertIng(i,token)));
+      await Promise.all(seedIngs.map(i=>sbInsertIng(i,'zeste',token)));
       ings=seedIngs;
       const seedFics=SEED_FIC.map(f=>({...f,id:f.id||uid()}));
       await Promise.all(seedFics.map(f=>sbUpsert('fin_fichas',f,'zeste',token)));
@@ -805,11 +805,23 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
 
   const saveIngrediente=async item=>{await sync(async()=>{
     const old=ingredientes.find(i=>i.id===item.id);
-    const saved={...item,_historico:addHistory(old,whoAmI),_ultimaEdicao:whoAmI,_ultimaEdicaoEm:new Date().toISOString()};
-    await sbInsertIng(saved,token);
-    setIngredientes(p=>p.some(i=>i.id===saved.id)?p.map(i=>i.id===saved.id?saved:i):[saved,...p]);
+    // Isolamento: se cliente logado edita um ingrediente da base 'zeste', cria cópia própria (copy-on-write)
+    const meuCliente=clienteIdProp||item._cliente||'zeste';
+    const ehBaseZeste=old&&old._cliente==='zeste';
+    const souCliente=!!clienteIdProp&&clienteIdProp!=='zeste';
+    let saved;
+    if(ehBaseZeste&&souCliente){
+      // cria cópia nova vinculada ao cliente, sem alterar a base
+      saved={...item,id:uid(),_cliente:clienteIdProp,_baseRef:old.id,_historico:[],_ultimaEdicao:whoAmI,_ultimaEdicaoEm:new Date().toISOString()};
+      await sbInsertIng(saved,clienteIdProp,token);
+      setIngredientes(p=>[saved,...p]);
+    }else{
+      saved={...item,_cliente:item._cliente||meuCliente,_historico:addHistory(old,whoAmI),_ultimaEdicao:whoAmI,_ultimaEdicaoEm:new Date().toISOString()};
+      await sbInsertIng(saved,saved._cliente,token);
+      setIngredientes(p=>p.some(i=>i.id===saved.id)?p.map(i=>i.id===saved.id?saved:i):[saved,...p]);
+    }
   });};
-  const delIngrediente=async id=>{await sync(async()=>{await fetch(`${SB_URL}/rest/v1/fin_ingredientes?id=eq.${id}`,{method:'DELETE',headers:sbH(token)});setIngredientes(p=>p.filter(i=>i.id!==id));});};
+  const delIngrediente=async id=>{const ing=ingredientes.find(i=>i.id===id);if(clienteIdProp&&clienteIdProp!=='zeste'&&ing&&ing._cliente==='zeste'){alert('Este é um ingrediente da base Zeste e não pode ser excluído. Edite-o para criar sua própria versão.');return;}await sync(async()=>{await fetch(`${SB_URL}/rest/v1/fin_ingredientes?id=eq.${id}`,{method:'DELETE',headers:sbH(token)});setIngredientes(p=>p.filter(i=>i.id!==id));});};
 
   const savePrato=async item=>{await sync(async()=>{
     const old=pratosRaw.find(p=>p.id===item.id);
@@ -853,11 +865,11 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
       <nav className="ft-nav">{TABS.map((t,i)=>(<span key={t.id}>{i>0&&<div style={{width:1,background:'#252525',margin:'10px 0',flexShrink:0}}/>}<div className={`ft-tab${aba===t.id?' on':''}`} onClick={()=>setAba(t.id)}>{t.l}</div></span>))}</nav>
     </div>
     {aba==='resumo'&&<TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc}/>}
-    {aba==='ingredientes'&&<TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente}/>}
+    {aba==='ingredientes'&&<TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter}/>}
     {aba==='fichas'&&<TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter}/>}
     {aba==='pratos'&&<TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter}/>}
     {aba==='producao'&&<TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes}/>}
-    {aba==='estoque'&&<TabEstoque ingredientes={ingredientes} onSave={saveIngrediente}/>}
+    {aba==='estoque'&&<TabEstoque ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter}/>}
     {histItem&&<HistoricoModal item={histItem} onClose={()=>setHistItem(null)} onRevert={async(v)=>{
       const clean={...v,_historico:undefined,_editadoPor:undefined,_editadoEm:undefined};
       if(histItem.componentes)await savePrato(clean);else await saveFicha(clean);
