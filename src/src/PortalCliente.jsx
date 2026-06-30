@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Fichas from "./Fichas.jsx";
+import Compras from "./Compras.jsx";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -51,12 +52,18 @@ function Dashboard({ clienteInfo, projeto, fichasCount, docs, setAba }) {
         </div>
       </div>
 
-      <div className="pcl-grid3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+      <div className="pcl-grid3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <button className="pcl-stat" onClick={() => setAba("fichas")} style={{ textAlign: "left" }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
           <div style={{ fontFamily: "var(--ff)", fontSize: 24, fontWeight: 700, color: "var(--verde)" }}>{fichasCount}</div>
           <div style={{ fontSize: 13, fontWeight: 600 }}>Fichas Técnicas</div>
           <div style={{ fontSize: 11, color: "var(--cinzaE)", marginTop: 2 }}>Ver receitas padronizadas →</div>
+        </button>
+        <button className="pcl-stat" onClick={() => setAba("compras")} style={{ textAlign: "left" }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🛒</div>
+          <div style={{ fontFamily: "var(--ff)", fontSize: 24, fontWeight: 700, color: "var(--lima)" }}>→</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Compras</div>
+          <div style={{ fontSize: 11, color: "var(--cinzaE)", marginTop: 2 }}>Fornecedores e cotações →</div>
         </button>
         <button className="pcl-stat" onClick={() => setAba("documentos")} style={{ textAlign: "left" }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>📁</div>
@@ -179,7 +186,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     sbLoad("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
   }, []);
 
-  const ABAS = [["dashboard", "🏠 Início"], ["fichas", "📋 Fichas"], ["documentos", "📁 Documentos"], ["projeto", "🎯 Projeto"]];
+  const ABAS = [["dashboard", "🏠 Início"], ["fichas", "📋 Fichas"], ["compras", "🛒 Compras"], ["documentos", "📁 Documentos"], ["projeto", "🎯 Projeto"]];
 
   if (aba === "fichas") {
     return (<>
@@ -191,6 +198,16 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     </>);
   }
 
+  if (aba === "compras") {
+    return (<>
+      <style>{STYLE}</style>
+      <div style={{ background: "var(--preto)", padding: "8px 12px", display: "flex", gap: 8, position: "sticky", top: 0, zIndex: 400 }}>
+        <button onClick={() => setAba("dashboard")} style={{ color: "var(--lima)", fontSize: 13, fontWeight: 700, padding: "6px 14px", border: "1px solid var(--lima)", borderRadius: 6 }}>‹ Voltar ao início</button>
+      </div>
+      <Compras onBack={() => setAba("dashboard")} token={token} clienteId={clienteInfo.cliente_id} />
+    </>);
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--cinzaF)" }}>
       <style>{STYLE}</style>
@@ -198,7 +215,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
             <span style={{ fontFamily: "var(--ff)", fontSize: 20, fontWeight: 800, color: "var(--lima)", letterSpacing: ".06em" }}>ZESTE</span>
-            <span style={{ fontSize: 9, color: "#555", letterSpacing: ".14em" }}>PORTAL DO CLIENTE</span>
+            <span style={{ fontSize: 9, color: "#555", letterSpacing: ".14em" }}>ÁREA DE MEMBROS</span>
           </div>
           {onLogout && <button onClick={onLogout} style={{ color: "#888", fontSize: 11, padding: "6px 12px", border: "1px solid #333", borderRadius: 6, letterSpacing: ".06em", fontWeight: 600 }}>SAIR</button>}
         </div>

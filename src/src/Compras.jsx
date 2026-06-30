@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
 const sbH = t => ({ apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" });
-async function sbLoad(table, t) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?deleted_at=is.null&order=created_at.desc`, { headers: sbH(t) }); const rows = await r.json(); return Array.isArray(rows) ? rows.map(x => x.dados) : []; } catch { return []; } }
-async function sbUpsert(table, item, t) { await fetch(`${SB_URL}/rest/v1/${table}`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: item.id, dados: item, updated_at: new Date().toISOString() }) }); }
+async function sbLoad(table, t, clienteId) { try { let q = `${SB_URL}/rest/v1/${table}?deleted_at=is.null&order=created_at.desc`; if (clienteId) q += `&cliente_id=eq.${clienteId}`; const r = await fetch(q, { headers: sbH(t) }); const rows = await r.json(); return Array.isArray(rows) ? rows.map(x => x.dados) : []; } catch { return []; } }
+async function sbUpsert(table, item, t, clienteId) { await fetch(`${SB_URL}/rest/v1/${table}`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: item.id, cliente_id: clienteId || "zeste", dados: item, updated_at: new Date().toISOString() }) }); }
 async function sbDel(table, id, t) { await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -307,7 +307,7 @@ function FormProduto({ catAtiva, onSave, onClose }) {
 }
 
 // ── ROOT ──
-export default function Compras({ onBack, token }) {
+export default function Compras({ onBack, token, clienteId }) {
   const [aba, setAba] = useState("fornecedores");
   const [fornecedores, setFornecedores] = useState([]);
   const [pedidos, setPedidos] = useState([]);
@@ -315,16 +315,16 @@ export default function Compras({ onBack, token }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([sbLoad("compras_fornecedores", token), sbLoad("compras_pedidos", token), sbLoad("compras_produtos", token)])
+    Promise.all([sbLoad("compras_fornecedores", token, clienteId), sbLoad("compras_pedidos", token, clienteId), sbLoad("compras_produtos", token, clienteId)])
       .then(([f, p, pr]) => { setFornecedores(f); setPedidos(p); setProdutos(pr); })
       .finally(() => setLoading(false));
   }, []);
 
-  const saveForn = async f => { setFornecedores(p => p.find(x => x.id === f.id) ? p.map(x => x.id === f.id ? f : x) : [f, ...p]); await sbUpsert("compras_fornecedores", f, token); };
+  const saveForn = async f => { setFornecedores(p => p.find(x => x.id === f.id) ? p.map(x => x.id === f.id ? f : x) : [f, ...p]); await sbUpsert("compras_fornecedores", f, token, clienteId); };
   const delForn = async id => { setFornecedores(p => p.filter(x => x.id !== id)); await sbDel("compras_fornecedores", id, token); };
-  const savePed = async p => { setPedidos(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [p, ...prev]); await sbUpsert("compras_pedidos", p, token); };
+  const savePed = async p => { setPedidos(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [p, ...prev]); await sbUpsert("compras_pedidos", p, token, clienteId); };
   const delPed = async id => { setPedidos(p => p.filter(x => x.id !== id)); await sbDel("compras_pedidos", id, token); };
-  const saveProd = async p => { setProdutos(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [p, ...prev]); await sbUpsert("compras_produtos", p, token); };
+  const saveProd = async p => { setProdutos(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [p, ...prev]); await sbUpsert("compras_produtos", p, token, clienteId); };
   const delProd = async id => { setProdutos(p => p.filter(x => x.id !== id)); await sbDel("compras_produtos", id, token); };
 
   const ABAS = [["fornecedores", "🏪 Fornecedores"], ["cotacao", "📋 Cotações"], ["pedidos", "🛒 Pedidos"]];
