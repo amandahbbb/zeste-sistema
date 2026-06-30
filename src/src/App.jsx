@@ -173,12 +173,11 @@ const MODULOS = [
   { id: "comercial",  icon: "🤝", label: "Comercial"  },
   { id: "financeiro", icon: "💰", label: "Financeiro"  },
   { id: "fichas",     icon: "🍽️", label: "Fichas Técnicas e Produção" },
-  { id: "drive",      icon: "📁", label: "Drive"       },
   { id: "marketing",  icon: "📱", label: "Marketing"   },
   { id: "breakeven",  icon: "📉", label: "Break-even"  },
   { id: "compras",    icon: "🛒", label: "Compras"     },
   { id: "engenharia", icon: "📊", label: "Engenharia"  },
-  { id: "portaladmin",icon: "🔑", label: "Área Membros" },
+  { id: "portaladmin",icon: "🔑", label: "Área de Membros" },
 ];
 
 // ── SIDEBAR DESKTOP ─────────────────────────────────────────────
@@ -716,7 +715,6 @@ export default function ZesteSistema() {
     switch (modulo) {
       case "dashboard": return <Dashboard />;
       // crm removed - using Comercial module
-      case "drive": return <Placeholder icon="📁" title="Drive Interno" fase="3" desc="Upload de documentos por cliente." />;
       // fichas handled above as full-screen
       // marketing handled above as full-screen
       default: return <Dashboard />;
