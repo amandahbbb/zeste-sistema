@@ -8,6 +8,7 @@ import BreakEven from "./BreakEven.jsx";
 import Compras from "./Compras.jsx";
 import Engenharia from "./Engenharia.jsx";
 import PortalAdmin from "./PortalAdmin.jsx";
+import Studio from "./Studio.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SUPABASE_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -173,6 +174,7 @@ const MODULOS = [
   { id: "comercial",  icon: "🤝", label: "Comercial"  },
   { id: "financeiro", icon: "💰", label: "Financeiro"  },
   { id: "fichas",     icon: "🍽️", label: "Fichas Técnicas e Produção" },
+  { id: "studio",     icon: "✦", label: "Estúdio"     },
   { id: "marketing",  icon: "📱", label: "Marketing"   },
   { id: "breakeven",  icon: "📉", label: "Break-even"  },
   { id: "compras",    icon: "🛒", label: "Compras"     },
@@ -698,6 +700,15 @@ export default function ZesteSistema() {
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
         <PortalAdmin onBack={() => setModulo("dashboard")} token={session.token} />
+      </AppCtx.Provider>
+    </>
+  );
+
+  if (modulo === "studio") return (
+    <>
+      <style>{GLOBAL_STYLE}</style>
+      <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
+        <Studio onBack={() => setModulo("dashboard")} token={session.token} />
       </AppCtx.Provider>
     </>
   );
