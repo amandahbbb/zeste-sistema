@@ -57,8 +57,9 @@ export default function Studio({ onBack, token }) {
 
   useEffect(() => {
     sbLoad(token).then(bs => {
-      setBoards(bs);
-      if (bs.length > 0) { setBoardId(bs[0].id); setCards(bs[0].cards || []); setStrokes(bs[0].strokes || []); }
+      const safe = bs.filter(Boolean).map(b => ({ ...b, cards: Array.isArray(b.cards) ? b.cards : [], strokes: Array.isArray(b.strokes) ? b.strokes : [] }));
+      setBoards(safe);
+      if (safe.length > 0) { setBoardId(safe[0].id); setCards(safe[0].cards); setStrokes(safe[0].strokes); }
       setLoading(false);
     });
   }, []);
@@ -68,7 +69,9 @@ export default function Studio({ onBack, token }) {
     if (!boardId) return;
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      const b = { ...boards.find(x => x.id === boardId), cards: nextCards, strokes: nextStrokes };
+      const cur = boards.find(x => x.id === boardId);
+      if (!cur) return;
+      const b = { ...cur, cards: nextCards, strokes: nextStrokes };
       sbSave(b, token);
       setBoards(p => p.map(x => x.id === boardId ? b : x));
     }, 800);
@@ -245,19 +248,19 @@ export default function Studio({ onBack, token }) {
           <button className="st-btn" onClick={novoBoard} style={{ background: C.lima, color: "#000", fontSize: 15, padding: "12px 24px" }}>+ Criar board</button>
         </div>
       ) : (
-        <div ref={canvasRef} className={"st-canvas" + (panRef.current ? " panning" : "")} data-bg="1"
+        <div ref={canvasRef} className="st-canvas" data-bg="1"
           onMouseDown={onCanvasDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel}
           style={{ cursor: tool === "draw" ? "crosshair" : undefined }}>
           <div style={{ position: "absolute", transformOrigin: "0 0", transform: `translate(${view.x}px,${view.y}px) scale(${view.z})`, width: 0, height: 0 }}>
 
             {/* SVG desenhos */}
             <svg style={{ position: "absolute", overflow: "visible", pointerEvents: "none", width: 1, height: 1 }}>
-              {strokes.map(s => <polyline key={s.id} points={s.pts.map(p => p.join(",")).join(" ")} fill="none" stroke={s.cor} strokeWidth={s.width} strokeLinecap="round" strokeLinejoin="round" />)}
+              {strokes.filter(s => s && Array.isArray(s.pts)).map(s => <polyline key={s.id} points={s.pts.map(p => p.join(",")).join(" ")} fill="none" stroke={s.cor} strokeWidth={s.width} strokeLinecap="round" strokeLinejoin="round" />)}
               {curStroke && <polyline points={curStroke.pts.map(p => p.join(",")).join(" ")} fill="none" stroke={curStroke.cor} strokeWidth={curStroke.width} strokeLinecap="round" strokeLinejoin="round" />}
             </svg>
 
             {/* CARDS */}
-            {cards.map(card => (
+            {cards.filter(c => c && typeof c.x === "number" && typeof c.y === "number").map(card => (
               <div key={card.id} className={"st-card" + (sel === card.id ? " sel" : "")}
                 style={{ left: card.x, top: card.y, width: card.w, height: card.h, background: CORES[card.cor] || "#fff", border: `1.5px solid ${CORES_BORDA[card.cor] || "#E3E1D9"}`, transform: card.tipo === "postit" ? "rotate(-1.2deg)" : "none" }}
                 onMouseDown={e => startCardDrag(e, card)}>
