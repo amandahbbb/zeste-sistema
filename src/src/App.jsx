@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, useCallback } from "react";
+import { useState, useEffect, createContext, useContext, useCallback, Component } from "react";
 import Financeiro from "./Financeiro.jsx";
 import Fichas from "./Fichas.jsx";
 import Comercial from "./Comercial.jsx";
@@ -618,7 +618,28 @@ function Placeholder({ icon, title, desc, fase }) {
 }
 
 // ── APP ROOT ─────────────────────────────────────────────────────
+class AppErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { erro: null }; }
+  static getDerivedStateFromError(error) { return { erro: error }; }
+  render() {
+    if (this.state.erro) return (
+      <div style={{ minHeight: "100vh", background: "#F0EEE8", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif", padding: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>🍋</div>
+        <div style={{ fontSize: 21, fontWeight: 800, marginBottom: 8, color: "#1C1D1B" }}>Ops — algo travou por aqui</div>
+        <div style={{ fontSize: 14, color: "#6B6B5E", maxWidth: 440, marginBottom: 18 }}>Recarregue a página. Se continuar acontecendo, envie a mensagem abaixo para o suporte da Zeste:</div>
+        <div style={{ fontSize: 11.5, color: "#C4502B", background: "#fff", padding: 14, borderRadius: 10, maxWidth: 540, wordBreak: "break-word", fontFamily: "monospace", border: "1px solid #E3E1D9" }}>{String(this.state.erro?.message || this.state.erro)}</div>
+        <button onClick={() => window.location.reload()} style={{ marginTop: 22, background: "#8FA715", color: "#1C1D1B", border: "none", borderRadius: 10, padding: "11px 26px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>↻ Recarregar</button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 export default function ZesteSistema() {
+  return <AppErrorBoundary><ZesteSistemaInner /></AppErrorBoundary>;
+}
+
+function ZesteSistemaInner() {
   const [session, setSession] = useState(null);
   const [modulo, setModulo] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
