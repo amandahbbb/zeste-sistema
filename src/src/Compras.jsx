@@ -93,7 +93,7 @@ function FormFornecedor({ init, onSave, onClose }) {
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         <Fld label="E-mail" half><input className="cmp-input" value={f.email} onChange={e => S("email", e.target.value)} /></Fld>
-        <Fld label="Prazo entrega (dias)" half><input className="cmp-input" type="number" value={f.prazoEntrega} onChange={e => S("prazoEntrega", e.target.value)} /></Fld>
+        <Fld label="Prazo entrega (dias)" half><NumBR className="cmp-input" value={f.prazoEntrega} onChange={v => S("prazoEntrega", v)} /></Fld>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         <Fld label="Pagamento" half><select className="cmp-input" value={f.pagamento} onChange={e => S("pagamento", e.target.value)}>{FORMAS_PGTO.map(p => <option key={p}>{p}</option>)}</select></Fld>
@@ -273,7 +273,7 @@ function Cotacao({ produtos, fornecedores, onSaveProd, onDelProd }) {
                     <tr key={p.id} style={{ borderBottom: `1px solid ${C.cinzaF}` }}>
                       <td style={{ padding: "8px 12px", fontWeight: 600 }}>{p.nome}</td>
                       <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                        <input type="number" value={p.qtdPedir} onChange={e => onSaveProd({ ...p, qtdPedir: +e.target.value })} style={{ width: 50, border: `1px solid ${C.cinzaM}`, borderRadius: 5, padding: "4px 6px", textAlign: "center", fontSize: 13 }} />
+                        <NumBR value={p.qtdPedir} onChange={v => onSaveProd({ ...p, qtdPedir: v })} style={{ width: 50, border: `1px solid ${C.cinzaM}`, borderRadius: 5, padding: "4px 6px", textAlign: "center", fontSize: 13 }} />
                       </td>
                       {fornsAtivos.map(f => {
                         const isMelhor = mp && mp[0] === f.id;
@@ -307,7 +307,7 @@ function FormProduto({ catAtiva, onSave, onClose }) {
       <Fld label="Nome do produto"><input className="cmp-input" value={f.nome} onChange={e => S("nome", e.target.value)} placeholder="Ex: Café em grãos 1kg" /></Fld>
       <div style={{ display: "flex", gap: 10 }}>
         <Fld label="Categoria" half><select className="cmp-input" value={f.categoria} onChange={e => S("categoria", e.target.value)}>{CAT_FORN.map(c => <option key={c}>{c}</option>)}</select></Fld>
-        <Fld label="Qtd a pedir" half><input className="cmp-input" type="number" value={f.qtdPedir} onChange={e => S("qtdPedir", +e.target.value)} /></Fld>
+        <Fld label="Qtd a pedir" half><NumBR className="cmp-input" value={f.qtdPedir} onChange={v => S("qtdPedir", v)} /></Fld>
       </div>
       <div style={{ display: "flex", gap: 9, justifyContent: "flex-end", marginTop: 18 }}>
         <button className="cmp-btn" onClick={onClose} style={{ background: C.cinzaF, color: C.cinzaE }}>Cancelar</button>

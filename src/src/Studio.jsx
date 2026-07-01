@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Component } from "react";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -32,7 +32,28 @@ const STYLE = `
 
 const NOTE_FONT = "'Caveat', cursive";
 
-export default function Studio({ onBack, token }) {
+class StudioErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { erro: null }; }
+  static getDerivedStateFromError(error) { return { erro: error }; }
+  render() {
+    if (this.state.erro) return (
+      <div style={{ height: "100vh", background: "#1a1a18", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif", padding: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>✦</div>
+        <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Algo travou no Estúdio</div>
+        <div style={{ fontSize: 13, color: "#aaa", maxWidth: 420, marginBottom: 16 }}>Recarregue a página. Se persistir, me mande esta mensagem:</div>
+        <div style={{ fontSize: 11, color: "#C4502B", background: "#000", padding: 12, borderRadius: 8, maxWidth: 500, wordBreak: "break-word", fontFamily: "monospace" }}>{String(this.state.erro?.message || this.state.erro)}</div>
+        {this.props.onBack && <button onClick={this.props.onBack} style={{ marginTop: 20, color: "#8FA715", background: "none", border: "1px solid #8FA715", borderRadius: 8, padding: "8px 20px", cursor: "pointer" }}>‹ Voltar</button>}
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
+export default function Studio(props) {
+  return <StudioErrorBoundary onBack={props.onBack}><StudioInner {...props} /></StudioErrorBoundary>;
+}
+
+function StudioInner({ onBack, token }) {
   const [boards, setBoards] = useState([]);
   const [boardId, setBoardId] = useState(null);
   const [cards, setCards] = useState([]);

@@ -177,6 +177,87 @@ export default function Documentos({ token, clientes = [] }) {
   );
 }
 
+// Exporta documento como HTML formatado (padrão Zeste) e abre para impressão/PDF
+function exportarDoc(d, modelo) {
+  const linha = t => (t || "").split("\n").filter(x => x.trim());
+  const esc = s => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  let corpo = "";
+  if (d.modelo === "caderno_op") {
+    const dd = d.dados;
+    if ((dd.pratos || []).length) {
+      corpo += `<h2>Pratos</h2>`;
+      dd.pratos.forEach(p => {
+        corpo += `<div class="item"><h3>${esc(p.nome)}</h3>`;
+        if (p.ingredientes) corpo += `<div class="sub">Ingredientes</div><ul>${linha(p.ingredientes).map(i => `<li>${esc(i)}</li>`).join("")}</ul>`;
+        if (p.mop) corpo += `<div class="sub">Modo de preparo / Empratamento</div><p>${esc(p.mop).replace(/\n/g, "<br>")}</p>`;
+        if (p.checklist) corpo += `<div class="sub">Checklist de finalização</div><ul class="chk">${linha(p.checklist).map(i => `<li>${esc(i)}</li>`).join("")}</ul>`;
+        if (p.utensilios) corpo += `<div class="sub">Utensílios</div><ul>${linha(p.utensilios).map(i => `<li>${esc(i)}</li>`).join("")}</ul>`;
+        corpo += `</div>`;
+      });
+    }
+    if ((dd.receitas || []).length) {
+      corpo += `<h2>Receitas Base</h2>`;
+      dd.receitas.forEach(r => {
+        corpo += `<div class="item"><h3>${esc(r.nome)}${r.rendimento ? ` — ${esc(r.rendimento)}` : ""}</h3>`;
+        if (r.ingredientes) corpo += `<div class="sub">Ingredientes</div><ul>${linha(r.ingredientes).map(i => `<li>${esc(i)}</li>`).join("")}</ul>`;
+        if (r.preparo) corpo += `<div class="sub">Modo de preparo</div><p>${esc(r.preparo).replace(/\n/g, "<br>")}</p>`;
+        corpo += `</div>`;
+      });
+    }
+    if ((dd.checklists || []).length) {
+      corpo += `<h2>Checklists Operacionais</h2>`;
+      dd.checklists.forEach(c => {
+        corpo += `<div class="item"><h3>${esc(c.nome)}</h3><ul class="chk">${linha(c.itens).map(i => `<li>${esc(i)}</li>`).join("")}</ul></div>`;
+      });
+    }
+  } else {
+    modelo.secoes.forEach(sec => {
+      const val = d.dados[sec.id];
+      corpo += `<h2>${esc(sec.titulo)}</h2>`;
+      if (Array.isArray(val)) val.forEach(item => {
+        corpo += `<div class="item">`;
+        sec.campos.forEach(c => { if (item[c.k]) corpo += `<div class="sub">${esc(c.label)}</div><p>${esc(item[c.k]).replace(/\n/g, "<br>")}</p>`; });
+        corpo += `</div>`;
+      });
+      else if (val) sec.campos.forEach(c => { if (val[c.k]) corpo += `<div class="sub">${esc(c.label)}</div><p>${esc(val[c.k]).replace(/\n/g, "<br>")}</p>`; });
+    });
+  }
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(d.titulo || "Documento Zeste")}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Antonio:wght@600;700&family=Barlow:wght@400;600;700&display=swap');
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Barlow',sans-serif;color:#1C1D1B;padding:48px 56px;max-width:800px;margin:0 auto;line-height:1.5}
+    .cab{border-bottom:3px solid #8FA715;padding-bottom:16px;margin-bottom:28px}
+    .marca{font-family:'Antonio',sans-serif;font-size:26px;font-weight:700;color:#8FA715;letter-spacing:.04em}
+    .tipo{font-size:12px;color:#6B6B5E;text-transform:uppercase;letter-spacing:.1em;margin-top:2px}
+    .titulo{font-family:'Antonio',sans-serif;font-size:30px;font-weight:700;margin-top:12px;color:#1C1D1B}
+    h2{font-family:'Antonio',sans-serif;font-size:19px;color:#497A5D;margin:28px 0 12px;padding-bottom:5px;border-bottom:2px solid #E3E1D9;text-transform:uppercase;letter-spacing:.03em}
+    h3{font-family:'Antonio',sans-serif;font-size:17px;color:#1A4F71;margin-bottom:8px}
+    .item{margin-bottom:22px;padding:16px 18px;background:#FAF9F5;border-radius:10px;border-left:3px solid #8FA715;page-break-inside:avoid}
+    .sub{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B6B5E;margin:12px 0 4px}
+    ul{margin-left:20px;margin-top:4px}li{font-size:14px;margin-bottom:2px}
+    ul.chk{list-style:none;margin-left:0}ul.chk li:before{content:"☐  ";color:#8FA715}
+    p{font-size:14px;margin-top:2px}
+    .rodape{margin-top:40px;padding-top:16px;border-top:1px solid #E3E1D9;font-size:11px;color:#9a9a8e;text-align:center}
+    @media print{body{padding:24px}.item{background:#FAF9F5!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style></head><body>
+    <div class="cab"><div class="marca">ZESTE</div><div class="tipo">${esc(modelo.nome)}</div><div class="titulo">${esc(d.titulo || "")}</div></div>
+    ${corpo}
+    <div class="rodape">Documento gerado por Zeste \u00b7 Intelig\u00eancia para Neg\u00f3cios Gastron\u00f4micos</div>
+  </body></html>`;
+  const w = window.open("", "_blank");
+  if (!w) { alert("Permita pop-ups para exportar o documento."); return; }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 400);
+}
+
+function DocCampo({ c, val, onCh }) {
+  if (c.tipo === "textao") return <textarea className="doc-input" rows={4} value={val || ""} onChange={e => onCh(e.target.value)} style={{ resize: "vertical" }} />;
+  if (c.tipo === "lista") return <textarea className="doc-input" rows={3} value={val || ""} onChange={e => onCh(e.target.value)} placeholder="Um item por linha…" style={{ resize: "vertical" }} />;
+  return <input className="doc-input" value={val || ""} onChange={e => onCh(e.target.value)} />;
+}
+
 function Editor({ doc, clientes, onSave, onDelete, onCancel }) {
   const [d, setD] = useState(doc);
   const modelo = MODELOS[d.modelo];
@@ -191,11 +272,8 @@ function Editor({ doc, clientes, onSave, onDelete, onCancel }) {
   const delItem = (sid, idx) => setSecao(sid, d.dados[sid].filter((_, i) => i !== idx));
   const updCampo = (sid, k, v) => setSecao(sid, { ...(d.dados[sid] || {}), [k]: v });
 
-  const Campo = ({ c, val, onCh }) => {
-    if (c.tipo === "textao") return <textarea className="doc-input" rows={4} value={val || ""} onChange={e => onCh(e.target.value)} style={{ resize: "vertical" }} />;
-    if (c.tipo === "lista") return <textarea className="doc-input" rows={3} value={val || ""} onChange={e => onCh(e.target.value)} placeholder="Um item por linha…" style={{ resize: "vertical" }} />;
-    return <input className="doc-input" value={val || ""} onChange={e => onCh(e.target.value)} />;
-  };
+  const exportar = () => exportarDoc(d, modelo);
+
 
   return (
     <div className="doc-page">
@@ -218,9 +296,9 @@ function Editor({ doc, clientes, onSave, onDelete, onCancel }) {
         {d.visibilidade === "entregavel" && (
           <>
             <label className="doc-label">Cliente que vai receber</label>
-            <select className="doc-input" value={d.clienteId} onChange={e => S({ clienteId: e.target.value })}>
-              <option value="zeste">— selecione —</option>
-              {clientes.map(c => <option key={c.cliente_id} value={c.cliente_id}>{c.nome_display}</option>)}
+            <select className="doc-input" value={d.clienteId} onChange={e => S({ clienteId: e.target.value })} style={{ color: C.preto, background: "#FCFBF9" }}>
+              <option value="zeste" style={{ color: C.preto, background: "#fff" }}>— selecione —</option>
+              {clientes.map(c => <option key={c.cliente_id} value={c.cliente_id} style={{ color: C.preto, background: "#fff" }}>{c.nome_display}</option>)}
             </select>
           </>
         )}
@@ -244,7 +322,7 @@ function Editor({ doc, clientes, onSave, onDelete, onCancel }) {
                   {sec.campos.map(c => (
                     <div key={c.k}>
                       <label className="doc-label">{c.label}</label>
-                      <Campo c={c} val={item[c.k]} onCh={v => updItem(sec.id, idx, c.k, v)} />
+                      <DocCampo c={c} val={item[c.k]} onCh={v => updItem(sec.id, idx, c.k, v)} />
                     </div>
                   ))}
                 </div>
@@ -254,7 +332,7 @@ function Editor({ doc, clientes, onSave, onDelete, onCancel }) {
               {sec.campos.map(c => (
                 <div key={c.k}>
                   <label className="doc-label" style={{ marginTop: sec.campos[0].k === c.k ? 0 : 14 }}>{c.label}</label>
-                  <Campo c={c} val={(d.dados[sec.id] || {})[c.k]} onCh={v => updCampo(sec.id, c.k, v)} />
+                  <DocCampo c={c} val={(d.dados[sec.id] || {})[c.k]} onCh={v => updCampo(sec.id, c.k, v)} />
                 </div>
               ))}
             </div>
@@ -264,6 +342,7 @@ function Editor({ doc, clientes, onSave, onDelete, onCancel }) {
 
       <div style={{ display: "flex", gap: 8, marginTop: 20, position: "sticky", bottom: 0, background: C.cinzaF, padding: "12px 0" }}>
         <button className="doc-btn" onClick={() => onDelete(d.id)} style={{ background: "#fff", color: C.coral, border: `1px solid ${C.coral}` }}>🗑 Excluir</button>
+        <button className="doc-btn" onClick={exportar} style={{ background: "#fff", color: C.azul, border: `1px solid ${C.azul}` }}>🖨 Exportar PDF</button>
         <button className="doc-btn" onClick={() => onSave(d)} style={{ marginLeft: "auto", background: C.lima, color: C.preto, padding: "10px 24px" }}>💾 Salvar documento</button>
       </div>
     </div>
