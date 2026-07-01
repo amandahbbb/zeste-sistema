@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { toast } from "./toast.js";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -7,10 +8,10 @@ const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 function sbH(token){return{"apikey":SB_KEY,"Authorization":`Bearer ${token||SB_KEY}`,"Content-Type":"application/json","Prefer":"return=representation"};}
 async function sbLoad(table,token){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?deleted_at=is.null&order=created_at.desc`,{headers:sbH(token)});const rows=await r.json();return Array.isArray(rows)?rows.map(r=>r.dados):[];}catch{return[];}}
 async function sbLoadLix(table,token){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?deleted_at=not.is.null&order=updated_at.desc`,{headers:sbH(token)});const rows=await r.json();return Array.isArray(rows)?rows.map(r=>({...r.dados,deletedAt:r.deleted_at})):[];}catch{return[];}}
-async function sbUpsert(table,item,token){await fetch(`${SB_URL}/rest/v1/${table}`,{method:"POST",headers:{...sbH(token),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,dados:item,updated_at:new Date().toISOString()})});}
-async function sbSoftDel(table,id,token){await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:sbH(token),body:JSON.stringify({deleted_at:new Date().toISOString()})});}
-async function sbRestore(table,id,token){await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:sbH(token),body:JSON.stringify({deleted_at:null})});}
-async function sbPurge(table,id,token){await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"DELETE",headers:sbH(token)});}
+async function sbUpsert(table,item,token){try{const r=await fetch(`${SB_URL}/rest/v1/${table}`,{method:"POST",headers:{...sbH(token),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,dados:item,updated_at:new Date().toISOString()})});if(!r.ok){toast("Erro ao salvar — tente de novo","erro");return false;}toast("✓ Salvo");return true;}catch{toast("Sem conexão — não foi salvo","erro");return false;}}
+async function sbSoftDel(table,id,token){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:sbH(token),body:JSON.stringify({deleted_at:new Date().toISOString()})});if(!r.ok){toast("Erro ao excluir","erro");return false;}toast("✓ Movido para a lixeira");return true;}catch{toast("Sem conexão — não foi excluído","erro");return false;}}
+async function sbRestore(table,id,token){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:sbH(token),body:JSON.stringify({deleted_at:null})});if(!r.ok){toast("Erro ao restaurar","erro");return false;}toast("✓ Restaurado");return true;}catch{toast("Sem conexão","erro");return false;}}
+async function sbPurge(table,id,token){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"DELETE",headers:sbH(token)});if(!r.ok){toast("Erro ao excluir definitivamente","erro");return false;}toast("✓ Excluído definitivamente");return true;}catch{toast("Sem conexão","erro");return false;}}
 
 // ── ESTILO GLOBAL ─────────────────────────────────────────────────
 const STYLE=`
