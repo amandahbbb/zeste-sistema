@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "./toast.js";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
 const sbH = t => ({ apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" });
 async function sbLoad(table, t, clienteId) { try { let q = `${SB_URL}/rest/v1/${table}?deleted_at=is.null&order=created_at.desc`; if (clienteId) q += `&cliente_id=eq.${clienteId}`; const r = await fetch(q, { headers: sbH(t) }); const rows = await r.json(); return Array.isArray(rows) ? rows.map(x => x.dados) : []; } catch { return []; } }
-async function sbUpsert(table, item, t, clienteId) { await fetch(`${SB_URL}/rest/v1/${table}`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: item.id, cliente_id: clienteId || "zeste", dados: item, updated_at: new Date().toISOString() }) }); }
-async function sbDel(table, id, t) { await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); }
+async function sbUpsert(table, item, t, clienteId) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: item.id, cliente_id: clienteId || "zeste", dados: item, updated_at: new Date().toISOString() }) }); if (!r.ok) { toast("Erro ao salvar — tente de novo", "erro"); return false; } toast("✓ Salvo"); return true; } catch { toast("Sem conexão — não foi salvo", "erro"); return false; } }
+async function sbDel(table, id, t) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); if (!r.ok) { toast("Erro ao excluir", "erro"); return false; } toast("✓ Excluído"); return true; } catch { toast("Sem conexão — não foi excluído", "erro"); return false; } }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
