@@ -306,7 +306,7 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc})
         <button onClick={()=>remComp(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
       <div style={{display:'flex',gap:12,alignItems:'center'}}>
-        <div style={{flex:1}}><label className="ft-flbl">QUANTIDADE (GRAMAS)</label><NumInput step="1" min="0" value={c.qtdGramas} onChange={v=>updComp(i,'qtdGramas',v)}/></div>
+        <div style={{flex:1}}><label className="ft-flbl">QUANTIDADE (KG)</label><NumInput step="0.001" min="0" value={(Number(c.qtdGramas)||0)/1000} onChange={v=>updComp(i,'qtdGramas',Math.round((v||0)*1000))}/></div>
         <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(c.custo)}</div></div>
       </div>
     </div>))}
@@ -443,7 +443,7 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
       <SH>Componentes</SH>
       <div className="ft-card">
         {(detail.comps||[]).map((c,i)=>{const ehFicha=c.tipo==='ficha';const fichaObj=ehFicha?fichasCalc.find(f=>f.nome===c.nomeRef):null;return(<div key={i} onClick={ehFicha&&fichaObj?()=>setFichaDet(fichaObj):undefined} style={{padding:'10px 14px',borderBottom:i<detail.comps.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:ehFicha&&fichaObj?'pointer':'default',background:ehFicha&&fichaObj?'#FFFDF5':'transparent'}}>
-          <div><div style={{fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:5}}>{c.nomeRef}{ehFicha&&fichaObj&&<span style={{color:'var(--azul)',fontSize:12}}>↗</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{ehFicha?'📋 Ficha':'🥬 Ingrediente'} · {c.qtdGramas}g{ehFicha&&fichaObj?' · toque para ver':''}</div></div>
+          <div><div style={{fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:5}}>{c.nomeRef}{ehFicha&&fichaObj&&<span style={{color:'var(--azul)',fontSize:12}}>↗</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{ehFicha?'📋 Ficha':'🥬 Ingrediente'} · {num((Number(c.qtdGramas)||0)/1000,3)}kg{ehFicha&&fichaObj?' · toque para ver':''}</div></div>
           <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:c.erro?'var(--coral)':'var(--verde)',flexShrink:0}}>{c.erro?'⚠️':brl(c.custo)}</div>
         </div>);})}
       </div>
