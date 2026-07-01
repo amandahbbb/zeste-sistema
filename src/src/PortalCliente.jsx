@@ -88,7 +88,7 @@ function Dashboard({ clienteInfo, projeto, fichasCount, docs, setAba }) {
 
 function Documentos({ docs, docsOp = [] }) {
   const [verDoc, setVerDoc] = useState(null);
-  const MODELO_NOMES = { caderno_op: "📕 Caderno Operacional", pop_interno: "📘 POP", ficha_gerencial: "📊 Documento Gerencial" };
+  const MODELO_NOMES = { caderno_op: "📕 Caderno Operacional", caderno_auto: "⚡ Caderno Operacional", fichas_praca: "🖼 Fichas de Praça", pop_interno: "📘 POP", ficha_gerencial: "📊 Documento Gerencial" };
   const linha = t => (t || "").split("\n").filter(x => x.trim());
 
   if (verDoc) return (
@@ -110,7 +110,7 @@ function Documentos({ docs, docsOp = [] }) {
         <div className="pcl-card" style={{ marginBottom: 16 }}>
           <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", fontFamily: "var(--ff)", fontWeight: 700, fontSize: 16 }}>📘 Documentos Zeste</div>
           {docsOp.map((d, i) => (
-            <div key={d.id || i} onClick={() => setVerDoc(d)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: i < docsOp.length - 1 ? "1px solid var(--cinzaF)" : "none", cursor: "pointer" }}>
+            <div key={d.id || i} onClick={() => { if (d.modelo === "caderno_auto" || d.modelo === "fichas_praca") { const w = window.open("", "_blank"); if (w) { w.document.write(d.html || ""); w.document.close(); } } else setVerDoc(d); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: i < docsOp.length - 1 ? "1px solid var(--cinzaF)" : "none", cursor: "pointer" }}>
               <div style={{ fontSize: 24 }}>{(MODELO_NOMES[d.modelo] || "📄").slice(0, 2)}</div>
               <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{d.titulo}</div></div>
               <div style={{ color: "var(--azul)", fontSize: 13, fontWeight: 600 }}>Ver →</div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { gerarCadernoHTML, gerarFichasPracaHTML } from "./gerarCaderno.js";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -6,6 +7,75 @@ const sbH = t => ({ apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}`, "Con
 async function sbLoad(t) { try { const r = await fetch(`${SB_URL}/rest/v1/docs_operacionais?deleted_at=is.null&order=updated_at.desc`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => x.dados) : []; } catch { return []; } }
 async function sbSave(doc, t) { await fetch(`${SB_URL}/rest/v1/docs_operacionais`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: doc.id, cliente_id: doc.clienteId || "zeste", dados: doc, updated_at: new Date().toISOString() }) }); }
 async function sbDel(id, t) { await fetch(`${SB_URL}/rest/v1/docs_operacionais?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); }
+
+// Carrega pratos/fichas/ingredientes de um cliente para gerar o caderno
+async function sbLoadTabela(tabela, t, clienteId) {
+  try {
+    let q = `${SB_URL}/rest/v1/${tabela}?deleted_at=is.null&select=*`;
+    if (clienteId && tabela !== "fin_ingredientes") q += `&cliente_id=eq.${clienteId}`;
+    const r = await fetch(q, { headers: sbH(t) });
+    const d = await r.json();
+    return Array.isArray(d) ? d.map(x => ({ ...x.dados, _cliente: x.cliente_id })) : [];
+  } catch { return []; }
+}
+
+// CMV engine (replicado do Fichas para gerar a ficha gerencial)
+function _calcFicha(ficha, ingredientes, fichas) {
+  const itens = (ficha.itens || []).map(it => {
+    const ref = it.tipo === "ficha" ? fichas.find(f => f.nome === it.nomeRef) : ingredientes.find(i => i.nome === it.nomeRef);
+    if (!ref) return { ...it, custo: 0, pesoFinal: 0, erro: true };
+    const precoKg = it.tipo === "ficha" ? (ref._custoPorKg || 0) : (ref.p || 0);
+    const fc = it.tipo === "ficha" ? 1 : (ref.fc || 1);
+    const fk = it.tipo === "ficha" ? 1 : (ref.fk || 1);
+    const qtdLiq = Number(it.qtdLiquida) || 0;
+    const qtdBruta = qtdLiq * fc;
+    return { ...it, custo: qtdBruta * precoKg, pesoFinal: qtdLiq * fk, qtdBruta, fc };
+  });
+  const custoSomado = itens.reduce((s, i) => s + i.custo, 0);
+  const pesoFinal = itens.reduce((s, i) => s + i.pesoFinal, 0);
+  const custoTotal = custoSomado * (1 + Number(ficha.margemSeguranca || 0));
+  return { ...ficha, itens, custoTotal, pesoFinal, _custoPorKg: pesoFinal > 0 ? custoTotal / pesoFinal : 0 };
+}
+function _calcAllFichas(fichasRaw, ingredientes) {
+  const resolved = []; const nameMap = new Map();
+  const pending = [...fichasRaw]; let maxIter = 50;
+  while (pending.length > 0 && maxIter-- > 0) {
+    for (let i = pending.length - 1; i >= 0; i--) {
+      const f = pending[i];
+      const deps = (f.itens || []).filter(it => it.tipo === "ficha").map(it => it.nomeRef);
+      if (deps.every(d => nameMap.has(d))) {
+        const calc = _calcFicha(f, ingredientes, resolved);
+        resolved.push(calc); nameMap.set(f.nome, calc); pending.splice(i, 1);
+      }
+    }
+  }
+  pending.forEach(f => { const calc = _calcFicha(f, ingredientes, resolved); resolved.push(calc); nameMap.set(f.nome, calc); });
+  return resolved;
+}
+function _calcPrato(prato, ingredientes, fichas) {
+  const comps = (prato.componentes || []).map(c => {
+    const ref = c.tipo === "ficha" ? fichas.find(f => f.nome === c.nomeRef) : ingredientes.find(i => i.nome === c.nomeRef);
+    if (!ref) return { ...c, custo: 0, erro: true };
+    const custoPorKg = c.tipo === "ficha" ? (ref._custoPorKg || 0) : (ref.p || 0);
+    const qtdKg = (Number(c.qtdGramas) || 0) / 1000;
+    const fc = c.tipo === "ficha" ? 1 : (ref.fc || 1);
+    return { ...c, custo: qtdKg * fc * custoPorKg, custoPorKg, qtdKg, fc };
+  });
+  const custoTotal = comps.reduce((s, c) => s + c.custo, 0);
+  const preco = Number(prato.precoVenda || 0);
+  return { ...prato, comps, custoTotal, cmv: preco > 0 ? custoTotal / preco : 0, margem: preco > 0 ? (preco - custoTotal) / preco : 0 };
+}
+
+async function gerarCadernoDoCliente(token, clienteId, clienteNome) {
+  const [pratosRaw, fichasRaw, ingredientes] = await Promise.all([
+    sbLoadTabela("fin_pratos", token, clienteId),
+    sbLoadTabela("fin_fichas", token, clienteId),
+    sbLoadTabela("fin_ingredientes", token, null),
+  ]);
+  const fichasCalc = _calcAllFichas(fichasRaw, ingredientes);
+  const pratosCalc = pratosRaw.map(p => _calcPrato(p, ingredientes, fichasCalc));
+  return { pratosCalc, fichasCalc, count: pratosCalc.length };
+}
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const td = () => new Date().toISOString().slice(0, 10);
@@ -93,6 +163,9 @@ export default function Documentos({ token, clientes = [] }) {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // documento em edição
   const [escolhendo, setEscolhendo] = useState(false); // escolha de modelo
+  const [gerando, setGerando] = useState(false); // modal gerar caderno automático
+  const [gerTipo, setGerTipo] = useState("caderno"); // caderno | praca
+  const [gerLoading, setGerLoading] = useState(false);
 
   useEffect(() => { sbLoad(token).then(d => { setDocs(d); setLoading(false); }); }, []);
 
@@ -146,7 +219,11 @@ export default function Documentos({ token, clientes = [] }) {
           <h2 style={{ fontFamily: "'Antonio',sans-serif", fontSize: 22, fontWeight: 700 }}>Documentos</h2>
           <p style={{ fontSize: 13, color: C.cinzaE, marginTop: 2 }}>Crie documentos operacionais e gerenciais no padrão Zeste.</p>
         </div>
-        <button className="doc-btn" onClick={() => setEscolhendo(true)} style={{ background: C.lima, color: C.preto }}>+ Novo</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="doc-btn" onClick={() => { setGerTipo("caderno"); setGerando(true); }} style={{ background: C.azul, color: "#fff" }}>⚡ Gerar Caderno</button>
+          <button className="doc-btn" onClick={() => { setGerTipo("praca"); setGerando(true); }} style={{ background: C.verde, color: "#fff" }}>🖼 Fichas de Praça</button>
+          <button className="doc-btn" onClick={() => setEscolhendo(true)} style={{ background: C.lima, color: C.preto }}>+ Novo</button>
+        </div>
       </div>
 
       {docs.length === 0 ? (
@@ -158,19 +235,70 @@ export default function Documentos({ token, clientes = [] }) {
       ) : (
         <div className="doc-card">
           {docs.map((d, i) => {
-            const m = MODELOS[d.modelo] || {};
+            const ehAuto = d.modelo === "caderno_auto" || d.modelo === "fichas_praca";
+            const ehPraca = d.modelo === "fichas_praca";
+            const m = ehAuto ? { icon: ehPraca ? "🖼" : "⚡", nome: ehPraca ? "Fichas de Praça" : "Caderno Automático" } : (MODELOS[d.modelo] || {});
             const cli = clientes.find(c => c.cliente_id === d.clienteId);
+            const abrir = () => {
+              if (ehAuto) { const w = window.open("", "_blank"); if (w) { w.document.write(d.html || "<p>Caderno vazio</p>"); w.document.close(); } }
+              else setEditing(d);
+            };
             return (
-              <div key={d.id} onClick={() => setEditing(d)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: i < docs.length - 1 ? `1px solid ${C.cinzaF}` : "none", cursor: "pointer" }}>
+              <div key={d.id} onClick={abrir} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: i < docs.length - 1 ? `1px solid ${C.cinzaF}` : "none", cursor: "pointer" }}>
                 <div style={{ fontSize: 26 }}>{m.icon || "📄"}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: "'Antonio',sans-serif", fontWeight: 600, fontSize: 16 }}>{d.titulo || "(sem título)"}</div>
                   <div style={{ fontSize: 12, color: C.cinzaE }}>{m.nome}{d.visibilidade === "entregavel" ? ` · 📤 ${cli ? cli.nome_display : "cliente"}` : " · 🔒 interno"}</div>
                 </div>
-                <span style={{ color: C.azul, fontWeight: 700 }}>→</span>
+                <span style={{ color: C.azul, fontWeight: 700 }}>{ehAuto ? "🖨" : "→"}</span>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {gerando && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => !gerLoading && setGerando(false)}>
+          <div style={{ background: "#fff", borderRadius: 14, padding: 24, maxWidth: 460, width: "100%" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily: "'Antonio',sans-serif", fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{gerTipo === "praca" ? "🖼 Fichas de Praça" : "⚡ Gerar Caderno Automático"}</div>
+            <div style={{ fontSize: 13, color: C.cinzaE, marginBottom: 16, lineHeight: 1.45 }}>{gerTipo === "praca" ? "Gera uma folha A4 por prato, com foto grande e o modo de empratar em letra grande — pra plastificar e colar na parede da cozinha. Dica: cadastre a foto do prato (link) no cadastro de cada prato." : "O sistema monta o caderno completo (empratamento + receitas base + ficha gerencial) a partir dos pratos e fichas já cadastrados do cliente. Sem digitar nada."}</div>
+            <label className="doc-label" style={{ marginTop: 0 }}>Cliente</label>
+            <select id="ger-cli" className="doc-input" defaultValue="" style={{ color: C.preto, background: "#FCFBF9" }}>
+              <option value="" style={{ color: C.preto, background: "#fff" }}>— selecione —</option>
+              {clientes.map(c => <option key={c.cliente_id} value={c.cliente_id} style={{ color: C.preto, background: "#fff" }}>{c.nome_display}</option>)}
+            </select>
+            {gerLoading && <div style={{ textAlign: "center", color: C.azul, fontSize: 13, padding: "14px 0" }}>⚙️ {gerTipo === "praca" ? "Montando fichas de praça…" : "Montando caderno…"}</div>}
+            <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+              <button className="doc-btn" onClick={() => setGerando(false)} disabled={gerLoading} style={{ background: "#F0EEE8", color: C.cinzaE }}>Cancelar</button>
+              <button className="doc-btn" disabled={gerLoading} onClick={async () => {
+                const sel = document.getElementById("ger-cli");
+                const cid = sel.value;
+                if (!cid) { alert("Escolha um cliente."); return; }
+                const cli = clientes.find(c => c.cliente_id === cid);
+                setGerLoading(true);
+                try {
+                  const { pratosCalc, fichasCalc, count } = await gerarCadernoDoCliente(token, cid, cli?.nome_display);
+                  if (count === 0) { alert("Este cliente não tem pratos cadastrados ainda. Cadastre os pratos nas Fichas primeiro."); setGerLoading(false); return; }
+                  let html, titulo, modelo;
+                  if (gerTipo === "praca") {
+                    titulo = `Fichas de Praça — ${cli?.nome_display || ""}`;
+                    modelo = "fichas_praca";
+                    html = gerarFichasPracaHTML({ clienteNome: cli?.nome_display, pratos: pratosCalc });
+                  } else {
+                    titulo = `Caderno Operacional — ${cli?.nome_display || ""}`;
+                    modelo = "caderno_auto";
+                    html = gerarCadernoHTML({ titulo, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc });
+                  }
+                  const doc = { id: uid(), modelo, titulo, clienteId: cid, visibilidade: "entregavel", html, geradoEm: new Date().toISOString() };
+                  await sbSave(doc, token);
+                  setDocs(p => [doc, ...p]);
+                  setGerLoading(false); setGerando(false);
+                  const w = window.open("", "_blank");
+                  if (w) { w.document.write(html); w.document.close(); }
+                } catch (e) { alert("Erro ao gerar: " + e.message); setGerLoading(false); }
+              }} style={{ marginLeft: "auto", background: gerTipo === "praca" ? C.verde : C.azul, color: "#fff", padding: "10px 20px" }}>{gerTipo === "praca" ? "🖼 Gerar" : "⚡ Gerar"}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

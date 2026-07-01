@@ -295,7 +295,9 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc})
       <div className="ft-fld h"><label className="ft-flbl">Categoria</label><input value={p.categoria} onChange={e=>setP(pr=>({...pr,categoria:e.target.value}))}/></div>
       <div className="ft-fld h"><label className="ft-flbl">Porções</label><input type="number" min="1" value={p.porcao} onChange={e=>setP(pr=>({...pr,porcao:+e.target.value}))}/></div>
       <div className="ft-fld"><label className="ft-flbl">Preço de venda (R$)</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))}/></div>
+      <div className="ft-fld"><label className="ft-flbl">Foto do prato empratado (link)</label><input value={p.foto||''} onChange={e=>setP(pr=>({...pr,foto:e.target.value}))} placeholder="Cole o link da foto (Drive, Instagram, etc)"/></div>
     </div>
+    {p.foto&&<div style={{marginBottom:14,textAlign:'center'}}><img src={p.foto} alt="" style={{maxWidth:'100%',maxHeight:180,borderRadius:10,objectFit:'cover'}} onError={e=>{e.target.style.display='none';}}/></div>}
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
       <span style={{fontFamily:'var(--ff)',fontSize:13,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.08em'}}>COMPONENTES (POR PORÇÃO)</span>
       <button className="ft-btn ft-btn-p" style={{padding:'8px 14px',fontSize:12}} onClick={()=>setPicker(true)}>+ Adicionar</button>
