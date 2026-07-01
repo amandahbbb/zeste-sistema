@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
+import { toast } from "./toast.js";
 import { gerarCadernoHTML, gerarFichasPracaHTML } from "./gerarCaderno.js";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
 const sbH = t => ({ apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" });
 async function sbLoad(t) { try { const r = await fetch(`${SB_URL}/rest/v1/docs_operacionais?deleted_at=is.null&order=updated_at.desc`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => x.dados) : []; } catch { return []; } }
-async function sbSave(doc, t) { await fetch(`${SB_URL}/rest/v1/docs_operacionais`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: doc.id, cliente_id: doc.clienteId || "zeste", dados: doc, updated_at: new Date().toISOString() }) }); }
-async function sbDel(id, t) { await fetch(`${SB_URL}/rest/v1/docs_operacionais?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); }
+async function sbSave(doc, t) { try { const r = await fetch(`${SB_URL}/rest/v1/docs_operacionais`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: doc.id, cliente_id: doc.clienteId || "zeste", dados: doc, updated_at: new Date().toISOString() }) }); if (!r.ok) { toast("Erro ao salvar o documento", "erro"); return false; } toast("✓ Documento salvo"); return true; } catch { toast("Sem conexão — não foi salvo", "erro"); return false; } }
+async function sbDel(id, t) { try { const r = await fetch(`${SB_URL}/rest/v1/docs_operacionais?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); if (!r.ok) { toast("Erro ao excluir", "erro"); return false; } toast("✓ Excluído"); return true; } catch { toast("Sem conexão — não foi excluído", "erro"); return false; } }
 
 // Carrega pratos/fichas/ingredientes de um cliente para gerar o caderno
 async function sbLoadTabela(tabela, t, clienteId) {
