@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Documentos from "./Documentos.jsx";
+import { toast } from "./toast.js";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SB_URL="https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -7,9 +8,9 @@ const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 function sbH(t){return{"apikey":SB_KEY,"Authorization":`Bearer ${t||SB_KEY}`,"Content-Type":"application/json","Prefer":"return=representation"};}
 async function sbLoad(table,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?deleted_at=is.null&order=created_at.desc`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(r=>({...r.dados,_id:r.id,_cliente:r.cliente_id})):[];}catch{return[];}}
 async function sbLoadAll(table,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?order=created_at.desc`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(r=>r.dados||r):[];}catch{return[];}}
-async function sbUpsert(table,item,clienteId,t){await fetch(`${SB_URL}/rest/v1/${table}`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,cliente_id:clienteId||'zeste',dados:item,updated_at:new Date().toISOString()})});}
-async function sbDel(table,id,t){await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:sbH(t),body:JSON.stringify({deleted_at:new Date().toISOString()})});}
-async function sbInsertIng(item,clienteId,t){await fetch(`${SB_URL}/rest/v1/fin_ingredientes`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,cliente_id:clienteId||'zeste',dados:item,updated_at:new Date().toISOString()})});}
+async function sbUpsert(table,item,clienteId,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,cliente_id:clienteId||'zeste',dados:item,updated_at:new Date().toISOString()})});if(!r.ok){toast("Erro ao salvar — tente de novo","erro");return false;}toast("✓ Salvo");return true;}catch{toast("Sem conexão — não foi salvo","erro");return false;}}
+async function sbDel(table,id,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:sbH(t),body:JSON.stringify({deleted_at:new Date().toISOString()})});if(!r.ok){toast("Erro ao excluir","erro");return false;}toast("✓ Excluído");return true;}catch{toast("Sem conexão — não foi excluído","erro");return false;}}
+async function sbInsertIng(item,clienteId,t){try{const r=await fetch(`${SB_URL}/rest/v1/fin_ingredientes`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,cliente_id:clienteId||'zeste',dados:item,updated_at:new Date().toISOString()})});if(!r.ok){toast("Erro ao salvar ingrediente","erro");return false;}toast("✓ Salvo");return true;}catch{toast("Sem conexão — não foi salvo","erro");return false;}}
 
 // ── UTILITÁRIOS ───────────────────────────────────────────────────
 const uid=()=>Math.random().toString(36).slice(2,9);
