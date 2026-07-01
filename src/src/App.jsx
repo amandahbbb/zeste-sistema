@@ -173,7 +173,7 @@ const MODULOS = [
   { id: "dashboard",  icon: "📊", label: "Dashboard"  },
   { id: "comercial",  icon: "🤝", label: "Comercial"  },
   { id: "financeiro", icon: "💰", label: "Financeiro"  },
-  { id: "fichas",     icon: "🍽️", label: "Fichas Técnicas e Produção" },
+  { id: "fichas",     icon: "🍽️", label: "Operação"    },
   { id: "studio",     icon: "✦", label: "Estúdio"     },
   { id: "marketing",  icon: "📱", label: "Marketing"   },
   { id: "breakeven",  icon: "📉", label: "Break-even"  },

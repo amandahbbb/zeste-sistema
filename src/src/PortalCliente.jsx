@@ -86,15 +86,44 @@ function Dashboard({ clienteInfo, projeto, fichasCount, docs, setAba }) {
   );
 }
 
-function Documentos({ docs }) {
+function Documentos({ docs, docsOp = [] }) {
+  const [verDoc, setVerDoc] = useState(null);
+  const MODELO_NOMES = { caderno_op: "📕 Caderno Operacional", pop_interno: "📘 POP", ficha_gerencial: "📊 Documento Gerencial" };
+  const linha = t => (t || "").split("\n").filter(x => x.trim());
+
+  if (verDoc) return (
+    <div style={{ padding: 16, maxWidth: 720, margin: "0 auto" }}>
+      <button onClick={() => setVerDoc(null)} style={{ color: "var(--verde)", background: "none", border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>‹ Voltar</button>
+      <div className="pcl-card" style={{ padding: 20 }}>
+        <div style={{ fontFamily: "var(--ff)", fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{verDoc.titulo}</div>
+        <div style={{ fontSize: 12, color: "var(--cinzaE)", marginBottom: 16 }}>{MODELO_NOMES[verDoc.modelo] || "Documento"}</div>
+        {verDoc.modelo === "caderno_op" && <CadernoView doc={verDoc} linha={linha} />}
+        {verDoc.modelo !== "caderno_op" && <GenericView doc={verDoc} linha={linha} />}
+      </div>
+    </div>
+  );
+
+  const temAlgo = docs.length > 0 || docsOp.length > 0;
   return (
     <div style={{ padding: 16, maxWidth: 720, margin: "0 auto" }}>
+      {docsOp.length > 0 && (
+        <div className="pcl-card" style={{ marginBottom: 16 }}>
+          <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", fontFamily: "var(--ff)", fontWeight: 700, fontSize: 16 }}>📘 Documentos Zeste</div>
+          {docsOp.map((d, i) => (
+            <div key={d.id || i} onClick={() => setVerDoc(d)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: i < docsOp.length - 1 ? "1px solid var(--cinzaF)" : "none", cursor: "pointer" }}>
+              <div style={{ fontSize: 24 }}>{(MODELO_NOMES[d.modelo] || "📄").slice(0, 2)}</div>
+              <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{d.titulo}</div></div>
+              <div style={{ color: "var(--azul)", fontSize: 13, fontWeight: 600 }}>Ver →</div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="pcl-card">
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", fontFamily: "var(--ff)", fontWeight: 700, fontSize: 16 }}>📁 Documentos do projeto</div>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", fontFamily: "var(--ff)", fontWeight: 700, fontSize: 16 }}>📁 Materiais e links</div>
         {docs.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--cinzaE)" }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>📭</div>
-            <div style={{ fontStyle: "italic" }}>Nenhum documento disponível ainda.</div>
+            <div style={{ fontStyle: "italic" }}>{temAlgo ? "Nenhum link ainda." : "Nenhum documento disponível ainda."}</div>
             <div style={{ fontSize: 12, marginTop: 6 }}>Quando a Zeste compartilhar materiais, eles aparecerão aqui.</div>
           </div>
         ) : docs.map((d, i) => (
@@ -111,6 +140,42 @@ function Documentos({ docs }) {
     </div>
   );
 }
+
+function CadernoView({ doc, linha }) {
+  const d = doc.dados || {};
+  return (<div>
+    {(d.pratos || []).length > 0 && <><SecTit>Pratos</SecTit>
+      {(d.pratos || []).map((p, i) => (<div key={i} style={{ marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid var(--cinzaF)" }}>
+        <div style={{ fontFamily: "var(--ff)", fontSize: 17, fontWeight: 700, color: "var(--lima)", marginBottom: 6 }}>{p.nome}</div>
+        {p.ingredientes && <Bloco titulo="Ingredientes" itens={linha(p.ingredientes)} />}
+        {p.mop && <div style={{ marginTop: 8 }}><Sub>Modo de preparo</Sub><div style={{ fontSize: 13, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{p.mop}</div></div>}
+        {p.checklist && <Bloco titulo="Checklist" itens={linha(p.checklist)} check />}
+        {p.utensilios && <Bloco titulo="Utensílios" itens={linha(p.utensilios)} />}
+      </div>))}</>}
+    {(d.receitas || []).length > 0 && <><SecTit>Receitas Base</SecTit>
+      {(d.receitas || []).map((r, i) => (<div key={i} style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: "var(--ff)", fontSize: 15, fontWeight: 700 }}>{r.nome}{r.rendimento ? ` · ${r.rendimento}` : ""}</div>
+        {r.ingredientes && <Bloco titulo="Ingredientes" itens={linha(r.ingredientes)} />}
+        {r.preparo && <div style={{ fontSize: 13, whiteSpace: "pre-wrap", lineHeight: 1.5, marginTop: 4 }}>{r.preparo}</div>}
+      </div>))}</>}
+    {(d.checklists || []).length > 0 && <><SecTit>Checklists</SecTit>
+      {(d.checklists || []).map((c, i) => (<div key={i} style={{ marginBottom: 12 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{c.nome}</div><Bloco itens={linha(c.itens)} check /></div>))}</>}
+  </div>);
+}
+
+function GenericView({ doc, linha }) {
+  const d = doc.dados || {};
+  return (<div>
+    {Object.entries(d).map(([sid, val]) => {
+      if (Array.isArray(val)) return val.map((item, i) => (<div key={sid + i} style={{ marginBottom: 12 }}>{Object.entries(item).map(([k, v]) => v && <div key={k} style={{ marginBottom: 4 }}><Sub>{k}</Sub><div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{v}</div></div>)}</div>));
+      if (val && typeof val === "object") return Object.entries(val).map(([k, v]) => v && <div key={sid + k} style={{ marginBottom: 8 }}><Sub>{k}</Sub><div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{v}</div></div>);
+      return null;
+    })}
+  </div>);
+}
+const SecTit = ({ children }) => <div style={{ fontFamily: "var(--ff)", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", color: "var(--cinzaE)", textTransform: "uppercase", margin: "16px 0 10px", paddingBottom: 4, borderBottom: "2px solid var(--lima)" }}>{children}</div>;
+const Sub = ({ children }) => <div style={{ fontSize: 11, fontWeight: 700, color: "var(--cinzaE)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 2 }}>{children}</div>;
+const Bloco = ({ titulo, itens, check }) => (<div style={{ marginTop: 6 }}>{titulo && <Sub>{titulo}</Sub>}{itens.map((it, i) => <div key={i} style={{ fontSize: 13, padding: "2px 0", display: "flex", gap: 6 }}>{check ? <span>☐</span> : <span style={{ color: "var(--lima)" }}>•</span>}<span>{it}</span></div>)}</div>);
 
 function Acompanhamento({ projeto, etapas }) {
   const METODO = [
@@ -169,6 +234,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
   const [projeto, setProjeto] = useState(null);
   const [fichasCount, setFichasCount] = useState(0);
   const [docs, setDocs] = useState([]);
+  const [docsOp, setDocsOp] = useState([]);
   const [etapas, setEtapas] = useState([]);
 
   useEffect(() => {
@@ -183,6 +249,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     });
     sbLoad("fin_pratos", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=id`).then(r => setFichasCount(r.length));
     sbLoad("portal_documentos", token, `cliente_id=eq.${cid}&select=*&order=created_at.desc`).then(r => setDocs(r.map(x => x.dados || x)));
+    sbLoad("docs_operacionais", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*&order=updated_at.desc`).then(r => setDocsOp(r.map(x => x.dados || x).filter(d => d.visibilidade === "entregavel")));
     sbLoad("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
   }, []);
 
@@ -227,7 +294,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
       </div>
 
       {aba === "dashboard" && <Dashboard clienteInfo={clienteInfo} projeto={projeto} fichasCount={fichasCount} docs={docs} setAba={setAba} />}
-      {aba === "documentos" && <Documentos docs={docs} />}
+      {aba === "documentos" && <Documentos docs={docs} docsOp={docsOp} />}
       {aba === "projeto" && <Acompanhamento projeto={projeto} etapas={etapas} />}
     </div>
   );

@@ -9,6 +9,17 @@ async function sbUpsert(table, item, t, clienteId) { await fetch(`${SB_URL}/rest
 async function sbDel(table, id, t) { await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+function NumBR({ value, onChange, placeholder, style, className }) {
+  const fmt = v => (v === 0 || v === "" || v == null || isNaN(v)) ? "" : String(v).replace(".", ",");
+  const [txt, setTxt] = useState(fmt(value));
+  const [foco, setFoco] = useState(false);
+  useEffect(() => { if (!foco) setTxt(fmt(value)); }, [value, foco]);
+  return <input type="text" inputMode="decimal" className={className} style={style} placeholder={placeholder || "0,00"} value={txt}
+    onFocus={() => setFoco(true)}
+    onChange={e => { const v = e.target.value.replace(/[^0-9.,]/g, ""); setTxt(v); const n = parseFloat(v.replace(",", ".")); onChange(isNaN(n) ? "" : n); }}
+    onBlur={() => { setFoco(false); setTxt(fmt(value)); }} />;
+}
 const brl = v => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const td = () => new Date().toISOString().slice(0, 10);
 const dbr = d => d ? new Date(d + "T12:00:00").toLocaleDateString("pt-BR") : "";
@@ -150,7 +161,7 @@ function FormPedido({ init, fornecedores, onSave, onClose }) {
       </div>
       <Fld label="Itens do pedido"><textarea className="cmp-input" rows={3} value={f.itens} onChange={e => S("itens", e.target.value)} placeholder="Ex: Café 10kg, Leite 20L, Açúcar 5kg" style={{ resize: "vertical" }} /></Fld>
       <div style={{ display: "flex", gap: 10 }}>
-        <Fld label="Total (R$)" half><input className="cmp-input" type="number" step="0.01" value={f.valor} onChange={e => S("valor", e.target.value)} placeholder="0,00" /></Fld>
+        <Fld label="Total (R$)" half><NumBR className="cmp-input" value={f.valor} onChange={v => S("valor", v)} /></Fld>
         <Fld label="Status" half><select className="cmp-input" value={f.status} onChange={e => S("status", e.target.value)}>{Object.keys(STATUS_PEDIDO).map(s => <option key={s}>{s}</option>)}</select></Fld>
       </div>
       <div style={{ display: "flex", gap: 9, justifyContent: "flex-end", marginTop: 18 }}>
@@ -267,7 +278,7 @@ function Cotacao({ produtos, fornecedores, onSaveProd, onDelProd }) {
                       {fornsAtivos.map(f => {
                         const isMelhor = mp && mp[0] === f.id;
                         return <td key={f.id} style={{ padding: "8px 8px", textAlign: "right" }}>
-                          <input type="number" step="0.01" value={p.precos?.[f.id] || ""} onChange={e => onSaveProd({ ...p, precos: { ...p.precos, [f.id]: e.target.value } })} placeholder="—" style={{ width: 64, border: `1px solid ${isMelhor ? C.verde : C.cinzaM}`, borderRadius: 5, padding: "4px 6px", textAlign: "right", fontSize: 12, background: isMelhor ? "#F0F7E6" : "#fff", fontWeight: isMelhor ? 700 : 400, color: isMelhor ? C.verde : C.preto }} />
+                          <NumBR value={p.precos?.[f.id] || ""} onChange={v => onSaveProd({ ...p, precos: { ...p.precos, [f.id]: v } })} placeholder="—" style={{ width: 64, border: `1px solid ${isMelhor ? C.verde : C.cinzaM}`, borderRadius: 5, padding: "4px 6px", textAlign: "right", fontSize: 12, background: isMelhor ? "#F0F7E6" : "#fff", fontWeight: isMelhor ? 700 : 400, color: isMelhor ? C.verde : C.preto }} />
                         </td>;
                       })}
                       <td style={{ padding: "8px 8px", textAlign: "right", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, color: C.verde }}>{mp ? brl(mp[1]) : "—"}</td>

@@ -196,7 +196,11 @@ function AbaMatriz({ analise, onUpdateAnalise }) {
       </div>
 
       {semDado.length > 0 && <div style={{ marginTop: 14, padding: "10px 14px", background: "#FFF8E8", borderRadius: 8, fontSize: 12, color: "#92400E" }}>
-        ⚠ {semDado.length} prato(s) sem dado de venda ou sem preço: {semDado.map(a => a.nome).join(", ")}
+        ⚠ {semDado.length} prato(s) fora da matriz:
+        <div style={{ marginTop: 6, lineHeight: 1.6 }}>
+          {semDado.map(a => <div key={a.prato_id}>• <strong>{a.nome}</strong> — {(!a.margemRS && a.margemRS !== 0) || a.cmv === 0 ? "sem preço de venda cadastrado" : "sem quantidade vendida no período"}</div>)}
+        </div>
+        <div style={{ marginTop: 6, fontSize: 11, opacity: .85 }}>Cadastre o preço de venda (nas Fichas) e a quantidade vendida (aba Dados de Venda) para o prato entrar na análise.</div>
       </div>}
 
       {sel && <PainelEdit analise={sel} onClose={() => setSel(null)} onSave={a => { onUpdateAnalise(a); setSel(null); }} />}

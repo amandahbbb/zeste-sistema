@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import Documentos from "./Documentos.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SB_URL="https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -16,6 +17,22 @@ const brl=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{min
 const pct=v=>v==null||isNaN(v)?'—':(v*100).toFixed(1)+'%';
 const num=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:d});
 const normNome=s=>(s||'').toString().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+
+// Input numérico BR: aceita vírgula, sem zero travado. Guarda string, devolve número.
+function NumInput({value,onChange,step,min,placeholder,style,className}){
+  const fmt=v=>(v===0||v===''||v==null||isNaN(v))?'':String(v).replace('.',',');
+  const[txt,setTxt]=useState(fmt(value));
+  const[foco,setFoco]=useState(false);
+  useEffect(()=>{if(!foco)setTxt(fmt(value));},[value,foco]);
+  const parse=s=>{const n=parseFloat(String(s).replace(',','.'));return isNaN(n)?0:n;};
+  return <input
+    type="text" inputMode="decimal" className={className} style={style}
+    placeholder={placeholder||'0'} value={txt}
+    onFocus={()=>setFoco(true)}
+    onChange={e=>{const v=e.target.value.replace(/[^0-9.,]/g,'');setTxt(v);onChange(parse(v));}}
+    onBlur={()=>{setFoco(false);setTxt(fmt(value));}}
+  />;
+}
 
 // ── CMV ENGINE ────────────────────────────────────────────────────
 function calcFicha(ficha,ingredientes,fichas){
@@ -218,7 +235,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc})
   return(<Modal title={ficha?'Editar Ficha':'Nova Ficha'} onClose={onClose}>
     <div className="ft-fg" style={{marginBottom:14}}>
       <div className="ft-fld"><label className="ft-flbl">Nome da ficha</label><input value={f.nome} onChange={e=>setF(p=>({...p,nome:e.target.value.toUpperCase()}))}/></div>
-      <div className="ft-fld h"><label className="ft-flbl">Margem Segurança (%)</label><input type="number" step="0.01" value={f.margemSeguranca} onChange={e=>setF(p=>({...p,margemSeguranca:+e.target.value}))}/></div>
+      <div className="ft-fld h"><label className="ft-flbl">Margem Segurança (%)</label><NumInput step="0.01" value={f.margemSeguranca} onChange={v=>setF(p=>({...p,margemSeguranca:v}))}/></div>
       <div className="ft-fld h"><label className="ft-flbl">Cliente</label><select value={f._cliente||'zeste'} onChange={e=>setF(p=>({...p,_cliente:e.target.value}))}><option value="zeste">Zeste (base)</option><option value="440">440 Restaurante</option></select></div>
     </div>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
@@ -231,7 +248,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc})
         <button onClick={()=>remItem(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
       <div style={{display:'flex',gap:12,alignItems:'center'}}>
-        <div style={{flex:1}}><label className="ft-flbl">QTD LÍQUIDA (KG)</label><input type="number" step="0.001" min="0" value={it.qtdLiquida} onChange={e=>updItem(i,'qtdLiquida',+e.target.value)}/></div>
+        <div style={{flex:1}}><label className="ft-flbl">QTD LÍQUIDA (KG)</label><NumInput step="0.001" min="0" value={it.qtdLiquida} onChange={v=>updItem(i,'qtdLiquida',v)}/></div>
         <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(it.custo)}</div></div>
       </div>
     </div>))}
@@ -277,7 +294,7 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc})
       <div className="ft-fld"><label className="ft-flbl">Nome do prato</label><input value={p.nome} onChange={e=>setP(pr=>({...pr,nome:e.target.value.toUpperCase()}))}/></div>
       <div className="ft-fld h"><label className="ft-flbl">Categoria</label><input value={p.categoria} onChange={e=>setP(pr=>({...pr,categoria:e.target.value}))}/></div>
       <div className="ft-fld h"><label className="ft-flbl">Porções</label><input type="number" min="1" value={p.porcao} onChange={e=>setP(pr=>({...pr,porcao:+e.target.value}))}/></div>
-      <div className="ft-fld"><label className="ft-flbl">Preço de venda (R$)</label><input type="number" step="0.01" min="0" value={p.precoVenda} onChange={e=>setP(pr=>({...pr,precoVenda:+e.target.value}))}/></div>
+      <div className="ft-fld"><label className="ft-flbl">Preço de venda (R$)</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))}/></div>
     </div>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
       <span style={{fontFamily:'var(--ff)',fontSize:13,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.08em'}}>COMPONENTES (POR PORÇÃO)</span>
@@ -289,7 +306,7 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc})
         <button onClick={()=>remComp(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
       <div style={{display:'flex',gap:12,alignItems:'center'}}>
-        <div style={{flex:1}}><label className="ft-flbl">QUANTIDADE (GRAMAS)</label><input type="number" step="1" min="0" value={c.qtdGramas} onChange={e=>updComp(i,'qtdGramas',+e.target.value)}/></div>
+        <div style={{flex:1}}><label className="ft-flbl">QUANTIDADE (GRAMAS)</label><NumInput step="1" min="0" value={c.qtdGramas} onChange={v=>updComp(i,'qtdGramas',v)}/></div>
         <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(c.custo)}</div></div>
       </div>
     </div>))}
@@ -329,9 +346,9 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter}){
       <div className="ft-fg">
         <div className="ft-fld"><label className="ft-flbl">Nome</label><input value={edit.nome} onChange={e=>setEdit(f=>({...f,nome:e.target.value.toUpperCase()}))}/></div>
         <div className="ft-fld h"><label className="ft-flbl">Unidade</label><select value={edit.un} onChange={e=>setEdit(f=>({...f,un:e.target.value}))}><option>KG</option><option>L</option><option>UN</option></select></div>
-        <div className="ft-fld h"><label className="ft-flbl">Preço/KG (R$)</label><input type="number" step="0.01" value={edit.p} onChange={e=>setEdit(f=>({...f,p:+e.target.value}))}/></div>
-        <div className="ft-fld h"><label className="ft-flbl">Fator Correção</label><input type="number" step="0.01" value={edit.fc} onChange={e=>setEdit(f=>({...f,fc:+e.target.value}))}/></div>
-        <div className="ft-fld h"><label className="ft-flbl">Fator Cocção</label><input type="number" step="0.01" value={edit.fk} onChange={e=>setEdit(f=>({...f,fk:+e.target.value}))}/></div>
+        <div className="ft-fld h"><label className="ft-flbl">Preço/KG (R$)</label><NumInput step="0.01" value={edit.p} onChange={v=>setEdit(f=>({...f,p:v}))}/></div>
+        <div className="ft-fld h"><label className="ft-flbl">Fator Correção</label><NumInput step="0.01" value={edit.fc} onChange={v=>setEdit(f=>({...f,fc:v}))}/></div>
+        <div className="ft-fld h"><label className="ft-flbl">Fator Cocção</label><NumInput step="0.01" value={edit.fk} onChange={v=>setEdit(f=>({...f,fk:v}))}/></div>
       </div>
       <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}>
         {edit.nome&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(edit.id);setEdit(null);}}>🗑</button>}
@@ -391,7 +408,7 @@ function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFil
 
 // ── PRATOS TAB ────────────────────────────────────────────────────
 function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFilter}){
-  const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);
+  const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);const[fichaDet,setFichaDet]=useState(null);
   const filtered=pratosCalc.filter(p=>(!q||normNome(p.nome).includes(normNome(q)))&&(!clienteFilter||p._cliente===clienteFilter));
   const categorias=[...new Set(filtered.map(p=>p.categoria||'Sem categoria'))];
   return(<div className="ft-page">
@@ -425,10 +442,10 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
       </div>
       <SH>Componentes</SH>
       <div className="ft-card">
-        {(detail.comps||[]).map((c,i)=>(<div key={i} style={{padding:'10px 14px',borderBottom:i<detail.comps.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div><div style={{fontSize:13,fontWeight:600}}>{c.nomeRef}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{c.tipo==='ficha'?'📋 Ficha':'🥬 Ingrediente'} · {c.qtdGramas}g</div></div>
+        {(detail.comps||[]).map((c,i)=>{const ehFicha=c.tipo==='ficha';const fichaObj=ehFicha?fichasCalc.find(f=>f.nome===c.nomeRef):null;return(<div key={i} onClick={ehFicha&&fichaObj?()=>setFichaDet(fichaObj):undefined} style={{padding:'10px 14px',borderBottom:i<detail.comps.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:ehFicha&&fichaObj?'pointer':'default',background:ehFicha&&fichaObj?'#FFFDF5':'transparent'}}>
+          <div><div style={{fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:5}}>{c.nomeRef}{ehFicha&&fichaObj&&<span style={{color:'var(--azul)',fontSize:12}}>↗</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{ehFicha?'📋 Ficha':'🥬 Ingrediente'} · {c.qtdGramas}g{ehFicha&&fichaObj?' · toque para ver':''}</div></div>
           <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:c.erro?'var(--coral)':'var(--verde)',flexShrink:0}}>{c.erro?'⚠️':brl(c.custo)}</div>
-        </div>))}
+        </div>);})}
       </div>
       {detail.precoVenda>0&&<div style={{marginTop:14,background:cmvColor(detail.cmv)+'18',borderLeft:`3px solid ${cmvColor(detail.cmv)}`,borderRadius:6,padding:'10px 12px',fontSize:13,color:cmvColor(detail.cmv),fontWeight:600}}>
         CMV {pct(detail.cmv)} — {cmvLabel(detail.cmv)} · Lucro bruto de {brl(detail.precoVenda-detail.custoTotal)} por porção
@@ -441,6 +458,21 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
       </div>
     </Modal>}
     {editForm&&<PratoForm open={true} prato={editForm.id?editForm:null} onClose={()=>setEditForm(null)} onSave={onSave} onDelete={onDelete} ingredientes={ingredientes} fichasCalc={fichasCalc}/>}
+    {fichaDet&&<Modal title={`📋 ${fichaDet.nome}`} onClose={()=>setFichaDet(null)}>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16}}>
+        <div className="ft-kpi" style={{borderColor:'var(--coral)'}}><div className="ft-kpi-l" style={{color:'var(--coral)'}}>Custo total</div><div className="ft-kpi-v" style={{color:'var(--coral)'}}>{brl(fichaDet.custoTotal)}</div></div>
+        <div className="ft-kpi" style={{borderColor:'var(--azul)'}}><div className="ft-kpi-l" style={{color:'var(--azul)'}}>Rendimento</div><div className="ft-kpi-v" style={{color:'var(--azul)'}}>{num(fichaDet.pesoFinal||0,3)}kg</div></div>
+        <div className="ft-kpi" style={{borderColor:'var(--verde)'}}><div className="ft-kpi-l" style={{color:'var(--verde)'}}>Custo/kg</div><div className="ft-kpi-v" style={{color:'var(--verde)'}}>{brl(fichaDet._custoPorKg)}</div></div>
+      </div>
+      <SH>Ingredientes da ficha</SH>
+      <div className="ft-card">
+        {(fichaDet.itens||[]).map((it,i)=>(<div key={i} style={{padding:'10px 14px',borderBottom:i<fichaDet.itens.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div><div style={{fontSize:13,fontWeight:600}}>{it.nomeRef}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{it.tipo==='ficha'?'📋 Sub-receita':'🥬 Ingrediente'} · {num(it.qtdLiquida||0,3)}kg líq.{it.fc>1?` · FC ${num(it.fc)}`:''}</div></div>
+          <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:it.erro?'var(--coral)':'var(--verde)',flexShrink:0}}>{it.erro?'⚠️':brl(it.custo)}</div>
+        </div>))}
+      </div>
+      {fichaDet.modoPreparo&&<div style={{marginTop:14}}><SH>Modo de preparo</SH><div style={{fontSize:13,color:'var(--cinzaE)',whiteSpace:'pre-wrap',lineHeight:1.5,padding:'4px 2px'}}>{fichaDet.modoPreparo}</div></div>}
+    </Modal>}
   </div>);
 }
 
@@ -673,8 +705,8 @@ function TabEstoque({ingredientes,onSave,clienteFilter}){
       <div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)',marginBottom:14}}>{ingredientes.find(i=>i.id===mov.ingId)?.nome}</div>
       {mov.tipo==='config'?(<>
         <div className="ft-fg">
-          <div className="ft-fld h"><label className="ft-flbl">Estoque atual ({ingredientes.find(i=>i.id===mov.ingId)?.un})</label><input type="number" step="0.01" value={mov.estoque} onChange={e=>setMov(m=>({...m,estoque:+e.target.value}))}/></div>
-          <div className="ft-fld h"><label className="ft-flbl">Estoque mínimo</label><input type="number" step="0.01" value={mov.estoqueMin} onChange={e=>setMov(m=>({...m,estoqueMin:+e.target.value}))}/></div>
+          <div className="ft-fld h"><label className="ft-flbl">Estoque atual ({ingredientes.find(i=>i.id===mov.ingId)?.un})</label><NumInput step="0.01" value={mov.estoque} onChange={v=>setMov(m=>({...m,estoque:v}))}/></div>
+          <div className="ft-fld h"><label className="ft-flbl">Estoque mínimo</label><NumInput step="0.01" value={mov.estoqueMin} onChange={v=>setMov(m=>({...m,estoqueMin:v}))}/></div>
         </div>
         <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}>
           <button className="ft-btn ft-btn-g" onClick={()=>setMov(null)}>Cancelar</button>
@@ -682,7 +714,7 @@ function TabEstoque({ingredientes,onSave,clienteFilter}){
         </div>
       </>):(<>
         <div className="ft-fg">
-          <div className="ft-fld"><label className="ft-flbl">Quantidade ({ingredientes.find(i=>i.id===mov.ingId)?.un})</label><input type="number" step="0.01" min="0" value={mov.qtd} onChange={e=>setMov(m=>({...m,qtd:e.target.value}))}/></div>
+          <div className="ft-fld"><label className="ft-flbl">Quantidade ({ingredientes.find(i=>i.id===mov.ingId)?.un})</label><NumInput step="0.01" min="0" value={mov.qtd} onChange={v=>setMov(m=>({...m,qtd:v}))}/></div>
           <div className="ft-fld"><label className="ft-flbl">Observação (opcional)</label><input value={mov.obs||''} onChange={e=>setMov(m=>({...m,obs:e.target.value}))} placeholder="Ex: Compra Atacadão"/></div>
         </div>
         <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}>
@@ -766,6 +798,7 @@ function HistoricoModal({item,onClose,onRevert}){
 
 // ── ROOT ──────────────────────────────────────────────────────────
 const TABS=[{id:'resumo',l:'RESUMO'},{id:'ingredientes',l:'INGREDIENTES'},{id:'fichas',l:'FICHAS'},{id:'pratos',l:'PRATOS'},{id:'producao',l:'PRODUÇÃO'},{id:'estoque',l:'ESTOQUE'}];
+const TABS_ADMIN=[...TABS,{id:'documentos',l:'DOCUMENTOS'}];
 
 export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome,onLogout,userInfo}){
   const[ingredientes,setIngredientes]=useState([]);
@@ -774,6 +807,9 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
   const[loading,setLoading]=useState(true);
   const[syncing,setSyncing]=useState(false);
   const[aba,setAba]=useState('resumo');const[histItem,setHistItem]=useState(null);
+  const[clientesList,setClientesList]=useState([]);
+  const ehAdmin=!clienteIdProp||clienteIdProp==='zeste';
+  useEffect(()=>{if(ehAdmin){fetch(`${SB_URL}/rest/v1/fin_portal_clientes?select=*&order=nome_display.asc`,{headers:sbH(token)}).then(r=>r.json()).then(d=>Array.isArray(d)&&setClientesList(d)).catch(()=>{});}},[]);
   const[clienteFilter,setClienteFilter]=useState(clienteIdProp||'');
 
   useEffect(()=>{loadAll();},[]);
@@ -864,7 +900,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
           {onLogout&&<button onClick={onLogout} style={{color:'#888',fontSize:11,padding:'6px 12px',border:'1px solid #333',borderRadius:6,letterSpacing:'.06em',fontWeight:600,marginLeft:4}}>SAIR</button>}
         </div>
       </div>
-      <nav className="ft-nav">{TABS.map((t,i)=>(<span key={t.id}>{i>0&&<div style={{width:1,background:'#252525',margin:'10px 0',flexShrink:0}}/>}<div className={`ft-tab${aba===t.id?' on':''}`} onClick={()=>setAba(t.id)}>{t.l}</div></span>))}</nav>
+      <nav className="ft-nav">{(ehAdmin?TABS_ADMIN:TABS).map((t,i)=>(<span key={t.id}>{i>0&&<div style={{width:1,background:'#252525',margin:'10px 0',flexShrink:0}}/>}<div className={`ft-tab${aba===t.id?' on':''}`} onClick={()=>setAba(t.id)}>{t.l}</div></span>))}</nav>
     </div>
     {aba==='resumo'&&<TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc} clienteFilter={clienteFilter}/>}
     {aba==='ingredientes'&&<TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter}/>}
@@ -872,6 +908,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
     {aba==='pratos'&&<TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter}/>}
     {aba==='producao'&&<TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes}/>}
     {aba==='estoque'&&<TabEstoque ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter}/>}
+    {aba==='documentos'&&ehAdmin&&<Documentos token={token} clientes={clientesList}/>}
     {histItem&&<HistoricoModal item={histItem} onClose={()=>setHistItem(null)} onRevert={async(v)=>{
       const clean={...v,_historico:undefined,_editadoPor:undefined,_editadoEm:undefined};
       if(histItem.componentes)await savePrato(clean);else await saveFicha(clean);
