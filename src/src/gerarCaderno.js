@@ -136,7 +136,7 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
   ${parte1 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 01</div><div class="parte-tit">Fichas de Empratamento</div></div><div class="parte-num">01</div></div>${parte1}</div>` : ""}
   ${parte2 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Receitas Base</div></div><div class="parte-num">02</div></div>${parte2}</div>` : ""}
   ${parte3 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 03</div><div class="parte-tit">Ficha Técnica Gerencial</div></div><div class="parte-num">03</div></div>${parte3}</div>` : ""}
-  <div class="rodape">Documento gerado por Zeste · Inteligência para Negócios Gastronômicos</div>
+  <div class="rodape">Documento gerado por Zeste · Inteligência para Negócios Gastronômicos · Gerado em ${hoje}</div>
 </div></body></html>`;
 }
 
@@ -169,7 +169,7 @@ export function gerarFichasPracaHTML({ clienteNome, pratos }) {
         </div>
         ${mop ? `<div class="bloco"><div class="bloco-lbl">MODO DE EMPRATAR</div><div class="passos">${mop}</div></div>` : ""}
       </div>
-      <div class="rodape">${esc(clienteNome || "")} · Zeste</div>
+      <div class="rodape">${esc(clienteNome || "")} · Zeste · Gerado em ${new Date().toLocaleDateString("pt-BR")}</div>
     </div>`;
   }).join("");
 
