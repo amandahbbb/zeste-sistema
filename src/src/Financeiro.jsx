@@ -1466,6 +1466,110 @@ function Cenarios({lancamentos,clientes,token}){
 }
 
 // ── ROOT ──────────────────────────────────────────────────────────
+/* ============ ACERTO ENTRE SÓCIAS (50/50) ============ */
+function Acerto({lancamentos,onSave,setAba}){
+  const hoje=new Date();
+  const mesAnterior=()=>{const d=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;};
+  const[modo,setModo]=useState('mes');            // 'mes' | 'periodo'
+  const[mes,setMes]=useState(mesAnterior());
+  const[ini,setIni]=useState('');const[fim,setFim]=useState('');
+  const[baixando,setBaixando]=useState(false);
+
+  const dataRef=l=>l.dataPago||l.dataDoc||'';
+  const noPeriodo=l=>{const d=dataRef(l);if(!d)return false;
+    if(modo==='mes')return d.startsWith(mes);
+    if(ini&&d<ini)return false;if(fim&&d>fim)return false;return!!(ini||fim);};
+
+  // Só entram: movimentações que de fato aconteceram, pagas/recebidas por conta PESSOAL, ainda não acertadas
+  const pessoais=lancamentos.filter(l=>
+    (l.pagador==='AMANDA'||l.pagador==='BRUNA')&&
+    (l.status==='PAGO'||l.status==='RECEBIDO')&&
+    l.reembolso!=='CONCLUÍDO'&&
+    noPeriodo(l));
+
+  const val=l=>+(l.vlrPago||l.vlrLiquido||l.vlrBruto)||0;
+  // Despesa paga do bolso = crédito da sócia · Receita recebida na conta pessoal = débito
+  const saldo=quem=>pessoais.filter(l=>l.pagador===quem).reduce((s,l)=>s+(l.tipo==='DESPESA'?val(l):-val(l)),0);
+  const sA=saldo('AMANDA'),sB=saldo('BRUNA');
+  const transf=(sA-sB)/2; // >0: Bruna → Amanda · <0: Amanda → Bruna
+  const devedor=transf>0?'Bruna':'Amanda',credor=transf>0?'Amanda':'Bruna';
+
+  // Contexto: o que saiu da conta PJ no mesmo período (não entra no acerto)
+  const pjPeriodo=lancamentos.filter(l=>l.pagador==='ZESTE'&&l.tipo==='DESPESA'&&(l.status==='PAGO')&&noPeriodo(l)).reduce((s,l)=>s+val(l),0);
+
+  const concluirAcerto=async()=>{
+    if(!pessoais.length)return;
+    if(!window.confirm(`Marcar ${pessoais.length} lançamento${pessoais.length>1?'s':''} como acertado${pessoais.length>1?'s':''}? Eles saem deste painel e ficam com reembolso CONCLUÍDO.`))return;
+    setBaixando(true);
+    try{for(const l of pessoais){await onSave({...l,reembolso:'CONCLUÍDO'});}}
+    finally{setBaixando(false);}
+  };
+
+  const MESES=[];{const d=new Date(hoje.getFullYear(),hoje.getMonth(),1);for(let i=0;i<12;i++){MESES.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);d.setMonth(d.getMonth()-1);}}
+  const nomeMes=m=>{const[a,mm]=m.split('-');return new Date(+a,+mm-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});};
+  const CardSocia=({nome,s})=>(
+    <div className="card" style={{flex:'1 1 200px',padding:'14px 16px'}}>
+      <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:4}}>{nome.toUpperCase()} — PAGOU DO BOLSO (LÍQUIDO)</div>
+      <div style={{fontFamily:'var(--ff)',fontSize:24,fontWeight:700,color:s>=0?'var(--verde)':'var(--coral)'}}>{brl(s)}</div>
+      <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:3}}>{s<0?'Recebeu receitas da Zeste na conta pessoal':'Adiantou despesas da Zeste'}</div>
+    </div>);
+
+  return(<div className="au page"><div className="pc">
+    <div className="card" style={{padding:'14px 16px',marginBottom:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
+        <div>
+          <div style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:800}}>💸 Acerto entre sócias</div>
+          <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:2}}>Regra 50/50 · só o que foi pago ou recebido em conta pessoal · o que saiu da conta PJ não entra</div>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <select value={modo} onChange={e=>setModo(e.target.value)} style={{border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px 10px',fontSize:12}}><option value="mes">Mês</option><option value="periodo">Período livre</option></select>
+          {modo==='mes'?(
+            <select value={mes} onChange={e=>setMes(e.target.value)} style={{border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px 10px',fontSize:12}}>{MESES.map(m=><option key={m} value={m}>{nomeMes(m)}</option>)}</select>
+          ):(<>
+            <input type="date" value={ini} onChange={e=>setIni(e.target.value)} style={{border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'7px 9px',fontSize:12}}/>
+            <span style={{fontSize:11,color:'var(--cinzaE)'}}>até</span>
+            <input type="date" value={fim} onChange={e=>setFim(e.target.value)} style={{border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'7px 9px',fontSize:12}}/>
+          </>)}
+        </div>
+      </div>
+    </div>
+
+    <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:14}}>
+      <CardSocia nome="Amanda" s={sA}/>
+      <CardSocia nome="Bruna" s={sB}/>
+    </div>
+
+    <div className="card" style={{padding:'18px 16px',marginBottom:14,borderLeft:`4px solid ${Math.abs(transf)<0.005?'var(--cinzaM)':'var(--lima)'}`}}>
+      <div style={{fontSize:9,fontWeight:700,letterSpacing:'.1em',color:'var(--cinzaE)',marginBottom:6}}>RESULTADO DO ACERTO</div>
+      {Math.abs(transf)<0.005?(
+        <div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700}}>✅ Contas equilibradas — ninguém deve nada{pessoais.length>0?' (diferença zero no período)':''}.</div>
+      ):(
+        <div style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:800}}>{devedor} transfere <span style={{color:'var(--verde)'}}>{brl(Math.abs(transf))}</span> para {credor}</div>
+      )}
+      <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:6}}>Cálculo: cada uma arca com metade do total pessoal · diferença ÷ 2. Conta PJ no período: {brl(pjPeriodo)} (fora do acerto).</div>
+      {pessoais.length>0&&<button onClick={concluirAcerto} disabled={baixando} style={{marginTop:12,background:'var(--preto)',color:'var(--lima)',fontFamily:'var(--ff)',fontWeight:700,fontSize:13,borderRadius:8,padding:'10px 16px',minHeight:42,opacity:baixando?0.6:1}}>{baixando?'Registrando…':'✓ Acerto feito — dar baixa em tudo'}</button>}
+    </div>
+
+    <div className="card" style={{padding:0,overflow:'hidden'}}>
+      <div style={{padding:'12px 16px',borderBottom:'1px solid var(--cinzaF)',fontFamily:'var(--ff)',fontWeight:800,fontSize:13}}>Lançamentos no acerto ({pessoais.length})</div>
+      {pessoais.length===0?(
+        <div style={{padding:'22px 16px',fontSize:13,color:'var(--cinzaE)'}}>Nenhum gasto ou receita pessoal pendente no período. Lançamentos com pagador AMANDA ou BRUNA (status pago/recebido) aparecem aqui automaticamente.</div>
+      ):(
+        <div>{pessoais.sort((a,b)=>dataRef(b).localeCompare(dataRef(a))).map(l=>{
+          const v=val(l);const isD=l.tipo==='DESPESA';
+          return(<div key={l.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:'1px solid var(--cinzaF)',fontSize:12}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.descricao||'—'}</div>
+              <div style={{fontSize:10,color:'var(--cinzaE)'}}>{dbr(dataRef(l))} · {l.categoria||''} · pagou: <strong>{l.pagador}</strong></div>
+            </div>
+            <div style={{fontFamily:'var(--ff)',fontWeight:700,whiteSpace:'nowrap',color:isD?'var(--verde)':'var(--coral)'}}>{isD?'+':'−'}{brl(v)}</div>
+          </div>);})}
+        </div>)}
+    </div>
+    <div style={{fontSize:11,color:'var(--cinzaE)',padding:'10px 4px'}}>💡 Pra um gasto entrar no acerto, basta lançar com o pagador certo (Amanda/Bruna) em <span style={{textDecoration:'underline',cursor:'pointer'}} onClick={()=>setAba('lancamentos')}>Lançamentos</span>. Depois do acerto, tudo fica marcado como reembolso concluído — histórico preservado.</div>
+  </div></div>);
+}
+
 export default function Financeiro({onBack,token}){
   const[lancamentos,setLancamentos]=useState([]);
   const[clientes,setClientes]=useState([]);
@@ -1495,7 +1599,7 @@ export default function Financeiro({onBack,token}){
   const saveCliente=async item=>{await sync(async()=>{await sbUpsert('fin_clientes',item,token);setClientes(p=>p.some(c=>c.id===item.id)?p.map(c=>c.id===item.id?item:c):[item,...p]);});};
   const delCliente=async id=>{await sync(async()=>{await sbSoftDel('fin_clientes',id,token);setClientes(p=>p.filter(c=>c.id!==id));});};
 
-  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'cenarios',l:'CENÁRIOS'},{id:'receber',l:'RECEBER'},{id:'previsoes',l:'PREVISÕES'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'clientes',l:'CLIENTES'}];
+  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'acerto',l:'ACERTO'},{id:'cenarios',l:'CENÁRIOS'},{id:'receber',l:'RECEBER'},{id:'previsoes',l:'PREVISÕES'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'clientes',l:'CLIENTES'}];
   const fab=()=>{if(aba==='lancamentos')nL.current();else if(aba==='clientes')nC.current();else{setAba('lancamentos');setTimeout(()=>nL.current(),200);}};
 
   if(loading)return(<><style>{STYLE}</style><div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--cinzaF)'}}><div style={{textAlign:'center'}}><div style={{fontFamily:'var(--ff)',fontSize:32,fontWeight:800,color:'var(--verde)',letterSpacing:'.06em'}}>ZESTE</div><div style={{color:'var(--cinzaE)',fontSize:13,marginTop:4}}>Carregando do banco de dados…</div></div></div></>);
@@ -1517,6 +1621,7 @@ export default function Financeiro({onBack,token}){
       <nav className="nav">{ABAS.map((a,i)=>(<span key={a.id}>{i>0&&<div className="nav-sep"/>}<div className={`nav-item${aba===a.id?' on':''}`} onClick={()=>setAba(a.id)}>{a.l}</div></span>))}</nav>
     </div>
     {aba==='resumo'&&<Resumo lancamentos={lancamentos} setAba={setAba}/>}
+    {aba==='acerto'&&<Acerto lancamentos={lancamentos} onSave={saveLancamento} setAba={setAba}/>}
     {aba==='previsoes'&&<Previsoes lancamentos={lancamentos} setAba={setAba}/>}
     {aba==='lancamentos'&&<Lancamentos lancamentos={lancamentos} lixeira={lixeira} openNew={nL} onSave={saveLancamento} onDelete={softDelLancamento} onRestore={restoreLancamento} onPurge={purgeLancamento} onImport={importLancamentos}/>}
     {aba==='cenarios'&&<Cenarios lancamentos={lancamentos} clientes={clientes} token={token}/>}
