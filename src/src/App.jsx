@@ -20,6 +20,7 @@ function createClient(url, key) {
   return {
     auth: {
       signIn: async (email, pw) => { const r = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: h, body: JSON.stringify({ email, password: pw }) }); return r.json(); },
+      refresh: async rt => { try { const r = await fetch(`${url}/auth/v1/token?grant_type=refresh_token`, { method: "POST", headers: h, body: JSON.stringify({ refresh_token: rt }) }); return r.json(); } catch { return {}; } },
       signOut: async t => { await fetch(`${url}/auth/v1/logout`, { method: "POST", headers: ah(t) }); },
     },
     from: table => ({
@@ -283,21 +284,27 @@ function LoginScreen({ onLogin }) {
   const login = async () => {
     if (!email || !senha) return;
     setLoad(true); setErr("");
-    // 1. Tenta Supabase Auth (admin)
+    // Login único via Supabase Auth (admin e clientes)
     const data = await db.auth.signIn(email, senha);
     if (data.access_token) {
-      onLogin({ role: "admin", token: data.access_token, user: data.user });
-      return;
-    }
-    // 2. Tenta portal do cliente
-    try {
-      const r = await fetch(SUPABASE_URL + "/rest/v1/fin_portal_clientes?email=eq." + encodeURIComponent(email) + "&senha_hash=eq." + encodeURIComponent(senha) + "&ativo=eq.true&select=*", { headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY } });
-      const clients = await r.json();
-      if (Array.isArray(clients) && clients.length > 0) {
-        onLogin({ role: "cliente", token: SUPABASE_KEY, user: { email }, clienteInfo: clients[0] });
+      const role = data.user?.user_metadata?.role === "cliente" ? "cliente" : "admin";
+      if (role === "cliente") {
+        // Busca info do cliente com o token REAL (não a anon key)
+        try {
+          const r = await fetch(SUPABASE_URL + "/rest/v1/fin_portal_clientes?email=eq." + encodeURIComponent(email) + "&ativo=eq.true&select=*", { headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + data.access_token } });
+          const clients = await r.json();
+          if (Array.isArray(clients) && clients.length > 0) {
+            onLogin({ role: "cliente", token: data.access_token, refresh: data.refresh_token, user: data.user, clienteInfo: clients[0] });
+            return;
+          }
+        } catch {}
+        setErr("Acesso de cliente não configurado — fale com a Zeste");
+        setLoad(false);
         return;
       }
-    } catch {}
+      onLogin({ role: "admin", token: data.access_token, refresh: data.refresh_token, user: data.user });
+      return;
+    }
     setErr("E-mail ou senha incorretos");
     setLoad(false);
   };
@@ -645,7 +652,20 @@ function ZesteSistemaInner() {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const handleLogout = async () => { if (session?.role === 'admin' && session?.token) await db.auth.signOut(session.token); setSession(null); };
+  // Renova o token antes de expirar (~1h) pra não derrubar saves no meio do trabalho
+  useEffect(() => {
+    if (!session?.refresh) return;
+    const renovar = async () => {
+      const d = await db.auth.refresh(session.refresh);
+      if (d?.access_token) setSession(s => s ? { ...s, token: d.access_token, refresh: d.refresh_token || s.refresh } : s);
+    };
+    const iv = setInterval(renovar, 45 * 60 * 1000);
+    const onVis = () => { if (document.visibilityState === "visible") renovar(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
+  }, [session?.refresh]);
+
+  const handleLogout = async () => { if (session?.token) await db.auth.signOut(session.token); setSession(null); };
 
   if (!session) return (
     <>
