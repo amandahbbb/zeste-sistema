@@ -287,7 +287,9 @@ function LoginScreen({ onLogin }) {
     // Login único via Supabase Auth (admin e clientes)
     const data = await db.auth.signIn(email, senha);
     if (data.access_token) {
-      const role = data.user?.user_metadata?.role === "cliente" ? "cliente" : "admin";
+      // Papel vem do app_metadata (só admin altera; cliente não edita). Fallback: user_metadata.
+      const meta = { ...(data.user?.user_metadata || {}), ...(data.user?.app_metadata || {}) };
+      const role = meta.role === "cliente" ? "cliente" : "admin";
       if (role === "cliente") {
         // Busca info do cliente com o token REAL (não a anon key)
         try {
