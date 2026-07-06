@@ -154,30 +154,47 @@ function DocsAdmin({ docs, onSave, onDelete }) {
 function EtapasAdmin({ etapas, onSave, onDelete }) {
   const [titulo, setTitulo] = useState("");
   const [data, setData] = useState("");
-  const add = () => { if (!titulo) return; onSave({ id: uid(), titulo, data, done: false }); setTitulo(""); setData(""); };
+  const [tipo, setTipo] = useState("reuniao");
+  const [escopo, setEscopo] = useState("");
+  const [preparar, setPreparar] = useState("");
+  const add = () => { if (!titulo) return; onSave({ id: uid(), titulo, data, tipo, escopo, preparar, done: false }); setTitulo(""); setData(""); setEscopo(""); setPreparar(""); };
   const toggle = e => onSave({ ...e, done: !e.done });
+  const TIPOS = [["reuniao", "Reunião"], ["entrega", "Entrega"], ["tarefa", "Tarefa"]];
   return (
     <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
       <div className="pa-card" style={{ padding: 18, marginBottom: 16 }}>
-        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>+ Adicionar próximo passo</div>
-        <label className="pa-label">Descrição da etapa</label>
-        <input className="pa-input" value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Ex: Treinamento da equipe de cozinha" />
-        <label className="pa-label">Data prevista (opcional)</label>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>+ Adicionar etapa do projeto</div>
+        <div style={{ fontSize: 12, color: C.cinzaE, marginBottom: 10 }}>O que você preencher aqui aparece no portal do cliente — copie do Notion: data, escopo do encontro e o que o cliente precisa levar (conforme o POP do projeto).</div>
+        <label className="pa-label">Tipo</label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+          {TIPOS.map(([v, l]) => <button key={v} onClick={() => setTipo(v)} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: `1.5px solid ${tipo === v ? C.lima : C.border}`, background: tipo === v ? C.lima : "#fff", color: tipo === v ? C.preto : C.cinzaE, fontWeight: 700, fontSize: 13 }}>{l}</button>)}
+        </div>
+        <label className="pa-label">Título</label>
+        <input className="pa-input" value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Ex: Reunião de Diagnóstico de Coerência" />
+        <label className="pa-label">Data (opcional)</label>
         <input className="pa-input" type="date" value={data} onChange={e => setData(e.target.value)} />
-        <button className="pa-btn" onClick={add} style={{ background: C.lima, color: C.preto, marginTop: 14, width: "100%" }}>✓ Adicionar etapa</button>
+        <label className="pa-label">O que vai ser tratado (escopo)</label>
+        <textarea className="pa-input" rows={2} value={escopo} onChange={e => setEscopo(e.target.value)} placeholder="Ex: Apresentação do diagnóstico do cardápio atual e definição das prioridades do reposicionamento." style={{ resize: "vertical", fontFamily: "inherit" }} />
+        <label className="pa-label">O que o cliente precisa para este dia (1 item por linha)</label>
+        <textarea className="pa-input" rows={3} value={preparar} onChange={e => setPreparar(e.target.value)} placeholder={"Cardápio atual impresso\nNotas de compra do último mês\n30 min sem interrupções"} style={{ resize: "vertical", fontFamily: "inherit" }} />
+        <button className="pa-btn" onClick={add} style={{ background: C.lima, color: C.preto, marginTop: 14, width: "100%" }}>Adicionar etapa</button>
       </div>
 
       <div className="pa-card">
-        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700 }}>Próximos passos ({etapas.length})</div>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700 }}>Etapas do projeto ({etapas.length})</div>
         {etapas.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhuma etapa ainda</div> :
           etapas.map((e, i) => (
-            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: i < etapas.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
-              <button onClick={() => toggle(e)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18 }}>{e.done ? "✅" : "⬜"}</button>
+            <div key={e.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderBottom: i < etapas.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
+              <button onClick={() => toggle(e)} title={e.done ? "Concluída" : "Marcar como concluída"} style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${e.done ? C.verde : C.cinzaM}`, background: e.done ? C.verde : "#fff", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0, marginTop: 2 }}>{e.done ? "✓" : ""}</button>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, textDecoration: e.done ? "line-through" : "none", color: e.done ? C.cinzaE : "inherit" }}>{e.titulo}</div>
+                <div style={{ fontWeight: 600, fontSize: 14, textDecoration: e.done ? "line-through" : "none", color: e.done ? C.cinzaE : "inherit" }}>
+                  {e.tipo && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".06em", color: C.cinzaE, marginRight: 6 }}>[{(e.tipo || "").toUpperCase()}]</span>}{e.titulo}
+                </div>
                 {e.data && <div style={{ fontSize: 11, color: C.cinzaE }}>{new Date(e.data + "T12:00:00").toLocaleDateString("pt-BR")}</div>}
+                {e.escopo && <div style={{ fontSize: 12, color: C.cinzaE, marginTop: 2 }}>{e.escopo}</div>}
+                {e.preparar && <div style={{ fontSize: 12, color: C.verde, marginTop: 2 }}>Preparar: {e.preparar.split("\n").filter(x => x.trim()).join(" · ")}</div>}
               </div>
-              <button onClick={() => { if (confirm("Remover etapa?")) onDelete(e.id); }} style={{ background: "none", border: "none", color: C.coral, cursor: "pointer", fontSize: 14 }}>🗑</button>
+              <button onClick={() => { if (confirm("Remover etapa?")) onDelete(e.id); }} style={{ color: C.coral, fontSize: 12, fontWeight: 700 }}>Remover</button>
             </div>
           ))}
       </div>
