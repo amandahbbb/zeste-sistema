@@ -36,18 +36,36 @@ function NumInput({value,onChange,step,min,placeholder,style,className}){
 }
 
 // ── CMV ENGINE ────────────────────────────────────────────────────
-function calcFicha(ficha,ingredientes,fichas){
+// Escolhe o ingrediente por nome, PRIORIZANDO a versão do cliente logado.
+// Guarda o preço base p/ transparência. meuCli = cliente_id logado ('zeste'/undefined = admin/base).
+function pickIngrediente(nome,ingredientes,meuCli){
+  const mesmos=ingredientes.filter(i=>i.nome===nome);
+  if(!mesmos.length)return null;
+  const base=mesmos.find(i=>(i._cliente||'zeste')==='zeste')||mesmos[0];
+  if(!meuCli||meuCli==='zeste')return{ref:base,precoBase:base.p||0,precoUsado:base.p||0,ehVersaoCliente:false};
+  const daCliente=mesmos.find(i=>i._cliente===meuCli);
+  if(daCliente)return{ref:daCliente,precoBase:base.p||0,precoUsado:daCliente.p||0,ehVersaoCliente:true};
+  return{ref:base,precoBase:base.p||0,precoUsado:base.p||0,ehVersaoCliente:false};
+}
+function calcFicha(ficha,ingredientes,fichas,meuCli){
   const itens=(ficha.itens||[]).map(it=>{
-    const ref=it.tipo==='ficha'?fichas.find(f=>f.nome===it.nomeRef):ingredientes.find(i=>i.nome===it.nomeRef);
-    if(!ref)return{...it,custo:0,pesoFinal:0,erro:true};
-    const precoKg=it.tipo==='ficha'?(ref._custoPorKg||0):(ref.p||0);
+    let ref,precoKg,precoBase,ehVersaoCliente=false;
+    if(it.tipo==='ficha'){
+      ref=fichas.find(f=>f.nome===it.nomeRef);
+      if(!ref)return{...it,custo:0,pesoFinal:0,erro:true};
+      precoKg=ref._custoPorKg||0;precoBase=precoKg;
+    }else{
+      const pick=pickIngrediente(it.nomeRef,ingredientes,meuCli);
+      if(!pick)return{...it,custo:0,pesoFinal:0,erro:true};
+      ref=pick.ref;precoKg=pick.precoUsado||0;precoBase=pick.precoBase||0;ehVersaoCliente=pick.ehVersaoCliente;
+    }
     const fc=it.tipo==='ficha'?1:(ref.fc||1);
     const fk=it.tipo==='ficha'?1:(ref.fk||1);
     const qtdLiq=Number(it.qtdLiquida)||0;
     const qtdBruta=qtdLiq*fc;
     const custo=qtdBruta*precoKg;
     const pesoFinal=qtdLiq*fk;
-    return{...it,ref,qtdBruta,custo,pesoFinal,precoKg,fc,fk};
+    return{...it,ref,qtdBruta,custo,pesoFinal,precoKg,precoBase,ehVersaoCliente,fc,fk};
   });
   const custoSomado=itens.reduce((s,i)=>s+i.custo,0);
   const pesoFinal=itens.reduce((s,i)=>s+i.pesoFinal,0);
@@ -57,15 +75,22 @@ function calcFicha(ficha,ingredientes,fichas){
   return{...ficha,itens,custoTotal,pesoFinal,_custoPorKg:custoPorKg};
 }
 
-function calcPrato(prato,ingredientes,fichas){
+function calcPrato(prato,ingredientes,fichas,meuCli){
   const comps=(prato.componentes||[]).map(c=>{
-    const ref=c.tipo==='ficha'?fichas.find(f=>f.nome===c.nomeRef):ingredientes.find(i=>i.nome===c.nomeRef);
-    if(!ref)return{...c,custo:0,erro:true};
-    const custoPorKg=c.tipo==='ficha'?(ref._custoPorKg||0):(ref.p||0);
+    let ref,custoPorKg,precoBase,ehVersaoCliente=false;
+    if(c.tipo==='ficha'){
+      ref=fichas.find(f=>f.nome===c.nomeRef);
+      if(!ref)return{...c,custo:0,erro:true};
+      custoPorKg=ref._custoPorKg||0;precoBase=custoPorKg;
+    }else{
+      const pick=pickIngrediente(c.nomeRef,ingredientes,meuCli);
+      if(!pick)return{...c,custo:0,erro:true};
+      ref=pick.ref;custoPorKg=pick.precoUsado||0;precoBase=pick.precoBase||0;ehVersaoCliente=pick.ehVersaoCliente;
+    }
     const qtdKg=(Number(c.qtdGramas)||0)/1000;
     const fc=c.tipo==='ficha'?1:(ref.fc||1);
     const custo=qtdKg*fc*custoPorKg;
-    return{...c,ref,custo,custoPorKg,qtdKg};
+    return{...c,ref,custo,custoPorKg,precoBase,ehVersaoCliente,qtdKg};
   });
   const custoTotal=comps.reduce((s,c)=>s+c.custo,0);
   const preco=Number(prato.precoVenda||0);
@@ -74,11 +99,11 @@ function calcPrato(prato,ingredientes,fichas){
   return{...prato,comps,custoTotal,cmv,margem,_custoPorKg:custoTotal/((comps.reduce((s,c)=>s+(c.qtdKg||0),0))||1)};
 }
 
-function calcAllFichas(fichasRaw,ingredientes){
+function calcAllFichas(fichasRaw,ingredientes,meuCli){
   const resolved=[];const nameMap=new Map();
   const resolve=(f)=>{
     if(nameMap.has(f.nome))return nameMap.get(f.nome);
-    const calc=calcFicha(f,ingredientes,resolved);
+    const calc=calcFicha(f,ingredientes,resolved,meuCli);
     resolved.push(calc);nameMap.set(f.nome,calc);
     return calc;
   };
@@ -245,7 +270,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc})
     </div>
     {calcItems.map((it,i)=>(<div key={i} style={{background:'var(--cinzaF)',borderRadius:10,padding:'12px 14px',marginBottom:8,border:'1px solid var(--cinzaM)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-        <div><div style={{fontSize:14,fontWeight:700}}>{it.nomeRef}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(it.precoKg)}/kg{it.fc>1?` · FC ${num(it.fc)}`:''}</div></div>
+        <div><div style={{fontSize:14,fontWeight:700}}>{it.nomeRef}{it.ehVersaoCliente&&<span style={{marginLeft:6,fontSize:9,fontWeight:700,color:'#92400E',background:'#FEF3C7',padding:'1px 6px',borderRadius:6}}>SEU PREÇO</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(it.precoKg)}/kg{it.ehVersaoCliente?` · base: ${brl(it.precoBase)}`:''}{it.fc>1?` · FC ${num(it.fc)}`:''}</div></div>
         <button onClick={()=>remItem(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
       <div style={{display:'flex',gap:12,alignItems:'center'}}>
@@ -305,7 +330,7 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc})
     </div>
     {calcComps.map((c,i)=>(<div key={i} style={{background:'var(--cinzaF)',borderRadius:10,padding:'12px 14px',marginBottom:8,border:'1px solid var(--cinzaM)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-        <div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:14,fontWeight:700}}>{c.nomeRef}</span>{c.tipo==='ficha'&&<span className="ft-tag" style={{background:'#FFFBEB',color:'#92400E',fontSize:9}}>FICHA</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(c.custoPorKg)}/kg{c.fc>1?` · FC ${num(c.fc)}`:''}</div></div>
+        <div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:14,fontWeight:700}}>{c.nomeRef}</span>{c.tipo==='ficha'&&<span className="ft-tag" style={{background:'#FFFBEB',color:'#92400E',fontSize:9}}>FICHA</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(c.custoPorKg)}/kg{c.ehVersaoCliente?` · base: ${brl(c.precoBase)}`:''}{c.fc>1?` · FC ${num(c.fc)}`:''}</div></div>
         <button onClick={()=>remComp(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
       <div style={{display:'flex',gap:12,alignItems:'center'}}>
@@ -846,8 +871,9 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
   }
 
   // Recalcular CMV sempre que dados mudam
-  const fichasCalc=calcAllFichas(fichasRaw,ingredientes);
-  const pratosCalc=pratosRaw.map(p=>calcPrato(p,ingredientes,fichasCalc));
+  const meuCli=clienteIdProp&&clienteIdProp!=='zeste'?clienteIdProp:null;
+  const fichasCalc=calcAllFichas(fichasRaw,ingredientes,meuCli);
+  const pratosCalc=pratosRaw.map(p=>calcPrato(p,ingredientes,fichasCalc,meuCli));
 
   const sync=async fn=>{setSyncing(true);try{await fn();}finally{setSyncing(false);}};
 
