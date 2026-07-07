@@ -179,11 +179,11 @@ button{cursor:pointer;border:none;background:none}
 .ft-tab.on{color:var(--lima)}.ft-tab.on::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--lima)}
 .ft-card{background:var(--branco);border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.07);overflow:hidden}
 .ft-kpi{background:var(--preto);border-radius:12px;padding:14px 16px;border-left:4px solid var(--lima);flex:1 1 140px;min-width:130px}
-.ft-kpi-l{font-family:var(--ff);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
-.ft-kpi-v{font-family:var(--ff);font-size:19px;font-weight:700;line-height:1}
+.ft-kpi-l{font-family:var(--ff);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+.ft-kpi-v{font-family:var(--ff);font-size:21px;font-weight:700;line-height:1}
 .ft-row{padding:13px 15px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--cinzaF);min-height:56px}
 .ft-row:hover{background:#F7F7F3}.ft-row:active{background:var(--cinzaF)}
-.ft-tag{display:inline-block;padding:3px 8px;border-radius:4px;font-family:var(--ff);font-size:10px;font-weight:700;letter-spacing:.06em}
+.ft-tag{display:inline-block;padding:3px 8px;border-radius:4px;font-family:var(--ff);font-size:11px;font-weight:700;letter-spacing:.05em}
 .ft-fab{position:fixed;bottom:calc(20px + var(--safe));right:16px;width:54px;height:54px;border-radius:50%;background:var(--lima);color:var(--preto);font-size:26px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(197,217,67,.45);z-index:150}
 .ft-overlay{position:fixed;inset:0;background:rgba(17,22,20,.55);z-index:500;display:flex;align-items:flex-end;justify-content:center}
 @media(min-width:600px){.ft-overlay{align-items:center;padding:20px}}
@@ -200,10 +200,10 @@ button{cursor:pointer;border:none;background:none}
 .ft-fg{display:flex;flex-wrap:wrap;gap:12px}
 .ft-fg>.ft-fld{flex:1 1 100%}.ft-fg>.ft-fld.h{flex:1 1 calc(50% - 6px)}
 .ft-fld{display:flex;flex-direction:column;gap:5px}
-.ft-flbl{font-size:11px;font-weight:700;color:var(--cinzaE);letter-spacing:.07em;text-transform:uppercase}
+.ft-flbl{font-size:12.5px;font-weight:700;color:var(--cinzaE);letter-spacing:.05em;text-transform:uppercase}
 .ft-sh{display:flex;align-items:center;gap:8px;margin:18px 0 10px}
 .ft-sh-bar{width:18px;height:3px;background:var(--lima);flex-shrink:0}
-.ft-sh-txt{font-family:var(--ff);font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--cinzaE);text-transform:uppercase}
+.ft-sh-txt{font-family:var(--ff);font-size:12.5px;font-weight:700;letter-spacing:.12em;color:var(--cinzaE);text-transform:uppercase}
 .ft-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;padding:11px 18px;font-size:14px;font-weight:600;min-height:44px;white-space:nowrap}
 .ft-btn-p{background:var(--verde);color:var(--branco)}.ft-btn-g{background:transparent;color:var(--verde);border:1.5px solid var(--verde)}.ft-btn-d{background:var(--coral);color:var(--branco)}
 .ft-search{display:flex;gap:8px;padding:12px 14px}
@@ -319,7 +319,7 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc})
     <div className="ft-fg" style={{marginBottom:14}}>
       <div className="ft-fld"><label className="ft-flbl">Nome do prato</label><input value={p.nome} onChange={e=>setP(pr=>({...pr,nome:e.target.value.toUpperCase()}))}/></div>
       <div className="ft-fld h"><label className="ft-flbl">Categoria</label><input value={p.categoria} onChange={e=>setP(pr=>({...pr,categoria:e.target.value}))}/></div>
-      <div className="ft-fld h"><label className="ft-flbl">Porções</label><input type="number" min="1" value={p.porcao} onChange={e=>setP(pr=>({...pr,porcao:+e.target.value}))}/></div>
+      <div className="ft-fld h"><label className="ft-flbl">Porções</label><input type="number" inputMode="numeric" min="1" value={p.porcao} onChange={e=>setP(pr=>({...pr,porcao:+e.target.value}))}/></div>
       <div className="ft-fld"><label className="ft-flbl">Preço de venda (R$)</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))}/></div>
       <div className="ft-fld"><label className="ft-flbl">Foto do prato empratado (link)</label><input value={p.foto||''} onChange={e=>setP(pr=>({...pr,foto:e.target.value}))} placeholder="Cole o link da foto (Drive, Instagram, etc)"/></div>
     </div>
