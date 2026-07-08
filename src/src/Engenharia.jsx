@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
+import { calcAllFichas, calcPrato } from "./cmv.js";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
 const sbH = t => ({ apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" });
-async function sbLoad(table, t) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?deleted_at=is.null&order=created_at.desc`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(r => ({ ...r.dados, _id: r.id })) : []; } catch { return []; } }
-async function sbLoadAll(table, t) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?order=created_at.desc`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(r => r.dados || r) : []; } catch { return []; } }
+async function sbLoad(table, t) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?deleted_at=is.null&order=created_at.desc`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(r => ({ ...r.dados, _id: r.id, _cliente: r.cliente_id })) : []; } catch { return []; } }
+async function sbLoadAll(table, t) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?order=created_at.desc`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(r => (r.dados ? { ...r.dados, _id: r.id, _cliente: r.cliente_id } : r)) : []; } catch { return []; } }
 async function sbUpsert(table, item, t) { await fetch(`${SB_URL}/rest/v1/${table}`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: item.id, dados: item, updated_at: new Date().toISOString() }) }); }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -27,51 +28,6 @@ const QUAD = {
 };
 
 // ── CMV ENGINE (replicado de Fichas) ──
-function calcFicha(ficha, ingredientes, fichas) {
-  const itens = (ficha.itens || []).map(it => {
-    const ref = it.tipo === "ficha" ? fichas.find(f => f.nome === it.nomeRef) : ingredientes.find(i => i.nome === it.nomeRef);
-    if (!ref) return { ...it, custo: 0, pesoFinal: 0 };
-    const precoKg = it.tipo === "ficha" ? (ref._custoPorKg || 0) : (ref.p || 0);
-    const fc = it.tipo === "ficha" ? 1 : (ref.fc || 1);
-    const fk = it.tipo === "ficha" ? 1 : (ref.fk || 1);
-    const qtdLiq = Number(it.qtdLiquida) || 0;
-    return { ...it, custo: qtdLiq * fc * precoKg, pesoFinal: qtdLiq * fk };
-  });
-  const custoSomado = itens.reduce((s, i) => s + i.custo, 0);
-  const pesoFinal = itens.reduce((s, i) => s + i.pesoFinal, 0);
-  const custoTotal = custoSomado * (1 + (Number(ficha.margemSeguranca) || 0));
-  return { ...ficha, custoTotal, _custoPorKg: pesoFinal > 0 ? custoTotal / pesoFinal : 0 };
-}
-function calcPrato(prato, ingredientes, fichas) {
-  const comps = (prato.componentes || []).map(c => {
-    const ref = c.tipo === "ficha" ? fichas.find(f => f.nome === c.nomeRef) : ingredientes.find(i => i.nome === c.nomeRef);
-    if (!ref) return { ...c, custo: 0 };
-    const custoPorKg = c.tipo === "ficha" ? (ref._custoPorKg || 0) : (ref.p || 0);
-    const qtdKg = (Number(c.qtdGramas) || 0) / 1000;
-    const fc = c.tipo === "ficha" ? 1 : (ref.fc || 1);
-    return { ...c, custo: qtdKg * fc * custoPorKg };
-  });
-  const custoTotal = comps.reduce((s, c) => s + c.custo, 0);
-  const preco = Number(prato.precoVenda || 0);
-  const cmv = preco > 0 ? custoTotal / preco : 0;
-  const margemRS = preco - custoTotal;
-  return { ...prato, custoTotal, cmv, margemRS, preco };
-}
-function calcAllFichas(fichasRaw, ingredientes) {
-  const resolved = []; const nameMap = new Map();
-  const resolve = f => { if (nameMap.has(f.nome)) return nameMap.get(f.nome); const calc = calcFicha(f, ingredientes, resolved); resolved.push(calc); nameMap.set(f.nome, calc); return calc; };
-  const pending = [...fichasRaw]; let it = 50;
-  while (pending.length > 0 && it-- > 0) {
-    const before = pending.length;
-    for (let i = pending.length - 1; i >= 0; i--) {
-      const f = pending[i];
-      const deps = (f.itens || []).filter(x => x.tipo === "ficha").map(x => x.nomeRef);
-      if (deps.every(d => nameMap.has(d))) { resolve(f); pending.splice(i, 1); }
-    }
-    if (pending.length === before) { pending.forEach(f => resolve(f)); break; }
-  }
-  return resolved;
-}
 
 const STYLE = `
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Nunito+Sans:wght@400;600;700&display=swap');
@@ -374,8 +330,8 @@ export default function Engenharia({ onBack, token }) {
       sbLoadAll("fin_ingredientes", token), sbLoad("fin_fichas", token), sbLoad("fin_pratos", token),
       sbLoad("eng_vendas", token), sbLoad("eng_analise", token),
     ]).then(([ings, fics, prts, vds, anl]) => {
-      const fichasCalc = calcAllFichas(fics, ings);
-      const pratosCalc = prts.map(p => calcPrato(p, ings, fichasCalc));
+      const fichasCalc = calcAllFichas(fics, ings, null); // admin: sempre a base zeste
+      const pratosCalc = prts.map(p => calcPrato(p, ings, fichasCalc, null));
       setPratos(pratosCalc);
       setVendas(vds);
       setAnalise(anl);
