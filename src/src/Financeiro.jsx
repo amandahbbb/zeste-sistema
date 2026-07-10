@@ -125,6 +125,29 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 const td=()=>new Date().toISOString().split('T')[0];
 const brl=n=>n==null||n===''?'—':'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pp=n=>(Number(n)*100).toFixed(1)+'%';
+
+// ── CONFIG DE TRIBUTAÇÃO (Simples Nacional + operadora de cartão) ──
+// Imposto NÃO é fixo: depende do anexo e do Fator R do mês (confirmar c/ contadora).
+// Operadora: cada uma tem taxas próprias por forma de pagamento. A ativa é usada no cálculo.
+const OPERADORAS_DEFAULT={
+  'InfinitePay':{'PIX':0,'DÉBITO':.0137,'CRÉDITO 1X':.0315,'CRÉDITO 2X':.0539,'CRÉDITO 3X':.0585,'CRÉDITO 4X':.0685,'CRÉDITO 5X':.072,'CRÉDITO 6X':.0755,'CRÉDITO 7-12X':.099,'BOLETO':.0099,'DINHEIRO':0,'TED / DOC':0},
+  'Ton':{'PIX':0,'DÉBITO':.0122,'CRÉDITO 1X':.0302,'CRÉDITO 2X':.0349,'CRÉDITO 3X':.0389,'CRÉDITO 4X':.0429,'CRÉDITO 5X':.0459,'CRÉDITO 6X':.0489,'CRÉDITO 7-12X':.0699,'BOLETO':.0099,'DINHEIRO':0,'TED / DOC':0},
+};
+const TRIB_DEFAULT={ impostoPct:0.06, aplicarImposto:true, operadora:'InfinitePay' };
+function getTrib(){ try{ const t=JSON.parse(localStorage.getItem('zeste_trib')||'null'); return t?{...TRIB_DEFAULT,...t}:TRIB_DEFAULT; }catch{ return TRIB_DEFAULT; } }
+function setTribCfg(t){ try{ localStorage.setItem('zeste_trib',JSON.stringify(t)); }catch{} }
+function getOperadoras(){ try{ const o=JSON.parse(localStorage.getItem('zeste_operadoras')||'null'); return o?{...OPERADORAS_DEFAULT,...o}:OPERADORAS_DEFAULT; }catch{ return OPERADORAS_DEFAULT; } }
+function setOperadoras(o){ try{ localStorage.setItem('zeste_operadoras',JSON.stringify(o)); }catch{} }
+// Taxa da forma de pagamento na operadora ATIVA
+function taxaForma(forma){ const trib=getTrib(); const ops=getOperadoras(); const tab=ops[trib.operadora]||{}; return tab[forma]??((FORMAS[forma]||{}).taxa||0); }
+// Cascata de uma receita: bruto → -imposto → -taxa operadora → líquido
+function cascataReceita(vlrBruto, forma, trib){
+  const b=+vlrBruto||0;
+  const taxaMaq=taxaForma(forma);
+  const imposto=(trib.aplicarImposto?(+trib.impostoPct||0):0)*b;
+  const taxa=taxaMaq*b;
+  return { bruto:b, imposto, taxa, taxaMaq, liquido:b-imposto-taxa };
+}
 const dbr=s=>s?s.split('-').reverse().join('/'):'—';
 const mc=c=>{if(!c)return'—';const[y,m]=c.split('-');return`${MS[+m-1]}/${y}`};
 
@@ -160,7 +183,18 @@ function Btn({children,onClick,v='p',sm,disabled,icon,type='button'}){return <bu
 function Modal({title,onClose,children}){useEffect(()=>{document.body.style.overflow='hidden';return()=>{document.body.style.overflow='';};},[]);return(<div className="overlay af" onClick={e=>e.target===e.currentTarget&&onClose()}><div className="sheet au"><div style={{width:36,height:4,background:'var(--cinzaM)',borderRadius:2,margin:'10px auto 2px'}}/><div className="mhdr"><span className="mtitle">{title}</span><button className="mclose" onClick={onClose}>✕</button></div><div style={{padding:'16px 18px 10px'}}>{children}</div><div style={{height:'calc(16px + var(--safe))'}}/></div></div>);}
 function Fld({label,children,h}){return <div className="fld" style={{flex:h?'1 1 calc(50% - 6px)':'1 1 100%'}}><label className="flbl">{label}</label>{children}</div>;}
 
-function FeeCalc({forma,vlrBruto,tipo}){if(tipo!=='RECEITA'||!vlrBruto||+vlrBruto===0)return null;const fd=FORMAS[forma]||{taxa:0};const taxa=fd.taxa;const vt=taxa*+vlrBruto;const vl=+vlrBruto-vt;if(taxa===0)return <div className="fee-box"><div className="fee-r"><span style={{color:'var(--cinzaE)'}}>Taxa {FORMAS[forma]?.label}</span><span className="tag" style={{background:'#E8F5EE',color:'var(--verde)'}}>0% — sem desconto</span></div><div className="fee-r fee-net"><span>Valor a receber</span><span style={{color:'var(--verde)',fontFamily:'var(--ff)',fontSize:17}}>{brl(+vlrBruto)}</span></div></div>;return(<div className="fee-box"><div className="fee-r"><span style={{color:'var(--cinzaE)'}}>Valor bruto</span><span>{brl(+vlrBruto)}</span></div><div className="fee-r"><span style={{color:'var(--coral)'}}>Taxa {pp(taxa)}</span><span style={{color:'var(--coral)'}}>−{brl(vt)}</span></div><div className="fee-r fee-net"><span>Valor líquido</span><span style={{color:'var(--verde)',fontFamily:'var(--ff)',fontSize:17}}>{brl(vl)}</span></div></div>);}
+function FeeCalc({forma,vlrBruto,tipo}){
+  if(tipo!=='RECEITA'||!vlrBruto||+vlrBruto===0)return null;
+  const trib=getTrib();
+  const c=cascataReceita(vlrBruto,forma,trib);
+  if(c.imposto===0&&c.taxa===0)return <div className="fee-box"><div className="fee-r"><span style={{color:'var(--cinzaE)'}}>Sem descontos</span><span className="tag" style={{background:'#E8F5EE',color:'var(--verde)'}}>recebe integral</span></div><div className="fee-r fee-net"><span>Valor a receber</span><span style={{color:'var(--verde)',fontFamily:'var(--ff)',fontSize:17}}>{brl(c.bruto)}</span></div></div>;
+  return(<div className="fee-box">
+    <div className="fee-r"><span style={{color:'var(--cinzaE)'}}>Valor bruto</span><span>{brl(c.bruto)}</span></div>
+    {c.imposto>0&&<div className="fee-r"><span style={{color:'var(--coral)'}}>Simples {pp(trib.impostoPct)}</span><span style={{color:'var(--coral)'}}>−{brl(c.imposto)}</span></div>}
+    {c.taxa>0&&<div className="fee-r"><span style={{color:'var(--coral)'}}>Taxa {trib.operadora} {pp(c.taxaMaq)}</span><span style={{color:'var(--coral)'}}>−{brl(c.taxa)}</span></div>}
+    <div className="fee-r fee-net"><span>Valor líquido</span><span style={{color:'var(--verde)',fontFamily:'var(--ff)',fontSize:17}}>{brl(c.liquido)}</span></div>
+  </div>);
+}
 
 function Anexos({anexos=[],onChange}){const ref=useRef();const[prev,setPrev]=useState(null);const add=async(files)=>{const p=await Promise.all(Array.from(files).map(compressImg));onChange([...anexos,...p]);};return(<div><div className="att-grid">{anexos.map((a,i)=>(<div key={i} style={{position:'relative'}}>{a.type==='image'?<img src={a.data} className="att-thumb" alt="" onClick={()=>setPrev(a)}/>:<div className="att-pdf" onClick={()=>setPrev(a)}><span style={{fontSize:22}}>📄</span><span style={{fontSize:9,color:'var(--cinzaE)'}}>{(a.name||'').slice(0,10)}</span></div>}<button onClick={()=>onChange(anexos.filter((_,j)=>j!==i))} style={{position:'absolute',top:-6,right:-6,width:20,height:20,borderRadius:'50%',background:'var(--coral)',color:'var(--branco)',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button></div>))}<div className="att-add" onClick={()=>ref.current.click()}><span style={{fontSize:22}}>📎</span><span>Anexo</span></div></div><input ref={ref} type="file" accept="image/*,application/pdf" capture="environment" multiple onChange={e=>add(e.target.files)}/>{prev&&(<Modal title={prev.name||'Comprovante'} onClose={()=>setPrev(null)}>{prev.type==='image'?<img src={prev.data} style={{width:'100%',borderRadius:8}} alt=""/>:<div style={{textAlign:'center',padding:32}}><span style={{fontSize:48}}>📄</span><p style={{marginTop:10,color:'var(--cinzaE)',marginBottom:14}}>{prev.name}</p><a href={prev.data} download={prev.name||'comprovante.pdf'} style={{color:'var(--azul)',fontWeight:600}}>⬇ Baixar PDF</a></div>}</Modal>)}</div>);}
 
@@ -175,7 +209,7 @@ function FormL({init,onSave,onClose,lancamentos=[]}){
   const applySug=l=>{setF(p=>({...p,descricao:l.descricao,categoria:l.categoria||p.categoria,subcategoria:l.subcategoria||p.subcategoria,vlrBruto:l.vlrBruto||p.vlrBruto,forma:l.forma||p.forma,pagador:l.pagador||p.pagador,clienteFornecedor:l.clienteFornecedor||p.clienteFornecedor}));setSugs([]);setShowSugs(false);};
   const classif = f.tipo==='RECEITA'?'receita':f.natureza==='INVESTIMENTO'||f.categoria==='INVESTIMENTO'?'investimento':f.natureza==='PRÓ-LABORE'||f.categoria==='PRÓ-LABORE'?'retirada':'desp_op';
   const setClassif = id => {const opt=CLASSIF_OPTS.find(o=>o.id===id);if(!opt)return;setF(p=>({...p,tipo:opt.tipo,natureza:opt.natureza||(opt.tipo==='DESPESA'?'DESPESA FIXA':''),categoria:opt.cat||p.categoria,status:opt.tipo==='RECEITA'?'RECEBIDO':'PAGO'}));};
-  useEffect(()=>{if(f.tipo==='RECEITA'){const fd=FORMAS[f.forma]||{taxa:0};const t=fd.taxa;const vt=f.vlrBruto?t*+f.vlrBruto:0;const vl=f.vlrBruto?+f.vlrBruto-vt:'';setF(p=>({...p,taxaPct:t,vlrTaxa:vt,vlrLiquido:vl}));};},[f.forma,f.vlrBruto,f.tipo]);
+  useEffect(()=>{if(f.tipo==='RECEITA'){const trib=getTrib();const c=cascataReceita(f.vlrBruto,f.forma,trib);setF(p=>({...p,taxaPct:c.taxaMaq,vlrTaxa:f.vlrBruto?c.taxa:0,vlrImposto:f.vlrBruto?c.imposto:0,vlrLiquido:f.vlrBruto?c.liquido:''}));};},[f.forma,f.vlrBruto,f.tipo]);
   useEffect(()=>{if(f.tipo==='RECEITA'&&!SR.includes(f.status))S('status','RECEBIDO');if(f.tipo==='DESPESA'&&!SD.includes(f.status))S('status','PAGO');},[f.tipo]);
   const sub=SUBS[f.categoria]||['OUTROS'];
   const catCustom=!CATS.includes(f.categoria);
@@ -722,6 +756,94 @@ function Lancamentos({lancamentos,lixeira,openNew,onSave,onDelete,onRestore,onPu
 }
 
 // ── DRE ──────────────────────────────────────────────────────────
+// ── ABA TRIBUTAÇÃO — Simples + operadora de cartão (Ton vs InfinitePay) ──
+function Tributacao(){
+  const[t,setT]=useState(getTrib());
+  const[ops,setOps]=useState(getOperadoras());
+  const[salvo,setSalvo]=useState(false);
+  const[compBruto,setCompBruto]=useState('5400');
+  const[compForma,setCompForma]=useState('CRÉDITO 4X');
+  const FORMAS_TX=Object.keys(FORMAS);
+
+  const salvar=()=>{ setTribCfg(t); setOperadoras(ops); setSalvo(true); setTimeout(()=>setSalvo(false),2500); if(typeof toast==='function')toast('Configuração salva','sucesso'); };
+  const setTaxaOp=(op,forma,v)=>{const num=(v.replace(/[^0-9.,]/g,'').replace(',','.')/100)||0;setOps(p=>({...p,[op]:{...p[op],[forma]:num}}));};
+  const nomes=Object.keys(ops);
+
+  // Comparador ao vivo
+  const b=+compBruto||0;
+  const linhaComp=nomes.map(nome=>{const tx=ops[nome]?.[compForma]??0;const taxa=tx*b;const imp=(t.aplicarImposto?t.impostoPct:0)*b;return{nome,tx,taxa,imp,liq:b-taxa-imp};});
+  const melhor=linhaComp.reduce((a,c)=>c.liq>a.liq?c:a,linhaComp[0]||{});
+
+  return(<div className="au page"><div className="pc" style={{maxWidth:720}}>
+    <div style={{fontSize:14,color:'var(--cinzaE)',lineHeight:1.55,marginBottom:18}}>
+      O que é descontado de cada receita até o valor que <strong>de fato</strong> sobra: imposto do Simples e taxa da maquininha. Reflete em cada lançamento e no DRE.
+    </div>
+
+    {/* Simples */}
+    <div className="card" style={{padding:'18px 20px',marginBottom:16}}>
+      <div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:800}}>Imposto — Simples Nacional</div>
+      <div style={{display:'flex',alignItems:'center',gap:12,margin:'12px 0'}}>
+        <input type="text" inputMode="decimal" value={(t.impostoPct*100).toString().replace('.',',')} onChange={e=>setT(p=>({...p,impostoPct:(e.target.value.replace(/[^0-9.,]/g,'').replace(',','.')/100)||0}))} style={{width:100,padding:'10px 12px',border:'1.5px solid var(--cinzaM)',borderRadius:8,fontSize:18,fontFamily:'var(--ff)',fontWeight:700,textAlign:'center'}}/>
+        <span style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700}}>% sobre a receita</span>
+        <label style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8,fontSize:13,cursor:'pointer'}}><input type="checkbox" checked={t.aplicarImposto} onChange={e=>setT(p=>({...p,aplicarImposto:e.target.checked}))} style={{width:18,height:18}}/>Aplicar</label>
+      </div>
+      <div style={{background:'#FBF9F2',border:'1px solid var(--cinzaM)',borderRadius:10,padding:'12px 14px',fontSize:13,color:'var(--cinzaE)',lineHeight:1.55}}>
+        <strong style={{color:'var(--verde)'}}>Seu caso:</strong> CNAE 7020-4/00 (consultoria em gestão) é <strong>Anexo III</strong> — começa em <strong>6%</strong>. Vale se o <strong>Fator R</strong> (folha + pró-labore ÷ faturamento) for ≥ 28%; senão vai pro Anexo V (15,5%). Muda mês a mês — confirme a alíquota efetiva com a contadora.
+      </div>
+    </div>
+
+    {/* Operadora ativa */}
+    <div className="card" style={{padding:'18px 20px',marginBottom:16}}>
+      <div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:800,marginBottom:8}}>Operadora de cartão</div>
+      <div style={{display:'flex',gap:8,marginBottom:6}}>
+        {nomes.map(n=><button key={n} onClick={()=>setT(p=>({...p,operadora:n}))} style={{flex:1,padding:'11px 0',borderRadius:9,border:`2px solid ${t.operadora===n?'var(--lima)':'var(--cinzaM)'}`,background:t.operadora===n?'var(--lima)':'#fff',color:t.operadora===n?'var(--preto)':'var(--cinzaE)',fontWeight:700,fontSize:14,fontFamily:'var(--ff)'}}>{n}{t.operadora===n?' ✓':''}</button>)}
+      </div>
+      <div style={{fontSize:12,color:'var(--cinzaE)'}}>A operadora marcada é a usada nos cálculos. As taxas abaixo são editáveis — ajuste conforme as reais do seu app (variam por faixa de faturamento).</div>
+    </div>
+
+    {/* Comparador ao vivo */}
+    <div className="card" style={{padding:'18px 20px',marginBottom:16,borderLeft:'5px solid var(--azul)'}}>
+      <div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:800,marginBottom:10}}>Comparar numa venda</div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+        <input type="text" inputMode="decimal" value={compBruto} onChange={e=>setCompBruto(e.target.value.replace(/[^0-9.,]/g,'').replace(',','.'))} placeholder="Valor R$" style={{flex:'1 1 120px',padding:'10px 12px',border:'1.5px solid var(--cinzaM)',borderRadius:8,fontSize:15}}/>
+        <select value={compForma} onChange={e=>setCompForma(e.target.value)} style={{flex:'1 1 130px',padding:'10px 12px',border:'1.5px solid var(--cinzaM)',borderRadius:8,fontSize:15}}>{FORMAS_TX.map(f=><option key={f} value={f}>{FORMAS[f].label}</option>)}</select>
+      </div>
+      {linhaComp.map(l=>(
+        <div key={l.nome} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',borderRadius:8,marginBottom:6,background:l.nome===melhor.nome?'#F1F7EE':'var(--cinzaF)',border:l.nome===melhor.nome?'1.5px solid var(--lima)':'1px solid transparent'}}>
+          <div>
+            <span style={{fontWeight:700,fontSize:15}}>{l.nome}</span>
+            {l.nome===melhor.nome&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:'#fff',background:'var(--verde)',padding:'2px 8px',borderRadius:8}}>MAIS LÍQUIDO</span>}
+            <div style={{fontSize:12,color:'var(--cinzaE)'}}>taxa {pp(l.tx)} = −{brl(l.taxa)} · imposto −{brl(l.imp)}</div>
+          </div>
+          <div style={{fontFamily:'var(--ff)',fontSize:19,fontWeight:800,color:'var(--verde)'}}>{brl(l.liq)}</div>
+        </div>
+      ))}
+      {linhaComp.length===2&&Math.abs(linhaComp[0].liq-linhaComp[1].liq)>0.005&&(
+        <div style={{fontSize:13,color:'var(--cinzaE)',marginTop:6}}>Diferença nesta venda: <strong style={{color:'var(--coral)'}}>{brl(Math.abs(linhaComp[0].liq-linhaComp[1].liq))}</strong> a favor da {melhor.nome}.</div>
+      )}
+    </div>
+
+    {/* Tabelas de taxas editáveis */}
+    {nomes.map(op=>(
+      <div key={op} className="card" style={{padding:'16px 18px',marginBottom:14,opacity:t.operadora===op?1:.75}}>
+        <div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:800,marginBottom:8}}>Taxas — {op}{t.operadora===op?' (ativa)':''}</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+          {FORMAS_TX.map(f=>(
+            <div key={f} style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:13,flex:1}}>{FORMAS[f].label}</span>
+              <input type="text" inputMode="decimal" value={((ops[op]?.[f]??0)*100).toString().replace('.',',')} onChange={e=>setTaxaOp(op,f,e.target.value)} style={{width:60,padding:'6px 8px',border:'1.5px solid var(--cinzaM)',borderRadius:7,fontSize:13,textAlign:'center'}}/>
+              <span style={{fontSize:12,color:'var(--cinzaE)'}}>%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+
+    <button onClick={salvar} style={{background:salvo?'var(--verde)':'var(--preto)',color:salvo?'#fff':'var(--lima)',fontFamily:'var(--ff)',fontWeight:700,fontSize:15,borderRadius:8,padding:'13px 20px',minHeight:48,width:'100%'}}>{salvo?'Salvo ✓':'Salvar configuração'}</button>
+    <div style={{fontSize:12,color:'var(--cinzaE)',textAlign:'center',marginTop:10,lineHeight:1.5}}>Vale para os próximos lançamentos e o DRE. Lançamentos já salvos mantêm o valor que tinham. Taxas de referência jun/2026 — confira no app da operadora.</div>
+  </div></div>);
+}
+
 function DRE({lancamentos}){
   const[ano,setAno]=useState(new Date().getFullYear());
   const[showDetalhe,setShowDetalhe]=useState(true);
@@ -773,7 +895,9 @@ function DRE({lancamentos}){
 
   const cp=MS.map((_,i)=>{
     const r    = gM(['receita'],[],i);
-    const dv   = gVar(i);                   // despesas variáveis (por natureza)
+    const trib = getTrib();
+    const imp  = trib.aplicarImposto?r*(+trib.impostoPct||0):0;
+    const dv   = gVar(i)+imp;                // despesas variáveis incluem o imposto do Simples
     const mb   = r-dv;
     const df   = gM(['desp_op'],[],i)-dv;  // fixed op = total op - variable
     const resOp= mb-df;                    // Resultado Operacional
@@ -1599,7 +1723,7 @@ export default function Financeiro({onBack,token}){
   const saveCliente=async item=>{await sync(async()=>{await sbUpsert('fin_clientes',item,token);setClientes(p=>p.some(c=>c.id===item.id)?p.map(c=>c.id===item.id?item:c):[item,...p]);});};
   const delCliente=async id=>{await sync(async()=>{await sbSoftDel('fin_clientes',id,token);setClientes(p=>p.filter(c=>c.id!==id));});};
 
-  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'acerto',l:'ACERTO'},{id:'cenarios',l:'CENÁRIOS'},{id:'receber',l:'RECEBER'},{id:'previsoes',l:'PREVISÕES'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'clientes',l:'CLIENTES'}];
+  const ABAS=[{id:'resumo',l:'RESUMO'},{id:'acerto',l:'ACERTO'},{id:'cenarios',l:'CENÁRIOS'},{id:'receber',l:'RECEBER'},{id:'previsoes',l:'PREVISÕES'},{id:'lancamentos',l:'LANÇAMENTOS'},{id:'dre',l:'DRE'},{id:'tributacao',l:'TRIBUTAÇÃO'},{id:'clientes',l:'CLIENTES'}];
   const fab=()=>{if(aba==='lancamentos')nL.current();else if(aba==='clientes')nC.current();else{setAba('lancamentos');setTimeout(()=>nL.current(),200);}};
 
   if(loading)return(<><style>{STYLE}</style><div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--cinzaF)'}}><div style={{textAlign:'center'}}><div style={{fontFamily:'var(--ff)',fontSize:32,fontWeight:800,color:'var(--verde)',letterSpacing:'.06em'}}>ZESTE</div><div style={{color:'var(--cinzaE)',fontSize:13,marginTop:4}}>Carregando do banco de dados…</div></div></div></>);
@@ -1627,6 +1751,7 @@ export default function Financeiro({onBack,token}){
     {aba==='cenarios'&&<Cenarios lancamentos={lancamentos} clientes={clientes} token={token}/>}
     {aba==='receber'&&<ContasReceber lancamentos={lancamentos} clientes={clientes} onSaveL={saveLancamento} setAba={setAba}/>}
     {aba==='dre'&&<DRE lancamentos={lancamentos}/>}
+    {aba==='tributacao'&&<Tributacao/>}
     {aba==='clientes'&&<Clientes clientes={clientes} onSave={saveCliente} onDelete={delCliente} openNew={nC} onSaveL={saveLancamento} lancamentos={lancamentos}/>}
     <button className="fab" onClick={fab}>+</button>
   </>);
