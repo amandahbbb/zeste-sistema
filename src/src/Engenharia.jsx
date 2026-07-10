@@ -315,32 +315,36 @@ function AbaRelatorio({ analise }) {
 
 // ── ROOT ──
 // ── ABA 4 · PRIME COST ──
-// Prime cost = (CMV + Mão de obra) / Receita. O termômetro de saúde da operação.
+// Prime cost = (CMV + Mão de obra) / Receita. Só faz sentido no CARDÁPIO COMPLETO:
+// a folha da cozinha é do cardápio inteiro, não dá pra diluí-la sobre um recorte de pratos.
+// Por isso há 2 modos: completo (prime cost real) e recorte (só CMV/margem, sem mão de obra).
 function AbaPrimeCost({ pratos, vendas, periodo, folha, onSaveFolha }) {
+  const [modo, setModo] = useState(folha.modo || "completo"); // 'completo' | 'recorte'
   const [linhas, setLinhas] = useState(folha.linhas || []);
   const [receitaExtra, setReceitaExtra] = useState(folha.receitaExtra || "");
   const [salvando, setSalvando] = useState(false);
 
-  // CMV real e receita do período (vendas × preço, vendas × custo)
   const vendasPer = vendas.filter(v => v.periodo_inicio === periodo.inicio);
-  let receitaPratos = 0, cmvTotal = 0, semVenda = 0;
+  let receitaPratos = 0, cmvTotal = 0, semVenda = 0, comVenda = 0;
   pratos.forEach(p => {
     const v = vendasPer.find(x => x.prato_id === p._id);
     if (!v || !v.quantidade) { semVenda++; return; }
+    comVenda++;
     receitaPratos += (p.preco || 0) * v.quantidade;
     cmvTotal += (p.custoTotal || 0) * v.quantidade;
   });
-  const receita = receitaPratos + (Number(receitaExtra) || 0);
+  const ehRecorte = modo === "recorte";
+  const receita = receitaPratos + (ehRecorte ? 0 : (Number(receitaExtra) || 0));
   const folhaTotal = linhas.reduce((s, l) => s + (Number(l.salario) || 0) * (1 + (Number(l.encargos) || 0) / 100), 0);
 
   const cmvPct = receita > 0 ? cmvTotal / receita : 0;
   const moPct = receita > 0 ? folhaTotal / receita : 0;
   const primeCost = cmvPct + moPct;
 
-  // Faixas de referência (food service)
   const faixa = primeCost <= 0.60 ? { cor: C.verde, txt: "Saudável", desc: "Sua operação está no verde. Prime cost até 60% é o alvo da maioria dos restaurantes lucrativos." }
-    : primeCost <= 0.65 ? { cor: "#B8860B", txt: "Atenção", desc: "Está na zona limítrofe. Entre 60% e 65% ainda dá lucro, mas sobra pouca margem para imprevistos — vale apertar." }
+    : primeCost <= 0.65 ? { cor: "#B8860B", txt: "Atenção", desc: "Zona limítrofe. Entre 60% e 65% ainda dá lucro, mas sobra pouca margem para imprevistos — vale apertar." }
     : { cor: C.coral, txt: "Crítico", desc: "Acima de 65%, a operação consome o lucro. Cada real que entra, mais de 65 centavos já saem em comida e equipe antes de pagar aluguel, energia e o resto." };
+  const faixaCMV = cmvPct <= 0.32 ? { cor: C.verde, txt: "Saudável" } : cmvPct <= 0.38 ? { cor: "#B8860B", txt: "Atenção" } : { cor: C.coral, txt: "Alto" };
 
   const gargalo = moPct > cmvPct
     ? "O peso maior está na MÃO DE OBRA, não na comida. A cozinha pode estar superdimensionada para o volume, ou há retrabalho/ociosidade. A comida está sob controle."
@@ -349,7 +353,7 @@ function AbaPrimeCost({ pratos, vendas, periodo, folha, onSaveFolha }) {
   const addLinha = () => setLinhas([...linhas, { id: uid(), cargo: "", salario: "", encargos: "" }]);
   const upLinha = (id, campo, val) => setLinhas(linhas.map(l => l.id === id ? { ...l, [campo]: val } : l));
   const rmLinha = id => setLinhas(linhas.filter(l => l.id !== id));
-  const salvar = async () => { setSalvando(true); await onSaveFolha({ linhas, receitaExtra }); setSalvando(false); };
+  const salvar = async () => { setSalvando(true); await onSaveFolha({ linhas, receitaExtra, modo }); setSalvando(false); };
 
   const Barra = ({ label, valor, pct, cor }) => (
     <div style={{ marginBottom: 12 }}>
@@ -362,61 +366,106 @@ function AbaPrimeCost({ pratos, vendas, periodo, folha, onSaveFolha }) {
       </div>
     </div>
   );
+  const MB = ({ id, titulo, sub }) => (
+    <button onClick={() => setModo(id)} style={{ flex: 1, textAlign: "left", padding: "12px 14px", borderRadius: 10, border: `2px solid ${modo === id ? C.lima : C.border}`, background: modo === id ? "#FBFCF5" : "#fff", cursor: "pointer" }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 15, color: modo === id ? C.preto : C.cinzaE }}>{titulo}</div>
+      <div style={{ fontSize: 12, color: C.cinzaE, marginTop: 2, lineHeight: 1.4 }}>{sub}</div>
+    </button>
+  );
 
   return (
     <div style={{ padding: 16, maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ fontSize: 14, color: C.cinzaE, lineHeight: 1.55, marginBottom: 16 }}>
-        O <strong>prime cost</strong> soma os dois maiores custos de um restaurante — a <strong>comida (CMV)</strong> e a <strong>mão de obra</strong> — e mostra quanto de cada R$100 vendidos é consumido por eles. É o número que diz, antes de qualquer outra conta, se a operação fecha no azul.
+      <div style={{ fontSize: 14, color: C.cinzaE, lineHeight: 1.55, marginBottom: 14 }}>
+        O <strong>prime cost</strong> soma os dois maiores custos de um restaurante — <strong>comida (CMV)</strong> e <strong>mão de obra</strong> — e mostra quanto de cada R$100 vendidos é consumido por eles. Antes, escolha o tipo de análise:
       </div>
+
+      {/* Seletor de modo */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+        <MB id="completo" titulo="Cardápio completo" sub="Todos os pratos vendidos. Calcula o prime cost real (CMV + mão de obra)." />
+        <MB id="recorte" titulo="Recorte de pratos" sub="Só alguns pratos do cardápio. Mostra CMV e margem — sem mão de obra." />
+      </div>
+      {ehRecorte && (
+        <div style={{ fontSize: 13, color: C.cinzaE, background: "#FBF9F2", border: `1px solid ${C.cinzaM}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, lineHeight: 1.5 }}>
+          <strong>Por que sem mão de obra?</strong> A folha da cozinha produz o cardápio inteiro — não dá pra diluí-la sobre um punhado de pratos sem inflar o número e mentir. Nesse modo mostramos o que é <strong>rastreável por prato</strong>: o custo da comida e a margem. O prime cost real exige o cardápio completo.
+        </div>
+      )}
 
       {/* Resultado */}
-      <div className="eng-card" style={{ padding: 22, marginBottom: 16, borderLeft: `5px solid ${faixa.cor}` }}>
-        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".08em", color: C.cinzaE }}>PRIME COST DO PERÍODO</div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", margin: "4px 0 10px" }}>
-          <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 44, fontWeight: 800, color: faixa.cor, lineHeight: 1 }}>{receita > 0 ? (primeCost * 100).toFixed(1) + "%" : "—"}</span>
-          <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700, color: "#fff", background: faixa.cor, padding: "4px 12px", borderRadius: 10 }}>{faixa.txt}</span>
+      {!ehRecorte ? (
+        <div className="eng-card" style={{ padding: 22, marginBottom: 16, borderLeft: `5px solid ${faixa.cor}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".08em", color: C.cinzaE }}>PRIME COST DO PERÍODO</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", margin: "4px 0 10px" }}>
+            <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 44, fontWeight: 800, color: faixa.cor, lineHeight: 1 }}>{receita > 0 ? (primeCost * 100).toFixed(1) + "%" : "—"}</span>
+            <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700, color: "#fff", background: faixa.cor, padding: "4px 12px", borderRadius: 10 }}>{faixa.txt}</span>
+          </div>
+          {receita > 0 ? <>
+            <div style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>{faixa.desc}</div>
+            <Barra label="Comida (CMV)" valor={cmvTotal} pct={cmvPct} cor={C.coral} />
+            <Barra label="Mão de obra" valor={folhaTotal} pct={moPct} cor={C.azul} />
+            <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 12, paddingTop: 12, fontSize: 13, color: C.cinzaE }}>
+              Receita considerada: <strong style={{ color: C.preto }}>{brl(receita)}</strong> · sobra depois do prime cost: <strong style={{ color: primeCost < 0.65 ? C.verde : C.coral }}>{brl(receita - cmvTotal - folhaTotal)}</strong> para aluguel, energia, impostos e lucro.
+            </div>
+            <div style={{ marginTop: 14, background: "#FBF9F2", border: `1px solid ${C.cinzaM}`, borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".05em", color: C.verde, marginBottom: 4 }}>LEITURA DA ZESTE</div>
+              <div style={{ fontSize: 14, lineHeight: 1.6 }}>{gargalo}</div>
+            </div>
+          </> : (
+            <div style={{ fontSize: 14, color: C.cinzaE, lineHeight: 1.6 }}>
+              Para calcular, cadastre <strong>vendas</strong> na aba "Dados de Venda" e a <strong>folha da cozinha</strong> abaixo.
+              {semVenda > 0 && ` Hoje ${semVenda} prato(s) estão sem quantidade vendida no período.`}
+            </div>
+          )}
         </div>
-        {receita > 0 ? <>
-          <div style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 14 }}>{faixa.desc}</div>
-          <Barra label="Comida (CMV)" valor={cmvTotal} pct={cmvPct} cor={C.coral} />
-          <Barra label="Mão de obra" valor={folhaTotal} pct={moPct} cor={C.azul} />
-          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 12, paddingTop: 12, fontSize: 13, color: C.cinzaE }}>
-            Receita considerada: <strong style={{ color: C.preto }}>{brl(receita)}</strong> · sobra depois do prime cost: <strong style={{ color: primeCost < 0.65 ? C.verde : C.coral }}>{brl(receita - cmvTotal - folhaTotal)}</strong> para pagar aluguel, energia, impostos e lucro.
-          </div>
-          <div style={{ marginTop: 14, background: "#FBF9F2", border: `1px solid ${C.cinzaM}`, borderRadius: 12, padding: "14px 16px" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".05em", color: C.verde, marginBottom: 4 }}>LEITURA DA ZESTE</div>
-            <div style={{ fontSize: 14, lineHeight: 1.6 }}>{gargalo}</div>
-          </div>
-        </> : (
-          <div style={{ fontSize: 14, color: C.cinzaE, lineHeight: 1.6 }}>
-            Para calcular, é preciso ter <strong>vendas cadastradas</strong> na aba "Dados de Venda" (para saber a receita e o CMV real) e a <strong>folha da cozinha</strong> abaixo.
-            {semVenda > 0 && ` Hoje ${semVenda} prato(s) estão sem quantidade vendida no período.`}
-          </div>
-        )}
-      </div>
-
-      {/* Folha da cozinha */}
-      <div className="eng-card" style={{ padding: 18 }}>
-        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 17, marginBottom: 2 }}>Folha da cozinha</div>
-        <div style={{ fontSize: 13, color: C.cinzaE, marginBottom: 14 }}>Some só a equipe ligada à produção (cozinha, confeitaria, apoio). Encargos = % sobre o salário (férias, 13º, FGTS, INSS — na CLT gira em torno de 70-80%).</div>
-        {linhas.map(l => (
-          <div key={l.id} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <input placeholder="Cargo (ex: Cozinheira)" value={l.cargo} onChange={e => upLinha(l.id, "cargo", e.target.value)} style={{ flex: "2 1 140px", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 15 }} />
-            <input placeholder="Salário R$" inputMode="decimal" value={l.salario} onChange={e => upLinha(l.id, "salario", e.target.value.replace(/[^0-9.,]/g, "").replace(",", "."))} style={{ flex: "1 1 90px", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 15 }} />
-            <input placeholder="Encargos %" inputMode="decimal" value={l.encargos} onChange={e => upLinha(l.id, "encargos", e.target.value.replace(/[^0-9.,]/g, "").replace(",", "."))} style={{ flex: "1 1 80px", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 15 }} />
-            <button onClick={() => rmLinha(l.id)} style={{ color: C.coral, fontSize: 13, fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>remover</button>
-          </div>
-        ))}
-        <button onClick={addLinha} style={{ marginTop: 4, color: C.azul, fontWeight: 700, fontSize: 14, background: "none", border: `1.5px dashed ${C.cinzaM}`, borderRadius: 8, padding: "9px 14px", cursor: "pointer", width: "100%", minHeight: 44 }}>+ Adicionar pessoa</button>
-
-        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
-          <label style={{ fontSize: 12.5, fontWeight: 700, color: C.cinzaE, letterSpacing: ".05em", textTransform: "uppercase" }}>Receita extra do período (opcional)</label>
-          <div style={{ fontSize: 12, color: C.cinzaE, margin: "2px 0 6px" }}>Vendas que não passam pelos pratos cadastrados (bebidas, delivery, couvert). Some aqui para o prime cost refletir a receita real.</div>
-          <input placeholder="R$ 0,00" inputMode="decimal" value={receitaExtra} onChange={e => setReceitaExtra(e.target.value.replace(/[^0-9.,]/g, "").replace(",", "."))} style={{ padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 15, width: "100%", maxWidth: 200 }} />
+      ) : (
+        <div className="eng-card" style={{ padding: 22, marginBottom: 16, borderLeft: `5px solid ${faixaCMV.cor}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".08em", color: C.cinzaE }}>ANÁLISE DO RECORTE ({comVenda} prato{comVenda !== 1 ? "s" : ""})</div>
+          {receita > 0 ? <>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", margin: "4px 0 10px" }}>
+              <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 44, fontWeight: 800, color: faixaCMV.cor, lineHeight: 1 }}>{(cmvPct * 100).toFixed(1) + "%"}</span>
+              <span style={{ fontSize: 15, color: C.cinzaE }}>CMV destes pratos</span>
+              <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 13, fontWeight: 700, color: "#fff", background: faixaCMV.cor, padding: "3px 10px", borderRadius: 9 }}>{faixaCMV.txt}</span>
+            </div>
+            <Barra label="Comida (CMV)" valor={cmvTotal} pct={cmvPct} cor={C.coral} />
+            <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 12, paddingTop: 12, fontSize: 14, lineHeight: 1.6 }}>
+              Faturamento destes pratos: <strong>{brl(receitaPratos)}</strong><br />
+              Custo de comida: <strong style={{ color: C.coral }}>{brl(cmvTotal)}</strong><br />
+              Margem de contribuição (antes da mão de obra): <strong style={{ color: C.verde }}>{brl(receitaPratos - cmvTotal)}</strong>
+            </div>
+            <div style={{ marginTop: 14, background: "#FBF9F2", border: `1px solid ${C.cinzaM}`, borderRadius: 12, padding: "14px 16px", fontSize: 13, color: C.cinzaE, lineHeight: 1.55 }}>
+              Esta é a margem que estes pratos deixam <strong>antes</strong> de descontar mão de obra e custos fixos. Para o prime cost completo (com equipe), analise o cardápio inteiro no modo "Cardápio completo".
+            </div>
+          </> : (
+            <div style={{ fontSize: 14, color: C.cinzaE, lineHeight: 1.6 }}>Cadastre as vendas dos pratos deste recorte na aba "Dados de Venda".{semVenda > 0 && ` (${semVenda} prato(s) sem venda no período.)`}</div>
+          )}
         </div>
+      )}
 
-        <button onClick={salvar} disabled={salvando} style={{ marginTop: 16, background: C.lima, color: C.preto, fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 15, borderRadius: 8, padding: "12px 20px", border: "none", cursor: "pointer", width: "100%", minHeight: 46, opacity: salvando ? .6 : 1 }}>{salvando ? "Salvando…" : "Salvar folha e recalcular"}</button>
-      </div>
+      {/* Folha da cozinha — só no modo completo */}
+      {!ehRecorte && (
+        <div className="eng-card" style={{ padding: 18 }}>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 17, marginBottom: 2 }}>Folha da cozinha</div>
+          <div style={{ fontSize: 13, color: C.cinzaE, marginBottom: 14 }}>Some só a equipe ligada à produção (cozinha, confeitaria, apoio). Encargos = % sobre o salário (férias, 13º, FGTS, INSS — na CLT gira em torno de 70-80%).</div>
+          {linhas.map(l => (
+            <div key={l.id} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input placeholder="Cargo (ex: Cozinheira)" value={l.cargo} onChange={e => upLinha(l.id, "cargo", e.target.value)} style={{ flex: "2 1 140px", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 15 }} />
+              <input placeholder="Salário R$" inputMode="decimal" value={l.salario} onChange={e => upLinha(l.id, "salario", e.target.value.replace(/[^0-9.,]/g, "").replace(",", "."))} style={{ flex: "1 1 90px", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 15 }} />
+              <input placeholder="Encargos %" inputMode="decimal" value={l.encargos} onChange={e => upLinha(l.id, "encargos", e.target.value.replace(/[^0-9.,]/g, "").replace(",", "."))} style={{ flex: "1 1 80px", padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 15 }} />
+              <button onClick={() => rmLinha(l.id)} style={{ color: C.coral, fontSize: 13, fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>remover</button>
+            </div>
+          ))}
+          <button onClick={addLinha} style={{ marginTop: 4, color: C.azul, fontWeight: 700, fontSize: 14, background: "none", border: `1.5px dashed ${C.cinzaM}`, borderRadius: 8, padding: "9px 14px", cursor: "pointer", width: "100%", minHeight: 44 }}>+ Adicionar pessoa</button>
+
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+            <label style={{ fontSize: 12.5, fontWeight: 700, color: C.cinzaE, letterSpacing: ".05em", textTransform: "uppercase" }}>Receita extra do período (opcional)</label>
+            <div style={{ fontSize: 12, color: C.cinzaE, margin: "2px 0 6px" }}>Vendas que não passam pelos pratos cadastrados (bebidas, delivery, couvert). Some aqui para o prime cost refletir a receita real.</div>
+            <input placeholder="R$ 0,00" inputMode="decimal" value={receitaExtra} onChange={e => setReceitaExtra(e.target.value.replace(/[^0-9.,]/g, "").replace(",", "."))} style={{ padding: "10px 12px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 15, width: "100%", maxWidth: 200 }} />
+          </div>
+          <button onClick={salvar} disabled={salvando} style={{ marginTop: 16, background: C.lima, color: C.preto, fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 15, borderRadius: 8, padding: "12px 20px", border: "none", cursor: "pointer", width: "100%", minHeight: 46, opacity: salvando ? .6 : 1 }}>{salvando ? "Salvando…" : "Salvar folha e recalcular"}</button>
+        </div>
+      )}
+      {ehRecorte && (
+        <button onClick={salvar} disabled={salvando} style={{ background: C.lima, color: C.preto, fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 15, borderRadius: 8, padding: "12px 20px", border: "none", cursor: "pointer", width: "100%", minHeight: 46, opacity: salvando ? .6 : 1 }}>{salvando ? "Salvando…" : "Salvar preferência deste modo"}</button>
+      )}
     </div>
   );
 }
