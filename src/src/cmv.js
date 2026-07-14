@@ -30,8 +30,10 @@ export function calcFicha(ficha,ingredientes,fichas,meuCli){
       if(!pick)return{...it,custo:0,pesoFinal:0,erro:true};
       ref=pick.ref;precoKg=pick.precoUsado||0;precoBase=pick.precoBase||0;ehVersaoCliente=pick.ehVersaoCliente;
     }
-    const fc=it.tipo==='ficha'?1:(ref.fc||1);
-    const fk=it.tipo==='ficha'?1:(ref.fk||1);
+    // FC/FK: o valor definido NO ITEM da ficha (vindo da planilha/metodologia) tem prioridade;
+    // sem override, usa o do cadastro do ingrediente. Fichas-componente não têm fator.
+    const fc=it.tipo==='ficha'?1:(it.fc!=null&&it.fc!==''?+it.fc:(ref.fc||1));
+    const fk=it.tipo==='ficha'?1:(it.fk!=null&&it.fk!==''?+it.fk:(ref.fk||1));
     const qtdLiq=Number(it.qtdLiquida)||0;
     const qtdBruta=qtdLiq*fc;
     const custo=qtdBruta*precoKg;
@@ -81,11 +83,12 @@ export function calcPrato(prato,ingredientes,fichas,meuCli){
       ref=pick.ref;custoPorKg=pick.precoUsado||0;precoBase=pick.precoBase||0;ehVersaoCliente=pick.ehVersaoCliente;
     }
     const qtdKg=(Number(c.qtdGramas)||0)/1000;
-    const fc=c.tipo==='ficha'?1:(ref.fc||1);
+    const fc=c.tipo==='ficha'?1:(c.fc!=null&&c.fc!==''?+c.fc:(ref.fc||1));
     const custo=qtdKg*fc*custoPorKg;
     return{...c,ref,custo,custoPorKg,precoBase,ehVersaoCliente,qtdKg};
   });
-  const custoTotal=comps.reduce((s,c)=>s+c.custo,0);
+  // Margem de segurança do prato (a planilha usa 5%). Prato sem o campo = 0 (nada muda).
+  const custoTotal=comps.reduce((s,c)=>s+c.custo,0)*(1+(+prato.margemSeguranca||0));
   const preco=Number(prato.precoVenda||0);
   const cmv=preco>0?custoTotal/preco:0;
   const margem=preco>0?(preco-custoTotal)/preco:0;
