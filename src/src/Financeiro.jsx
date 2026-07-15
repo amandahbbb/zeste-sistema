@@ -394,7 +394,12 @@ function FormC({init,onSave,onClose}){
   const updParc=(i,k,v)=>setParcCustom(prev=>prev.map((p,j)=>j===i?{...p,[k]:v}:p));
   const addParc=()=>setParcCustom(prev=>[...prev,{id:prev.length+1,valor:'',vencimento:''}]);
   const rmParc=i=>setParcCustom(prev=>prev.filter((_,j)=>j!==i));
-  return(<form onSubmit={e=>{e.preventDefault();onSave({...f,_parcCustom:f.tipoCobranca==='parcelado'?parcCustom:null});}}><div className="fg"><Fld label="Nome do Cliente" h><input required value={f.cliente} onChange={e=>S('cliente',e.target.value)} placeholder="Nome"/></Fld><Fld label="Estabelecimento" h><input value={f.estabelecimento} onChange={e=>S('estabelecimento',e.target.value)} placeholder="Restaurante / Bar"/></Fld><Fld label="Projeto / Escopo"><input required value={f.projeto} onChange={e=>S('projeto',e.target.value)} placeholder="Descreva o escopo"/></Fld><Fld label="Status" h><select value={f.statusProjeto} onChange={e=>S('statusProjeto',e.target.value)}>{Object.keys(SPROJ).map(s=><option key={s}>{s}</option>)}</select></Fld><Fld label="Forma Pgto" h><select value={f.forma} onChange={e=>S('forma',e.target.value)}>{Object.entries(FORMAS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}</select></Fld><Fld label="Início" h><input type="date" value={f.inicio} onChange={e=>S('inicio',e.target.value)}/></Fld><Fld label="Prazo Previsto" h><input type="date" value={f.prazo} onChange={e=>S('prazo',e.target.value)}/></Fld><Fld label="Valor Contratado (R$)" h><NumBR value={f.vlrContratado} onChange={v=>S('vlrContratado',v)}/></Fld><Fld label="Valor Recebido (R$)" h><NumBR value={f.vlrRecebido} onChange={v=>S('vlrRecebido',v)}/></Fld><Fld label="Tipo de Cobrança">
+  // Desconto do contrato: forma de cartão + taxa manual opcional + imposto do Simples
+  const trib0=getTrib();
+  const[contFormaTaxa,setContFormaTaxa]=useState(()=>init?.contFormaTaxa??taxaForma('CRÉDITO 4X'));
+  const[contImposto,setContImposto]=useState(()=>init?.contImposto??(trib0.aplicarImposto?trib0.impostoPct:0));
+  const liqValor=v=>{const b=+(v)||0;return b-b*(+contFormaTaxa||0);}; // o que entra na conta (taxa já sai na hora)
+  return(<form onSubmit={e=>{e.preventDefault();onSave({...f,contFormaTaxa,contImposto,_parcCustom:f.tipoCobranca==='parcelado'?parcCustom:null});}}><div className="fg"><Fld label="Nome do Cliente" h><input required value={f.cliente} onChange={e=>S('cliente',e.target.value)} placeholder="Nome"/></Fld><Fld label="Estabelecimento" h><input value={f.estabelecimento} onChange={e=>S('estabelecimento',e.target.value)} placeholder="Restaurante / Bar"/></Fld><Fld label="Projeto / Escopo"><input required value={f.projeto} onChange={e=>S('projeto',e.target.value)} placeholder="Descreva o escopo"/></Fld><Fld label="Status" h><select value={f.statusProjeto} onChange={e=>S('statusProjeto',e.target.value)}>{Object.keys(SPROJ).map(s=><option key={s}>{s}</option>)}</select></Fld><Fld label="Forma Pgto" h><select value={f.forma} onChange={e=>S('forma',e.target.value)}>{Object.entries(FORMAS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}</select></Fld><Fld label="Início" h><input type="date" value={f.inicio} onChange={e=>S('inicio',e.target.value)}/></Fld><Fld label="Prazo Previsto" h><input type="date" value={f.prazo} onChange={e=>S('prazo',e.target.value)}/></Fld><Fld label="Valor Contratado (R$)" h><NumBR value={f.vlrContratado} onChange={v=>S('vlrContratado',v)}/></Fld><Fld label="Valor Recebido (R$)" h><NumBR value={f.vlrRecebido} onChange={v=>S('vlrRecebido',v)}/></Fld><Fld label="Tipo de Cobrança">
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7,marginTop:3}}>
         {[['unico','💳 Único','Pagamento em uma vez'],['parcelado','📋 Parcelado','Dividido em parcelas'],['mensal','🔄 Mensal','Valor recorrente mensal']].map(([id,l,desc])=>(
           <button key={id} type="button" onClick={()=>S('tipoCobranca',id)} style={{padding:'9px 8px',borderRadius:7,border:'2px solid '+(f.tipoCobranca===id?'var(--verde)':'var(--cinzaM)'),background:f.tipoCobranca===id?'var(--verde)':'transparent',color:f.tipoCobranca===id?'var(--branco)':'var(--cinzaE)',cursor:'pointer',textAlign:'center'}}>
@@ -415,7 +420,7 @@ function FormC({init,onSave,onClose}){
         {parcCustom.map((p,i)=>(
           <div key={p.id} style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr auto',gap:6,alignItems:'center',background:'var(--cinzaF)',borderRadius:8,padding:'8px 10px'}}>
             <span style={{fontFamily:'var(--ff)',fontSize:12,fontWeight:700,color:'var(--cinzaE)',minWidth:24}}>{i+1}×</span>
-            <div><div style={{fontSize:9,color:'var(--cinzaE)',marginBottom:2,fontWeight:700}}>VALOR (R$)</div><NumBR value={p.valor} onChange={v=>updParc(i,'valor',v)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13,fontFamily:'var(--ff)',fontWeight:700,color:'var(--verde)'}}/></div>
+            <div><div style={{fontSize:9,color:'var(--cinzaE)',marginBottom:2,fontWeight:700}}>VALOR (R$)</div><NumBR value={p.valor} onChange={v=>updParc(i,'valor',v)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13,fontFamily:'var(--ff)',fontWeight:700,color:'var(--verde)'}}/>{(+contFormaTaxa>0||+contImposto>0)&&+(p.valor)>0&&<div style={{fontSize:9.5,color:'var(--cinzaE)',marginTop:2}}>líq. {brl(liqValor(p.valor))}</div>}</div>
             <div><div style={{fontSize:9,color:'var(--cinzaE)',marginBottom:2,fontWeight:700}}>VENCIMENTO</div><input type="date" value={p.vencimento} onChange={e=>updParc(i,'vencimento',e.target.value)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13}}/></div>
             {parcCustom.length>1&&<button type="button" onClick={()=>rmParc(i)} style={{background:'#FEE2E2',border:'none',borderRadius:6,color:'var(--coral)',padding:'6px 8px',cursor:'pointer',fontSize:13}}>✕</button>}
           </div>
@@ -425,6 +430,34 @@ function FormC({init,onSave,onClose}){
         <span style={{fontSize:12,color:'var(--cinzaE)'}}>Total definido</span>
         <span style={{fontFamily:'var(--ff)',fontWeight:700,color:'var(--verde)',fontSize:14}}>{brl(parcCustom.reduce((s,p)=>s+(+(p.valor)||0),0))}</span>
       </div>
+      {(()=>{const tot=parcCustom.reduce((s,p)=>s+(+(p.valor)||0),0);const vImp=tot*(+contImposto||0);const vTax=tot*(+contFormaTaxa||0);const entra=tot-vTax;const sobra=entra-vImp;return(
+      <div style={{marginTop:8,border:'1px solid var(--cinzaM)',borderRadius:9,padding:'12px 14px'}}>
+        <div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.06em',marginBottom:8}}>DESCONTOS SOBRE O CONTRATO</div>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:10}}>
+          <div style={{flex:'1 1 130px'}}>
+            <div style={{fontSize:9,color:'var(--cinzaE)',fontWeight:700,marginBottom:2}}>TAXA CARTÃO (%)</div>
+            <div style={{display:'flex',gap:4,alignItems:'center'}}>
+              <input type="text" inputMode="decimal" value={(+contFormaTaxa*100).toString().replace('.',',')} onChange={e=>setContFormaTaxa((e.target.value.replace(/[^0-9.,]/g,'').replace(',','.')/100)||0)} style={{width:64,border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13,textAlign:'center'}}/>
+              <select onChange={e=>{if(e.target.value)setContFormaTaxa(taxaForma(e.target.value));}} value="" style={{flex:1,border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 6px',fontSize:11,color:'var(--cinzaE)'}}>
+                <option value="">{trib0.operadora}…</option>
+                {Object.keys(FORMAS).filter(k=>k.includes('CRÉDITO')||k==='DÉBITO').map(k=><option key={k} value={k}>{FORMAS[k].label} ({pp(taxaForma(k))})</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{flex:'1 1 90px'}}>
+            <div style={{fontSize:9,color:'var(--cinzaE)',fontWeight:700,marginBottom:2}}>IMPOSTO (%)</div>
+            <input type="text" inputMode="decimal" value={(+contImposto*100).toString().replace('.',',')} onChange={e=>setContImposto((e.target.value.replace(/[^0-9.,]/g,'').replace(',','.')/100)||0)} style={{width:64,border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13,textAlign:'center'}}/>
+          </div>
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'2px 0',color:'var(--cinzaE)'}}><span>Valor do contrato</span><span>{brl(tot)}</span></div>
+        {vTax>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'2px 0',color:'var(--coral)'}}><span>Taxa cartão {pp(contFormaTaxa)} (descontada na hora)</span><span>−{brl(vTax)}</span></div>}
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:5,paddingTop:7,borderTop:'1px solid var(--cinzaF)'}}><span style={{fontWeight:700,fontSize:13}}>Entra na conta</span><span style={{fontFamily:'var(--ff)',fontWeight:800,fontSize:16,color:'var(--azul)'}}>{brl(entra)}</span></div>
+        {vImp>0&&<>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'6px 0 2px',color:'var(--coral)'}}><span>Imposto Simples {pp(contImposto)} (no DAS do mês)</span><span>−{brl(vImp)}</span></div>
+          <div style={{display:'flex',justifyContent:'space-between',marginTop:5,paddingTop:7,borderTop:'1px solid var(--cinzaM)'}}><span style={{fontWeight:700,fontSize:13}}>Sobra de verdade</span><span style={{fontFamily:'var(--ff)',fontWeight:800,fontSize:16,color:'var(--verde)'}}>{brl(sobra)}</span></div>
+        </>}
+        <div style={{fontSize:10,color:'var(--cinzaE)',marginTop:8,lineHeight:1.5}}>A taxa do cartão já sai quando a cliente paga (você recebe o "entra na conta"). O imposto é apurado depois, no DAS mensal sobre o faturamento — por isso aparece separado.</div>
+      </div>);})()}
     </div>}
     {f.tipoCobranca==='mensal'&&f.vlrContratado&&<div style={{padding:'10px 14px',background:'var(--cinzaF)',borderRadius:8,fontSize:12,color:'var(--cinzaE)'}}>
       🔄 {brl(+(f.vlrContratado)||0)}/mês por {f.duracaoMeses} {f.duracaoMeses===1?'mês':'meses'} · todo dia {f.diaPagamento}
