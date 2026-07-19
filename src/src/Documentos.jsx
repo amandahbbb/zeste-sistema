@@ -167,6 +167,7 @@ export default function Documentos({ token, clientes = [] }) {
   const [gerando, setGerando] = useState(false); // modal gerar caderno automático
   const [gerTipo, setGerTipo] = useState("caderno"); // caderno | praca
   const [gerLoading, setGerLoading] = useState(false);
+  const [verAuto, setVerAuto] = useState(null); // visualizador inline de caderno/fichas de praça
 
   useEffect(() => { sbLoad(token).then(d => { setDocs(d); setLoading(false); }); }, []);
 
@@ -187,6 +188,26 @@ export default function Documentos({ token, clientes = [] }) {
   };
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: C.cinzaE }}><style>{STYLE}</style>Carregando documentos…</div>;
+
+  // VISUALIZADOR (caderno automático / fichas de praça) — dentro do app, com Voltar
+  if (verAuto) {
+    const htmlDoc = /name=["']viewport["']/i.test(verAuto.html || "")
+      ? (verAuto.html || "")
+      : (verAuto.html || "").replace(/<head>/i, '<head><meta name="viewport" content="width=device-width, initial-scale=1">');
+    return (
+      <div className="doc-page">
+        <style>{STYLE}</style>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <button onClick={() => setVerAuto(null)} style={{ color: C.verde, background: "none", border: "none", fontFamily: "'Antonio',sans-serif", fontSize: 16, fontWeight: 700, cursor: "pointer", minHeight: 44, padding: 0 }}>‹ Voltar</button>
+          <div style={{ flex: 1, fontFamily: "'Antonio',sans-serif", fontWeight: 700, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{verAuto.titulo}</div>
+          <button className="doc-btn" onClick={() => { const f = document.getElementById("doc-view-frame"); try { f.contentWindow.focus(); f.contentWindow.print(); } catch { } }} style={{ background: C.azul, color: "#fff" }}>🖨 Imprimir</button>
+        </div>
+        <div className="doc-card" style={{ overflow: "hidden" }}>
+          <iframe id="doc-view-frame" title={verAuto.titulo} srcDoc={htmlDoc} style={{ display: "block", width: "100%", height: "78vh", border: "none", background: "#fff" }} />
+        </div>
+      </div>
+    );
+  }
 
   // EDITOR
   if (editing) return <Editor doc={editing} clientes={clientes} onSave={salvar} onDelete={excluir} onCancel={() => setEditing(null)} />;
@@ -241,7 +262,7 @@ export default function Documentos({ token, clientes = [] }) {
             const m = ehAuto ? { icon: ehPraca ? "🖼" : "⚡", nome: ehPraca ? "Fichas de Praça" : "Caderno Automático" } : (MODELOS[d.modelo] || {});
             const cli = clientes.find(c => c.cliente_id === d.clienteId);
             const abrir = () => {
-              if (ehAuto) { const w = window.open("", "_blank"); if (w) { w.document.write(d.html || "<p>Caderno vazio</p>"); w.document.close(); } }
+              if (ehAuto) setVerAuto(d);
               else setEditing(d);
             };
             return (
@@ -291,11 +312,13 @@ export default function Documentos({ token, clientes = [] }) {
                     html = gerarCadernoHTML({ titulo, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc });
                   }
                   const doc = { id: uid(), modelo, titulo, clienteId: cid, visibilidade: "entregavel", html, geradoEm: new Date().toISOString() };
+                  // substitui a versão anterior do mesmo tipo/cliente (evita duplicatas)
+                  const antigos = docs.filter(x => x.modelo === modelo && x.clienteId === cid);
+                  for (const a of antigos) await sbDel(a.id, token);
                   await sbSave(doc, token);
-                  setDocs(p => [doc, ...p]);
+                  setDocs(p => [doc, ...p.filter(x => !(x.modelo === modelo && x.clienteId === cid))]);
                   setGerLoading(false); setGerando(false);
-                  const w = window.open("", "_blank");
-                  if (w) { w.document.write(html); w.document.close(); }
+                  setVerAuto(doc);
                 } catch (e) { alert("Erro ao gerar: " + e.message); setGerLoading(false); }
               }} style={{ marginLeft: "auto", background: gerTipo === "praca" ? C.verde : C.azul, color: "#fff", padding: "10px 20px" }}>{gerTipo === "praca" ? "🖼 Gerar" : "⚡ Gerar"}</button>
             </div>
