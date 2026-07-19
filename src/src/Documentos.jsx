@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "./toast.js";
-import { gerarCadernoHTML, gerarFichasPracaHTML } from "./gerarCaderno.js";
+import { gerarCadernoOperacionalHTML, gerarCadernoGerencialHTML, gerarFichasPracaHTML } from "./gerarCaderno.js";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -257,9 +257,9 @@ export default function Documentos({ token, clientes = [] }) {
       ) : (
         <div className="doc-card">
           {docs.map((d, i) => {
-            const ehAuto = d.modelo === "caderno_auto" || d.modelo === "fichas_praca";
-            const ehPraca = d.modelo === "fichas_praca";
-            const m = ehAuto ? { icon: ehPraca ? "🖼" : "⚡", nome: ehPraca ? "Fichas de Praça" : "Caderno Automático" } : (MODELOS[d.modelo] || {});
+            const AUTO_META = { caderno_auto: { icon: "⚡", nome: "Caderno Operacional" }, caderno_gerencial: { icon: "📊", nome: "Caderno Gerencial" }, fichas_praca: { icon: "🖼", nome: "Fichas de Praça" } };
+            const ehAuto = !!AUTO_META[d.modelo];
+            const m = ehAuto ? AUTO_META[d.modelo] : (MODELOS[d.modelo] || {});
             const cli = clientes.find(c => c.cliente_id === d.clienteId);
             const abrir = () => {
               if (ehAuto) setVerAuto(d);
@@ -283,7 +283,7 @@ export default function Documentos({ token, clientes = [] }) {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => !gerLoading && setGerando(false)}>
           <div style={{ background: "#fff", borderRadius: 14, padding: 24, maxWidth: 460, width: "100%" }} onClick={e => e.stopPropagation()}>
             <div style={{ fontFamily: "'Antonio',sans-serif", fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{gerTipo === "praca" ? "🖼 Fichas de Praça" : "⚡ Gerar Caderno Automático"}</div>
-            <div style={{ fontSize: 13, color: C.cinzaE, marginBottom: 16, lineHeight: 1.45 }}>{gerTipo === "praca" ? "Gera uma folha A4 por prato, com foto grande e o modo de empratar em letra grande — pra plastificar e colar na parede da cozinha. Dica: cadastre a foto do prato (link) no cadastro de cada prato." : "O sistema monta o caderno completo (empratamento + receitas base + ficha gerencial) a partir dos pratos e fichas já cadastrados do cliente. Sem digitar nada."}</div>
+            <div style={{ fontSize: 13, color: C.cinzaE, marginBottom: 16, lineHeight: 1.45 }}>{gerTipo === "praca" ? "Gera uma folha A4 por prato, com foto grande e o modo de empratar em letra grande — pra plastificar e colar na parede da cozinha. Dica: cadastre a foto do prato (link) no cadastro de cada prato." : "O sistema monta DOIS cadernos a partir dos pratos e fichas já cadastrados: o Operacional (empratamento + receitas base, uso da cozinha) e o Gerencial (custos e CMV, confidencial). Sem digitar nada."}</div>
             <label className="doc-label" style={{ marginTop: 0 }}>Cliente</label>
             <select id="ger-cli" className="doc-input" defaultValue="" style={{ color: C.preto, background: "#FCFBF9" }}>
               <option value="" style={{ color: C.preto, background: "#fff" }}>— selecione —</option>
@@ -301,24 +301,25 @@ export default function Documentos({ token, clientes = [] }) {
                 try {
                   const { pratosCalc, fichasCalc, count } = await gerarCadernoDoCliente(token, cid, cli?.nome_display);
                   if (count === 0) { alert("Este cliente não tem pratos cadastrados ainda. Cadastre os pratos nas Fichas primeiro."); setGerLoading(false); return; }
-                  let html, titulo, modelo;
+                  const agora = new Date().toISOString();
+                  const novos = [];
                   if (gerTipo === "praca") {
-                    titulo = `Fichas de Praça — ${cli?.nome_display || ""}`;
-                    modelo = "fichas_praca";
-                    html = gerarFichasPracaHTML({ clienteNome: cli?.nome_display, pratos: pratosCalc });
+                    const titulo = `Fichas de Praça — ${cli?.nome_display || ""}`;
+                    novos.push({ id: uid(), modelo: "fichas_praca", titulo, clienteId: cid, visibilidade: "entregavel", html: gerarFichasPracaHTML({ clienteNome: cli?.nome_display, pratos: pratosCalc }), geradoEm: agora });
                   } else {
-                    titulo = `Caderno Operacional — ${cli?.nome_display || ""}`;
-                    modelo = "caderno_auto";
-                    html = gerarCadernoHTML({ titulo, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc });
+                    const tituloOp = `Caderno Operacional — ${cli?.nome_display || ""}`;
+                    const tituloGer = `Caderno Gerencial — ${cli?.nome_display || ""}`;
+                    novos.push({ id: uid(), modelo: "caderno_auto", titulo: tituloOp, clienteId: cid, visibilidade: "entregavel", html: gerarCadernoOperacionalHTML({ titulo: tituloOp, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc }), geradoEm: agora });
+                    novos.push({ id: uid(), modelo: "caderno_gerencial", titulo: tituloGer, clienteId: cid, visibilidade: "entregavel", html: gerarCadernoGerencialHTML({ titulo: tituloGer, clienteNome: cli?.nome_display, pratos: pratosCalc }), geradoEm: agora });
                   }
-                  const doc = { id: uid(), modelo, titulo, clienteId: cid, visibilidade: "entregavel", html, geradoEm: new Date().toISOString() };
-                  // substitui a versão anterior do mesmo tipo/cliente (evita duplicatas)
-                  const antigos = docs.filter(x => x.modelo === modelo && x.clienteId === cid);
+                  // substitui versões anteriores do mesmo tipo/cliente (evita duplicatas)
+                  const modelosNovos = novos.map(n => n.modelo);
+                  const antigos = docs.filter(x => modelosNovos.includes(x.modelo) && x.clienteId === cid);
                   for (const a of antigos) await sbDel(a.id, token);
-                  await sbSave(doc, token);
-                  setDocs(p => [doc, ...p.filter(x => !(x.modelo === modelo && x.clienteId === cid))]);
+                  for (const n of novos) await sbSave(n, token);
+                  setDocs(p => [...novos, ...p.filter(x => !(modelosNovos.includes(x.modelo) && x.clienteId === cid))]);
                   setGerLoading(false); setGerando(false);
-                  setVerAuto(doc);
+                  setVerAuto(novos[0]);
                 } catch (e) { alert("Erro ao gerar: " + e.message); setGerLoading(false); }
               }} style={{ marginLeft: "auto", background: gerTipo === "praca" ? C.verde : C.azul, color: "#fff", padding: "10px 20px" }}>{gerTipo === "praca" ? "🖼 Gerar" : "⚡ Gerar"}</button>
             </div>
