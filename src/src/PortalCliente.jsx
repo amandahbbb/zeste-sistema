@@ -6,7 +6,6 @@ const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
 const sbH = t => ({ apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}`, "Content-Type": "application/json" });
 async function sbLoad(table, t, query = "") { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?${query}`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d : []; } catch { return []; } }
-async function sbSave(table, row, t) { try { await fetch(`${SB_URL}/rest/v1/${table}`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(row) }); } catch {} }
 
 const dbr = d => d ? new Date(d + (d.length <= 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR") : "";
 const diaSemana = d => d ? new Date(d + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long" }) : "";
@@ -51,11 +50,9 @@ const TIPO_LABEL = { reuniao: "REUNIÃO", entrega: "ENTREGA", tarefa: "TAREFA" }
 const TIPO_COR = { reuniao: "var(--azul)", entrega: "var(--verde)", tarefa: "var(--coral)" };
 
 /* ── Cartão da próxima reunião: data, escopo e o que preparar ── */
-function ProximoEncontro({ etapa, compacto, checks = {}, onToggle }) {
+function ProximoEncontro({ etapa, compacto }) {
   if (!etapa) return null;
   const tipo = etapa.tipo || "reuniao";
-  const itens = (etapa.preparar || "").split("\n").filter(x => x.trim());
-  const feitos = itens.filter((_, i) => checks[`${etapa.id}:${i}`]).length;
   return (
     <div className="pcl-card" style={{ borderLeft: "5px solid var(--lima)", marginBottom: 16 }}>
       <div style={{ padding: compacto ? "18px 20px" : "22px 24px" }}>
@@ -79,22 +76,15 @@ function ProximoEncontro({ etapa, compacto, checks = {}, onToggle }) {
           </div>
         )}
 
-        {itens.length > 0 && (
+        {etapa.preparar && (
           <div style={{ marginTop: 14, background: "#FBF9F2", border: "1px solid var(--cinzaM)", borderRadius: 12, padding: "14px 16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", color: "var(--verde)" }}>O QUE VOCÊ PRECISA PARA ESTE DIA</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: feitos === itens.length ? "var(--verde)" : "var(--cinzaE)" }}>{feitos} de {itens.length}</div>
-            </div>
-            {itens.map((l, i) => {
-              const k = `${etapa.id}:${i}`, on = !!checks[k];
-              return (
-                <button key={i} onClick={() => onToggle && onToggle(k)} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 0", width: "100%", textAlign: "left", background: "none", border: "none", cursor: onToggle ? "pointer" : "default", minHeight: 44 }}>
-                  <span style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${on ? "var(--verde)" : "var(--cinzaM)"}`, background: on ? "var(--verde)" : "#fff", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, flexShrink: 0, marginTop: 1 }}>{on ? "✓" : ""}</span>
-                  <span style={{ fontSize: 15, lineHeight: 1.5, color: on ? "var(--cinzaE)" : "inherit", textDecoration: on ? "line-through" : "none" }}>{l}</span>
-                </button>
-              );
-            })}
-            <div style={{ fontSize: 13, color: "var(--cinzaE)", marginTop: 8, fontStyle: "italic" }}>{feitos === itens.length ? "Tudo pronto para o encontro." : "Marque conforme for separando — o encontro rende o dobro com isso em mãos."}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", color: "var(--verde)", marginBottom: 6 }}>O QUE VOCÊ PRECISA PARA ESTE DIA</div>
+            {etapa.preparar.split("\n").filter(x => x.trim()).map((l, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, fontSize: 15, lineHeight: 1.6, padding: "1px 0" }}>
+                <span style={{ color: "var(--lima)", fontWeight: 700 }}>—</span><span>{l}</span>
+              </div>
+            ))}
+            <div style={{ fontSize: 13, color: "var(--cinzaE)", marginTop: 8, fontStyle: "italic" }}>Com isso em mãos, o encontro rende o dobro — a gente decide em vez de levantar informação.</div>
           </div>
         )}
       </div>
@@ -103,7 +93,7 @@ function ProximoEncontro({ etapa, compacto, checks = {}, onToggle }) {
 }
 
 /* ── Dashboard ── */
-function Dashboard({ clienteInfo, projeto, fichasCount, docs, etapas, setAba, checks, onToggle }) {
+function Dashboard({ clienteInfo, projeto, fichasCount, docs, etapas, setAba }) {
   const nome = clienteInfo.nome_display || "Cliente";
   const primeiro = nome.split(" ")[0];
   const status = projeto?.statusProjeto || projeto?.stage || "EM ANDAMENTO";
@@ -127,7 +117,7 @@ function Dashboard({ clienteInfo, projeto, fichasCount, docs, etapas, setAba, ch
         </div>
       </div>
 
-      {proxima && <ProximoEncontro etapa={proxima} compacto checks={checks} onToggle={onToggle} />}
+      {proxima && <ProximoEncontro etapa={proxima} compacto />}
 
       <div className="pcl-card" style={{ padding: "18px 22px", marginBottom: 18, borderLeft: `5px solid ${cor}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -163,20 +153,29 @@ function Dashboard({ clienteInfo, projeto, fichasCount, docs, etapas, setAba, ch
 /* ── Documentos ── */
 function Documentos({ docs, docsOp = [] }) {
   const [verDoc, setVerDoc] = useState(null);
-  const MODELO_NOMES = { caderno_op: "Caderno Operacional", caderno_auto: "Caderno Operacional", fichas_praca: "Fichas de Praça", pop_interno: "POP", ficha_gerencial: "Documento Gerencial" };
+  const MODELO_NOMES = { caderno_op: "Caderno Operacional", caderno_auto: "Caderno Operacional", caderno_gerencial: "Caderno Gerencial", fichas_praca: "Fichas de Praça", pop_interno: "POP", ficha_gerencial: "Documento Gerencial" };
   const linha = t => (t || "").split("\n").filter(x => x.trim());
 
-  if (verDoc) return (
-    <div className="pcl-wrap" style={{ maxWidth: 760 }}>
-      <button onClick={() => setVerDoc(null)} style={{ color: "var(--verde)", fontSize: 15, fontWeight: 700, marginBottom: 12, minHeight: 44 }}>‹ Voltar</button>
-      <div className="pcl-card" style={{ padding: 22 }}>
-        <div style={{ fontFamily: "var(--ff)", fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{verDoc.titulo}</div>
-        <div style={{ fontSize: 14, color: "var(--cinzaE)", marginBottom: 16 }}>{MODELO_NOMES[verDoc.modelo] || "Documento"}</div>
-        {verDoc.modelo === "caderno_op" && <CadernoView doc={verDoc} linha={linha} />}
-        {verDoc.modelo !== "caderno_op" && <GenericView doc={verDoc} linha={linha} />}
+  if (verDoc) {
+    const ehHtml = (verDoc.modelo === "caderno_auto" || verDoc.modelo === "caderno_gerencial" || verDoc.modelo === "fichas_praca") && verDoc.html;
+    return (
+      <div className="pcl-wrap" style={{ maxWidth: ehHtml ? 980 : 760 }}>
+        <button onClick={() => setVerDoc(null)} style={{ color: "var(--verde)", fontSize: 15, fontWeight: 700, marginBottom: 12, minHeight: 44 }}>‹ Voltar</button>
+        {ehHtml ? (
+          <div className="pcl-card" style={{ padding: 0, overflow: "hidden" }}>
+            <iframe title={verDoc.titulo} srcDoc={verDoc.html} style={{ display: "block", width: "100%", height: "78vh", border: "none", background: "#fff" }} />
+          </div>
+        ) : (
+          <div className="pcl-card" style={{ padding: 22 }}>
+            <div style={{ fontFamily: "var(--ff)", fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{verDoc.titulo}</div>
+            <div style={{ fontSize: 14, color: "var(--cinzaE)", marginBottom: 16 }}>{MODELO_NOMES[verDoc.modelo] || "Documento"}</div>
+            {verDoc.modelo === "caderno_op" && <CadernoView doc={verDoc} linha={linha} />}
+            {verDoc.modelo !== "caderno_op" && <GenericView doc={verDoc} linha={linha} />}
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  }
 
   const temAlgo = docs.length > 0 || docsOp.length > 0;
   const Selo = ({ txt }) => <div style={{ width: 44, height: 44, borderRadius: 10, background: "var(--preto)", color: "var(--lima)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--ff)", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>{txt}</div>;
@@ -189,7 +188,7 @@ function Documentos({ docs, docsOp = [] }) {
         <div className="pcl-card" style={{ marginBottom: 18 }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", fontFamily: "var(--ff)", fontWeight: 700, fontSize: 18 }}>Documentos Zeste</div>
           {docsOp.map((d, i) => (
-            <div key={d.id || i} onClick={() => { if (d.modelo === "caderno_auto" || d.modelo === "fichas_praca") { const w = window.open("", "_blank"); if (w) { w.document.write(d.html || ""); w.document.close(); } } else setVerDoc(d); }} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", borderBottom: i < docsOp.length - 1 ? "1px solid var(--cinzaF)" : "none", cursor: "pointer", minHeight: 56 }}>
+            <div key={d.id || i} onClick={() => setVerDoc(d)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", borderBottom: i < docsOp.length - 1 ? "1px solid var(--cinzaF)" : "none", cursor: "pointer", minHeight: 56 }}>
               <Selo txt={(MODELO_NOMES[d.modelo] || "DOC").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 16 }}>{d.titulo}</div>
@@ -259,7 +258,7 @@ const Sub = ({ children }) => <div style={{ fontSize: 12, fontWeight: 700, color
 const Bloco = ({ titulo, itens, check }) => (<div style={{ marginTop: 6 }}>{titulo && <Sub>{titulo}</Sub>}{itens.map((it, i) => <div key={i} style={{ fontSize: 15, padding: "2px 0", display: "flex", gap: 8 }}>{check ? <span style={{ color: "var(--cinzaM)" }}>☐</span> : <span style={{ color: "var(--lima)" }}>•</span>}<span>{it}</span></div>)}</div>);
 
 /* ── Projeto / Acompanhamento ── */
-function Acompanhamento({ projeto, etapas, proj, checks, onToggle }) {
+function Acompanhamento({ projeto, etapas }) {
   const METODO = [
     { fase: "Enxergar", desc: "Diagnóstico e mapeamento operacional", pq: "Antes de mudar qualquer coisa, medimos a realidade: cardápio, custos, rotina. Decisão boa nasce de dado, não de achismo." },
     { fase: "Estruturar", desc: "Padronização de fichas e processos", pq: "Cada receita vira ficha técnica com quantidades e custo. É o que garante o mesmo prato, o mesmo sabor e a mesma margem em qualquer dia." },
@@ -267,42 +266,16 @@ function Acompanhamento({ projeto, etapas, proj, checks, onToggle }) {
     { fase: "Escalar", desc: "Treinamentos e implementação", pq: "O padrão só vale se a equipe executa. Treinamos as pessoas para que o resultado não dependa de você estar presente." },
     { fase: "Elevar", desc: "Refinamento e acompanhamento contínuo", pq: "Medimos o que mudou, corrigimos rota e consolidamos. Um negócio saudável se sustenta com acompanhamento, não com sorte." },
   ];
-  // Projeto personalizado do cliente (tabela portal_projeto). Sem ele, cai no Método 5E genérico.
-  const fases = proj?.fases?.length ? proj.fases : null;
-  const faseAtual = proj?.faseAtual || projeto?.faseAtual || 1;
+  const faseAtual = projeto?.faseAtual || 1;
   const { proxima, futuras, semData, feitas } = organizarEtapas(etapas);
 
   return (
     <div className="pcl-wrap" style={{ maxWidth: 760 }}>
       <div className="pcl-explica" style={{ marginBottom: 16 }}>
-        {proj?.saudacao || "Esta página é o mapa do seu projeto: em que fase estamos, qual é o próximo encontro, o que será tratado nele e o que você precisa preparar. Sem surpresa e sem \"confia em mim\" — você acompanha tudo."}
+        Esta página é o mapa do seu projeto: em que fase estamos, qual é o próximo encontro, o que será tratado nele e o que você precisa preparar. Sem surpresa e sem "confia em mim" — você acompanha tudo.
       </div>
 
-      {proj && (proj.sobre || proj.escopo || proj.identidade || proj.equipe?.length) && <>
-        <div className="pcl-sec">Sobre o projeto</div>
-        <div className="pcl-card" style={{ padding: "20px 22px", marginBottom: 4 }}>
-          {proj.sobre && <div style={{ fontSize: 15, lineHeight: 1.6 }}>{proj.sobre}</div>}
-          {proj.escopo && <div style={{ marginTop: 14, background: "#FBF9F2", border: "1px solid var(--cinzaM)", borderRadius: 12, padding: "12px 16px" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", color: "var(--verde)", marginBottom: 4 }}>NESTA ETAPA</div>
-            <div style={{ fontSize: 15, lineHeight: 1.6 }}>{proj.escopo}</div>
-          </div>}
-          {proj.identidade && <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", color: "var(--cinzaE)", marginBottom: 3 }}>IDENTIDADE CENTRAL</div>
-            <div style={{ fontSize: 15, lineHeight: 1.6 }}>{proj.identidade}</div>
-          </div>}
-          {proj.equipe?.length > 0 && <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--cinzaF)" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", color: "var(--cinzaE)", marginBottom: 8 }}>QUEM CONDUZ</div>
-            {proj.equipe.map((p, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "3px 0", flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>{p.nome}</span>
-                <span style={{ fontSize: 14, color: "var(--cinzaE)" }}>{p.papel}</span>
-              </div>
-            ))}
-          </div>}
-        </div>
-      </>}
-
-      <ProximoEncontro etapa={proxima} checks={checks} onToggle={onToggle} />
+      <ProximoEncontro etapa={proxima} />
 
       {(futuras.length > 0 || semData.length > 0) && <>
         <div className="pcl-sec">Agenda do projeto</div>
@@ -319,55 +292,13 @@ function Acompanhamento({ projeto, etapas, proj, checks, onToggle }) {
                   {e.data && <span style={{ fontFamily: "var(--ff)", fontWeight: 700, fontSize: 16, color: "var(--cinzaE)" }}>{dbr(e.data)}</span>}
                 </div>
                 {e.escopo && <div style={{ fontSize: 14, color: "var(--cinzaE)", marginTop: 6, lineHeight: 1.55 }}>{e.escopo}</div>}
-                {e.preparar && <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--verde)", letterSpacing: ".05em", marginBottom: 2 }}>PREPARAR</div>
-                  {e.preparar.split("\n").filter(x => x.trim()).map((l, j) => {
-                    const k = `${e.id}:${j}`, on = !!checks[k];
-                    return (
-                      <button key={j} onClick={() => onToggle && onToggle(k)} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "6px 0", width: "100%", textAlign: "left", background: "none", border: "none", cursor: onToggle ? "pointer" : "default", minHeight: 40 }}>
-                        <span style={{ width: 19, height: 19, borderRadius: 5, border: `2px solid ${on ? "var(--verde)" : "var(--cinzaM)"}`, background: on ? "var(--verde)" : "#fff", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0, marginTop: 1 }}>{on ? "✓" : ""}</span>
-                        <span style={{ fontSize: 14, lineHeight: 1.5, color: on ? "var(--cinzaE)" : "inherit", textDecoration: on ? "line-through" : "none" }}>{l}</span>
-                      </button>
-                    );
-                  })}
-                </div>}
+                {e.preparar && <div style={{ fontSize: 14, marginTop: 6, lineHeight: 1.55 }}><strong style={{ color: "var(--verde)" }}>Preparar: </strong>{e.preparar.split("\n").filter(x => x.trim()).join(" · ")}</div>}
               </div>
             );
           })}
         </div>
       </>}
 
-      {fases && <>
-        <div className="pcl-sec">Como vamos caminhar</div>
-        <div className="pcl-card" style={{ padding: "8px 0" }}>
-          {fases.map((f, i) => {
-            const num = f.n || i + 1;
-            const done = num < faseAtual, current = num === faseAtual;
-            return (
-              <div key={num} style={{ display: "flex", gap: 16, padding: "20px 22px", alignItems: "flex-start", opacity: done || current ? 1 : 0.62, borderBottom: i < fases.length - 1 ? "1px solid var(--cinzaF)" : "none" }}>
-                <div style={{ width: 42, height: 42, borderRadius: "50%", background: current ? "var(--lima)" : done ? "var(--verde)" : "var(--cinzaF)", color: current || done ? "#fff" : "var(--cinzaE)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--ff)", fontSize: 18, fontWeight: 800, flexShrink: 0 }}>{done ? "✓" : num}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: "var(--ff)", fontWeight: 700, fontSize: 19, color: current ? "var(--lima)" : "inherit", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    {f.titulo}
-                    {current && <span style={{ fontSize: 11, background: "var(--lima)", color: "#fff", padding: "3px 10px", borderRadius: 10, letterSpacing: ".06em" }}>FASE ATUAL</span>}
-                    {done && <span style={{ fontSize: 11, background: "var(--verde)", color: "#fff", padding: "3px 10px", borderRadius: 10, letterSpacing: ".06em" }}>CONCLUÍDA</span>}
-                  </div>
-                  {f.periodo && <div style={{ fontSize: 13, color: "var(--cinzaE)", marginTop: 1 }}>{f.periodo}</div>}
-                  {f.desc && <div style={{ fontSize: 15, lineHeight: 1.6, marginTop: 6 }}>{f.desc}</div>}
-                  {f.recebe && <div style={{ marginTop: 8, fontSize: 14.5, lineHeight: 1.55 }}>
-                    <strong style={{ color: "var(--azul)" }}>O que você recebe: </strong>{f.recebe}
-                  </div>}
-                  {f.precisa && <div style={{ marginTop: 8, background: "#FBF9F2", border: "1px solid var(--cinzaM)", borderRadius: 10, padding: "10px 14px", fontSize: 14.5, lineHeight: 1.55 }}>
-                    <strong style={{ color: "var(--verde)" }}>Precisamos de você: </strong>{f.precisa}
-                  </div>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </>}
-
-      {!fases && <>
       <div className="pcl-sec">Método Zeste 5E — onde estamos e por quê</div>
       <div className="pcl-card" style={{ padding: "8px 0" }}>
         {METODO.map((m, i) => {
@@ -389,7 +320,6 @@ function Acompanhamento({ projeto, etapas, proj, checks, onToggle }) {
           );
         })}
       </div>
-      </>}
 
       {feitas.length > 0 && <>
         <div className="pcl-sec">O que já foi feito</div>
@@ -405,33 +335,6 @@ function Acompanhamento({ projeto, etapas, proj, checks, onToggle }) {
           ))}
         </div>
       </>}
-
-      {proj?.entregaveis?.length > 0 && <>
-        <div className="pcl-sec">O que você recebe ao final</div>
-        <div className="pcl-card" style={{ padding: "16px 22px" }}>
-          {proj.entregaveis.map((t, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, padding: "6px 0", fontSize: 15, lineHeight: 1.55 }}>
-              <span style={{ color: "var(--lima)", fontWeight: 700 }}>—</span><span>{t}</span>
-            </div>
-          ))}
-        </div>
-      </>}
-
-      {proj?.momentos?.length > 0 && <>
-        <div className="pcl-sec">Momentos em que contamos com você</div>
-        <div className="pcl-card">
-          {proj.momentos.map((m, i) => (
-            <div key={i} style={{ display: "flex", gap: 12, padding: "14px 20px", borderBottom: i < proj.momentos.length - 1 ? "1px solid var(--cinzaF)" : "none", flexWrap: "wrap", alignItems: "baseline" }}>
-              <span style={{ fontFamily: "var(--ff)", fontSize: 12, fontWeight: 700, letterSpacing: ".06em", color: "#fff", background: "var(--azul)", padding: "3px 10px", borderRadius: 8, flexShrink: 0 }}>{m.quando}</span>
-              <span style={{ fontSize: 15, lineHeight: 1.55, flex: 1 }}>{m.oque}</span>
-            </div>
-          ))}
-        </div>
-      </>}
-
-      {proj?.fechamento && (
-        <div style={{ marginTop: 24, padding: "18px 22px", background: "var(--preto)", borderRadius: 16, color: "#fff", fontSize: 15, lineHeight: 1.6 }}>{proj.fechamento}</div>
-      )}
     </div>
   );
 }
@@ -444,8 +347,6 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
   const [docs, setDocs] = useState([]);
   const [docsOp, setDocsOp] = useState([]);
   const [etapas, setEtapas] = useState([]);
-  const [proj, setProj] = useState(null);
-  const [checks, setChecks] = useState({});
 
   useEffect(() => {
     const cid = clienteInfo.cliente_id;
@@ -461,16 +362,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     sbLoad("portal_documentos", token, `cliente_id=eq.${cid}&select=*&order=created_at.desc`).then(r => setDocs(r.map(x => x.dados || x)));
     sbLoad("docs_operacionais", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*&order=updated_at.desc`).then(r => setDocsOp(r.map(x => x.dados || x).filter(d => d.visibilidade === "entregavel")));
     sbLoad("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
-    sbLoad("portal_projeto", token, `cliente_id=eq.${cid}&select=*&limit=1`).then(r => { if (r[0]) setProj(r[0].dados || r[0]); });
-    sbLoad("portal_checks", token, `cliente_id=eq.${cid}&select=*&limit=1`).then(r => { if (r[0]?.dados) setChecks(r[0].dados); });
   }, []);
-
-  const toggleCheck = (k) => {
-    const novo = { ...checks, [k]: !checks[k] };
-    if (!novo[k]) delete novo[k];
-    setChecks(novo);
-    sbSave("portal_checks", { id: `chk_${clienteInfo.cliente_id}`, cliente_id: clienteInfo.cliente_id, dados: novo, updated_at: new Date().toISOString() }, token);
-  };
 
   const ABAS = [["dashboard", "Início"], ["fichas", "Fichas"], ["compras", "Compras"], ["documentos", "Documentos"], ["projeto", "Projeto"]];
 
@@ -512,9 +404,9 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
         </div>
       </div>
 
-      {aba === "dashboard" && <Dashboard clienteInfo={clienteInfo} projeto={projeto} fichasCount={fichasCount} docs={docs} etapas={etapas} setAba={setAba} checks={checks} onToggle={toggleCheck} />}
+      {aba === "dashboard" && <Dashboard clienteInfo={clienteInfo} projeto={projeto} fichasCount={fichasCount} docs={docs} etapas={etapas} setAba={setAba} />}
       {aba === "documentos" && <Documentos docs={docs} docsOp={docsOp} />}
-      {aba === "projeto" && <Acompanhamento projeto={projeto} etapas={etapas} proj={proj} checks={checks} onToggle={toggleCheck} />}
+      {aba === "projeto" && <Acompanhamento projeto={projeto} etapas={etapas} />}
     </div>
   );
 }
