@@ -103,6 +103,31 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo }) {
 .tbl-resumo td{font-size:14px;padding:11px 14px;border-bottom:1px solid #F5F3EE}
 .tbl-resumo .num{font-family:'Barlow Condensed',sans-serif;font-weight:700}
 .nota-ref{font-size:12px;color:#666;margin-top:14px}
+@media(max-width:640px){
+.parte{padding:24px 12px}
+.capa{padding:40px 22px}
+.capa .titulo{font-size:30px}
+.parte-tit{font-size:24px}
+.parte-num{font-size:52px}
+.prato-head,.ger-head{padding:14px 16px;gap:12px}
+.prato-num{font-size:28px}
+.prato-nome{font-size:18px}
+.secao-lbl{padding:12px 16px 6px}
+.comps{padding:0 16px 16px}
+.mop{padding:0 16px 16px}
+.passo-txt{font-size:13px}
+.passo-alerta{margin-left:0}
+.ger-kpis{grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px}
+.kpi{padding:10px;border-left-width:3px}
+.kpi-l{font-size:8px}
+.kpi-v{font-size:16px}
+.kpi-s{font-size:8px}
+.tbl-custo{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;margin:0 16px 16px;width:calc(100% - 32px)}
+.tbl-custo th,.tbl-custo td{font-size:12px;padding:7px 8px}
+.tbl-resumo{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+.tbl-resumo th,.tbl-resumo td{font-size:12px;padding:8px 10px}
+.tbl-ing th,.tbl-ing td{padding:6px 12px}
+}
 </style></head><body><div class="wrap">
   <div class="capa"><div class="marca">ZESTE</div><div class="sub">${_esc(sub)}</div><div class="titulo">${_esc(titulo)}</div>${clienteNome ? `<div class="cliente">${_esc(clienteNome)}</div>` : ""}<div class="data">Gerado em ${_hoje()}</div>${extraCapa}</div>
   ${corpo}
