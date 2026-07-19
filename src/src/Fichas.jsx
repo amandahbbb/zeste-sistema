@@ -821,15 +821,25 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
       setIngredientes(p=>p.some(i=>i.id===saved.id)?p.map(i=>i.id===saved.id?saved:i):[saved,...p]);
     }
   });};
-  const delIngrediente=async id=>{const ing=ingredientes.find(i=>i.id===id);if(clienteIdProp&&clienteIdProp!=='zeste'&&ing&&ing._cliente==='zeste'){alert('Este é um ingrediente da base Zeste e não pode ser excluído. Edite-o para criar sua própria versão.');return;}await sync(async()=>{await fetch(`${SB_URL}/rest/v1/fin_ingredientes?id=eq.${id}`,{method:'DELETE',headers:sbH(token)});setIngredientes(p=>p.filter(i=>i.id!==id));});};
+  const delIngrediente=async id=>{const ing=ingredientes.find(i=>i.id===id);
+    const usadoEm=[
+      ...fichasRaw.filter(f=>(f.itens||[]).some(it=>it.tipo!=='ficha'&&it.nomeRef===ing?.nome)).map(f=>`ficha "${f.nome}"`),
+      ...pratosRaw.filter(p=>(p.componentes||[]).some(c=>c.tipo!=='ficha'&&c.nomeRef===ing?.nome)).map(p=>`prato "${p.nome}"`)
+    ];
+    if(usadoEm.length){alert(`"${ing?.nome}" não pode ser excluído — é usado em: ${usadoEm.slice(0,5).join(', ')}${usadoEm.length>5?'…':''}. Remova das fichas/pratos primeiro, senão os custos zeram.`);return;}
+    if(!window.confirm(`Excluir o ingrediente "${ing?.nome||''}"? Exclusão DEFINITIVA — não pode ser desfeita.`))return;
+    if(clienteIdProp&&clienteIdProp!=='zeste'&&ing&&ing._cliente==='zeste'){alert('Este é um ingrediente da base Zeste e não pode ser excluído. Edite-o para criar sua própria versão.');return;}await sync(async()=>{await fetch(`${SB_URL}/rest/v1/fin_ingredientes?id=eq.${id}`,{method:'DELETE',headers:sbH(token)});setIngredientes(p=>p.filter(i=>i.id!==id));});};
 
   const savePrato=async item=>{await sync(async()=>{
     const old=pratosRaw.find(p=>p.id===item.id);
     const saved={...item,_historico:addHistory(old,whoAmI),_ultimaEdicao:whoAmI,_ultimaEdicaoEm:new Date().toISOString()};
-    await sbUpsert('fin_pratos',saved,saved._cliente||saved.categoria?.includes('440')?'440':'zeste',token);
+    await sbUpsert('fin_pratos',saved,saved._cliente||(saved.categoria?.includes('440')?'440':'zeste'),token);
     setPratosRaw(p=>p.some(pr=>pr.id===saved.id)?p.map(pr=>pr.id===saved.id?saved:pr):[saved,...p]);
   });};
-  const delPrato=async id=>{await sync(async()=>{await sbDel('fin_pratos',id,token);setPratosRaw(p=>p.filter(pr=>pr.id!==id));});};
+  const delPrato=async id=>{
+    const pr=pratosRaw.find(x=>x.id===id);
+    if(!window.confirm(`Excluir o prato "${pr?.nome||''}"? Essa ação não pode ser desfeita.`))return;
+    await sync(async()=>{await sbDel('fin_pratos',id,token);setPratosRaw(p=>p.filter(x=>x.id!==id));});};
   const addHistory=(oldItem,who)=>{
     if(!oldItem||!oldItem.id)return[];
     const hist=(oldItem._historico||[]).slice(-19);
@@ -843,7 +853,15 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
     await sbUpsert('fin_fichas',saved,saved._cliente||'zeste',token);
     setFichasRaw(p=>p.some(f=>f.id===saved.id)?p.map(f=>f.id===saved.id?saved:f):[saved,...p]);
   });};
-  const delFicha=async id=>{await sync(async()=>{await sbDel('fin_fichas',id,token);setFichasRaw(p=>p.filter(f=>f.id!==id));});};
+  const delFicha=async id=>{
+    const fi=fichasRaw.find(x=>x.id===id);
+    const usadaEm=[
+      ...pratosRaw.filter(p=>(p.componentes||[]).some(c=>c.tipo==='ficha'&&c.nomeRef===fi?.nome)).map(p=>`prato "${p.nome}"`),
+      ...fichasRaw.filter(f=>f.id!==id&&(f.itens||[]).some(it=>it.tipo==='ficha'&&it.nomeRef===fi?.nome)).map(f=>`ficha "${f.nome}"`)
+    ];
+    if(usadaEm.length){alert(`"${fi?.nome}" não pode ser excluída — é usada em: ${usadaEm.slice(0,5).join(', ')}${usadaEm.length>5?'…':''}. Remova as referências primeiro.`);return;}
+    if(!window.confirm(`Excluir a ficha "${fi?.nome||''}"? Essa ação não pode ser desfeita.`))return;
+    await sync(async()=>{await sbDel('fin_fichas',id,token);setFichasRaw(p=>p.filter(f=>f.id!==id));});};
 
   if(loading)return(<><style>{STYLE}</style><div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--cinzaF)'}}><div style={{textAlign:'center'}}><div style={{fontFamily:'var(--ff)',fontSize:32,fontWeight:800,color:'var(--verde)'}}>ZESTE</div><div style={{color:'var(--cinzaE)',fontSize:13,marginTop:4}}>Carregando fichas técnicas…</div></div></div></>);
 
