@@ -1,75 +1,33 @@
 // ═══════════════════════════════════════════════════════════════
-// GERADOR DE CADERNO OPERACIONAL — padrão 440
+// GERADORES DE CADERNO — padrão 440
+// Caderno OPERACIONAL (uso da cozinha) + Caderno GERENCIAL (confidencial)
 // Monta HTML completo a partir dos pratos e fichas já cadastrados
 // ═══════════════════════════════════════════════════════════════
-export function gerarCadernoHTML({ titulo, clienteNome, pratos, fichas }) {
-  const esc = s => (s || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const g = n => `${Math.round((Number(n) || 0))} g`;
-  const brl = n => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const pct = n => ((Number(n) || 0) * 100).toFixed(1).replace(".", ",") + "%";
-  const linhas = t => (t || "").split("\n").map(x => x.trim()).filter(Boolean);
+const _esc = s => (s || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const _g = n => `${Math.round((Number(n) || 0))} g`;
+const _brl = n => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const _pct = n => ((Number(n) || 0) * 100).toFixed(1).replace(".", ",") + "%";
+const _linhas = t => (t || "").split("\n").map(x => x.trim()).filter(Boolean);
+const _hoje = () => new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
 
-  // ── PARTE 1: FICHAS DE EMPRATAMENTO ──
-  let parte1 = "";
-  pratos.forEach((p, idx) => {
-    const num = String(idx + 1).padStart(2, "0");
-    const comps = (p.comps || []).map(c => {
-      const liq = g(c.qtdGramas);
-      const bruta = c.tipo === "ing" && c.fc > 1 ? `${g((c.qtdGramas || 0) * (c.fc || 1))} cru` : liq;
-      return `<div class="comp"><div class="comp-nome">${esc(c.nomeRef)}</div>
-        <div class="comp-g"><span class="lbl">LÍQUIDA</span><span class="v-liq">${liq}</span></div>
-        <div class="comp-g"><span class="lbl">BRUTA</span><span class="v-bruta">${bruta}</span></div></div>`;
-    }).join("");
-    const mop = linhas(p.modoPreparo).map((passo, i) => `<div class="passo"><div class="passo-n">${i + 1}</div><div class="passo-txt">${esc(passo)}</div></div>`).join("");
-    parte1 += `<div class="card-prato">
-      <div class="prato-head"><div class="prato-num">${num}</div><div><div class="prato-cat">PRATO PRINCIPAL · ${(p.comps||[]).length} componentes</div><div class="prato-nome">${esc(p.nome)}</div><div class="prato-porcao">1 porção · Venda ${brl(p.precoVenda)}</div></div></div>
-      <div class="secao-lbl">— COMPOSIÇÃO & GRAMATURAS</div>
-      <div class="comps">${comps}</div>
-      ${mop ? `<div class="secao-lbl">— MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div>` : ""}
-    </div>`;
+// Passos numerados; linhas iniciadas com "⚠" ou "!" viram alerta (dica) ligado ao passo anterior
+function _renderPassos(texto) {
+  const ls = _linhas(texto);
+  let html = "", n = 0;
+  ls.forEach(l => {
+    const alerta = l.startsWith("⚠") || l.startsWith("!");
+    if (alerta) {
+      const txt = l.replace(/^[⚠!]+\s*/, "");
+      html += `<div class="passo-alerta">⚠ ${_esc(txt)}</div>`;
+    } else {
+      n += 1;
+      html += `<div class="passo"><div class="passo-n">${n}</div><div class="passo-txt">${_esc(l)}</div></div>`;
+    }
   });
+  return html;
+}
 
-  // ── PARTE 2: RECEITAS BASE (fichas usadas nos pratos) ──
-  const fichasUsadas = new Set();
-  pratos.forEach(p => (p.comps || []).forEach(c => { if (c.tipo === "ficha") fichasUsadas.add(c.nomeRef); }));
-  const fichasBase = fichas.filter(f => fichasUsadas.has(f.nome));
-  let parte2 = "";
-  fichasBase.forEach(f => {
-    const itens = (f.itens || []).map(it => `<tr><td>${esc(it.nomeRef)}</td><td class="liq">${it.qtdLiquida ? g((it.qtdLiquida||0)*1000) : "QB"}</td><td class="bruta">${it.qtdBruta ? g((it.qtdBruta||0)*1000) : "QB"}</td></tr>`).join("");
-    const preparo = linhas(f.modoPreparo).map((passo, i) => `<div class="passo"><div class="passo-n">${i + 1}</div><div class="passo-txt">${esc(passo)}</div></div>`).join("");
-    parte2 += `<div class="receita">
-      <div class="receita-head"><div class="receita-nome">${esc(f.nome)}</div><div class="receita-kg">${brl(f._custoPorKg)}/kg</div></div>
-      <div class="receita-body">
-        <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th><th>LÍQUIDA</th><th>BRUTA</th></tr></thead><tbody>${itens}</tbody></table></div>
-        ${preparo ? `<div class="receita-mop"><div class="secao-lbl">— MODO DE PREPARO</div>${preparo}</div>` : ""}
-      </div>
-    </div>`;
-  });
-
-  // ── PARTE 3: FICHA TÉCNICA GERENCIAL (CMV) ──
-  let parte3 = "";
-  pratos.forEach((p, idx) => {
-    const num = String(idx + 1).padStart(2, "0");
-    const linhasCusto = (p.comps || []).map(c => `<tr><td>${esc(c.nomeRef)}</td><td>${g(c.qtdGramas)}</td><td>${(c.fc||1).toFixed(2)}</td><td>${g((c.qtdGramas||0)*(c.fc||1))}</td><td>${brl(c.custoPorKg)}/kg</td><td class="custo">${brl(c.custo)}</td></tr>`).join("");
-    const margemRS = (p.precoVenda || 0) - (p.custoTotal || 0);
-    parte3 += `<div class="card-ger">
-      <div class="ger-head"><div class="prato-num lima">${num}</div><div><div class="prato-cat">FICHA TÉCNICA GERENCIAL</div><div class="prato-nome">${esc(p.nome)}</div></div></div>
-      <div class="ger-kpis">
-        <div class="kpi kpi-lima"><div class="kpi-l">CUSTO POR PORÇÃO</div><div class="kpi-v">${brl(p.custoTotal)}</div><div class="kpi-s">incl. margem segurança</div></div>
-        <div class="kpi kpi-verde"><div class="kpi-l">PREÇO DE VENDA</div><div class="kpi-v">${brl(p.precoVenda)}</div><div class="kpi-s">cardápio</div></div>
-        <div class="kpi kpi-azul"><div class="kpi-l">CMV</div><div class="kpi-v">${pct(p.cmv)}</div><div class="kpi-s">Margem: ${brl(margemRS)} (${pct(p.margem)})</div></div>
-      </div>
-      <div class="secao-lbl">— COMPOSIÇÃO DE CUSTO</div>
-      <table class="tbl-custo"><thead><tr><th>RECEITA / INSUMO</th><th>QTD. LÍQ.</th><th>FC</th><th>QTD. BRUTA</th><th>PREÇO/KG</th><th>CUSTO</th></tr></thead><tbody>${linhasCusto}</tbody>
-      <tfoot><tr><td colspan="5">CUSTO TOTAL</td><td class="custo">${brl(p.custoTotal)}</td></tr></tfoot></table>
-    </div>`;
-  });
-
-  const hoje = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap');
+const BASE_CSS = `@import url('https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-height:1.5}
 .wrap{max-width:900px;margin:0 auto;background:#F0EEE8}
@@ -131,14 +89,110 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 @media print{body{background:#fff}.parte{page-break-before:always}.capa{page-break-after:always}
   .card-prato,.receita,.card-ger,.prato-head,.ger-head,.kpi,.capa{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 @media(max-width:640px){.comps,.ger-kpis{grid-template-columns:1fr}.receita-body{grid-template-columns:1fr}.receita-ing{border-right:none;border-bottom:1px solid #F0EEE8}}
+`;
+
+function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo }) {
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${_esc(titulo)}</title>
+<style>${BASE_CSS}
+.passo-alerta{background:#FBEDEA;border-left:3px solid #C0392B;color:#8E2F21;font-size:13px;font-weight:600;padding:8px 12px;border-radius:6px;margin:6px 0 6px 40px}
+.confid{border:1px solid #C0392B;border-radius:10px;padding:14px 18px;margin-top:32px;background:rgba(192,57,43,.08)}
+.confid-t{color:#E74C3C;font-size:12px;font-weight:800;letter-spacing:.15em}
+.confid-s{color:#C9C6BD;font-size:12px;margin-top:4px}
+.tbl-resumo{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.05)}
+.tbl-resumo th{font-size:10px;color:#999;text-align:left;padding:12px 14px;letter-spacing:.06em;border-bottom:2px solid #111}
+.tbl-resumo td{font-size:14px;padding:11px 14px;border-bottom:1px solid #F5F3EE}
+.tbl-resumo .num{font-family:'Barlow Condensed',sans-serif;font-weight:700}
+.nota-ref{font-size:12px;color:#666;margin-top:14px}
 </style></head><body><div class="wrap">
-  <div class="capa"><div class="marca">ZESTE</div><div class="sub">Caderno Operacional</div><div class="titulo">${esc(titulo)}</div>${clienteNome ? `<div class="cliente">${esc(clienteNome)}</div>` : ""}<div class="data">Gerado em ${hoje}</div></div>
-  ${parte1 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 01</div><div class="parte-tit">Fichas de Empratamento</div></div><div class="parte-num">01</div></div>${parte1}</div>` : ""}
-  ${parte2 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Receitas Base</div></div><div class="parte-num">02</div></div>${parte2}</div>` : ""}
-  ${parte3 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 03</div><div class="parte-tit">Ficha Técnica Gerencial</div></div><div class="parte-num">03</div></div>${parte3}</div>` : ""}
-  <div class="rodape">Documento gerado por Zeste · Inteligência para Negócios Gastronômicos · Gerado em ${hoje}</div>
+  <div class="capa"><div class="marca">ZESTE</div><div class="sub">${_esc(sub)}</div><div class="titulo">${_esc(titulo)}</div>${clienteNome ? `<div class="cliente">${_esc(clienteNome)}</div>` : ""}<div class="data">Gerado em ${_hoje()}</div>${extraCapa}</div>
+  ${corpo}
+  <div class="rodape">Documento gerado por Zeste · Inteligência para Negócios Gastronômicos · Gerado em ${_hoje()}</div>
 </div></body></html>`;
 }
+
+// ── CADERNO OPERACIONAL — uso da cozinha (empratamento + receitas base) ──
+export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, fichas }) {
+  let parte1 = "";
+  pratos.forEach((p, idx) => {
+    const num = String(idx + 1).padStart(2, "0");
+    const comps = (p.comps || []).map(c => {
+      const liq = _g(c.qtdGramas);
+      const bruta = c.tipo === "ing" && c.fc > 1 ? `${_g((c.qtdGramas || 0) * (c.fc || 1))} cru` : liq;
+      return `<div class="comp"><div class="comp-nome">${_esc(c.nomeRef)}</div>
+        <div class="comp-g"><span class="lbl">LÍQUIDA</span><span class="v-liq">${liq}</span></div>
+        <div class="comp-g"><span class="lbl">BRUTA</span><span class="v-bruta">${bruta}</span></div></div>`;
+    }).join("");
+    const mop = _renderPassos(p.modoPreparo);
+    parte1 += `<div class="card-prato">
+      <div class="prato-head"><div class="prato-num">${num}</div><div><div class="prato-cat">PRATO PRINCIPAL · ${(p.comps||[]).length} componentes</div><div class="prato-nome">${_esc(p.nome)}</div><div class="prato-porcao">1 porção</div></div></div>
+      <div class="secao-lbl">— COMPOSIÇÃO & GRAMATURAS</div>
+      <div class="comps">${comps}</div>
+      ${mop ? `<div class="secao-lbl">— MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div>` : ""}
+    </div>`;
+  });
+
+  const fichasUsadas = new Set();
+  pratos.forEach(p => (p.comps || []).forEach(c => { if (c.tipo === "ficha") fichasUsadas.add(c.nomeRef); }));
+  const fichasBase = fichas.filter(f => fichasUsadas.has(f.nome));
+  let parte2 = "";
+  fichasBase.forEach(f => {
+    const itens = (f.itens || []).map(it => `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${it.qtdLiquida ? _g((it.qtdLiquida||0)*1000) : "QB"}</td><td class="bruta">${it.qtdBruta ? _g((it.qtdBruta||0)*1000) : "QB"}</td></tr>`).join("");
+    const preparo = _renderPassos(f.modoPreparo);
+    parte2 += `<div class="receita">
+      <div class="receita-head"><div class="receita-nome">${_esc(f.nome)}</div></div>
+      <div class="receita-body">
+        <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th><th>LÍQUIDA</th><th>BRUTA</th></tr></thead><tbody>${itens}</tbody></table></div>
+        ${preparo ? `<div class="receita-mop"><div class="secao-lbl">— MODO DE PREPARO</div>${preparo}</div>` : ""}
+      </div>
+    </div>`;
+  });
+
+  const corpo = `
+  ${parte1 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 01</div><div class="parte-tit">Fichas de Empratamento</div></div><div class="parte-num">01</div></div>${parte1}</div>` : ""}
+  ${parte2 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Receitas Base & Pré-Preparos</div></div><div class="parte-num">02</div></div>${parte2}</div>` : ""}`;
+
+  return _shell({ titulo, clienteNome, sub: "Caderno Operacional · Uso da Cozinha", corpo });
+}
+
+// ── CADERNO GERENCIAL — confidencial (custos, CMV, comparativo) ──
+export function gerarCadernoGerencialHTML({ titulo, clienteNome, pratos }) {
+  let parte1 = "";
+  pratos.forEach((p, idx) => {
+    const num = String(idx + 1).padStart(2, "0");
+    const linhasCusto = (p.comps || []).map(c => `<tr><td>${_esc(c.nomeRef)}</td><td>${_g(c.qtdGramas)}</td><td>${(c.fc||1).toFixed(2)}</td><td>${_g((c.qtdGramas||0)*(c.fc||1))}</td><td>${_brl(c.custoPorKg)}/kg</td><td class="custo">${_brl(c.custo)}</td></tr>`).join("");
+    const margemRS = (p.precoVenda || 0) - (p.custoTotal || 0);
+    parte1 += `<div class="card-ger">
+      <div class="ger-head"><div class="prato-num lima">${num}</div><div><div class="prato-cat">COMPOSIÇÃO DE CUSTOS</div><div class="prato-nome">${_esc(p.nome)}</div></div></div>
+      <div class="ger-kpis">
+        <div class="kpi kpi-lima"><div class="kpi-l">CUSTO POR PORÇÃO</div><div class="kpi-v">${_brl(p.custoTotal)}</div><div class="kpi-s">incl. margem segurança</div></div>
+        <div class="kpi kpi-verde"><div class="kpi-l">PREÇO DE VENDA</div><div class="kpi-v">${p.precoVenda ? _brl(p.precoVenda) : "A definir"}</div><div class="kpi-s">cardápio</div></div>
+        <div class="kpi kpi-azul"><div class="kpi-l">CMV</div><div class="kpi-v">${p.precoVenda ? _pct(p.cmv) : "—"}</div><div class="kpi-s">${p.precoVenda ? `Margem: ${_brl(margemRS)} (${_pct(p.margem)})` : "Aguarda preço de venda"}</div></div>
+      </div>
+      <div class="secao-lbl">— COMPOSIÇÃO DE CUSTO · PREÇO/KG DA RECEITA PRONTA</div>
+      <table class="tbl-custo"><thead><tr><th>RECEITA / INSUMO</th><th>QTD. LÍQ.</th><th>FC</th><th>QTD. BRUTA</th><th>PREÇO/KG</th><th>CUSTO</th></tr></thead><tbody>${linhasCusto}</tbody>
+      <tfoot><tr><td colspan="5">CUSTO TOTAL</td><td class="custo">${_brl(p.custoTotal)}</td></tr></tfoot></table>
+    </div>`;
+  });
+
+  const linhasResumo = pratos.map((p, idx) => {
+    const num = String(idx + 1).padStart(2, "0");
+    const margemRS = (p.precoVenda || 0) - (p.custoTotal || 0);
+    return `<tr><td>${num} — ${_esc(p.nome)}</td><td class="num">${_brl(p.custoTotal)}</td><td class="num">${p.precoVenda ? _brl(p.precoVenda) : "A definir"}</td><td class="num">${p.precoVenda ? _pct(p.cmv) : "—"}</td><td class="num">${p.precoVenda ? _brl(margemRS) : "—"}</td><td class="num">${p.precoVenda ? _pct(p.margem) : "—"}</td></tr>`;
+  }).join("");
+  const parte2 = `<table class="tbl-resumo"><thead><tr><th>PRATO</th><th>CUSTO</th><th>VENDA</th><th>CMV</th><th>MARGEM R$</th><th>MARGEM %</th></tr></thead><tbody>${linhasResumo}</tbody></table>
+  <div class="nota-ref">Referência de CMV: abaixo de 30% = excelente · 30–35% = adequado · acima de 35% = requer atenção.</div>`;
+
+  const extraCapa = `<div class="confid"><div class="confid-t">⚠ DOCUMENTO CONFIDENCIAL</div><div class="confid-s">Este caderno contém informações financeiras e estratégicas do negócio. Destinado exclusivamente ao proprietário.</div></div>`;
+
+  const corpo = `
+  <div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 01</div><div class="parte-tit">Fichas de Custo</div></div><div class="parte-num">01</div></div>${parte1}</div>
+  <div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Resumo Comparativo de CMV</div></div><div class="parte-num">02</div></div>${parte2}</div>`;
+
+  return _shell({ titulo, clienteNome, sub: "Caderno Gerencial · Uso Exclusivo do Proprietário", extraCapa, corpo });
+}
+
+// Compatibilidade: nome antigo aponta para o caderno operacional
+export const gerarCadernoHTML = gerarCadernoOperacionalHTML;
 
 // ═══════════════════════════════════════════════════════════════
 // GERADOR DE FICHAS DE PRAÇA — 1 prato por A4, foto grande
