@@ -300,6 +300,15 @@ export default function Documentos({ token, clientes = [] }) {
                 setGerLoading(true);
                 try {
                   const { pratosCalc, fichasCalc, count } = await gerarCadernoDoCliente(token, cid, cli?.nome_display);
+                  const quebrados = [
+                    ...pratosCalc.flatMap(p => (p.comps || []).filter(c => c.erro).map(c => `${p.nome} → ${c.nomeRef}`)),
+                    ...fichasCalc.flatMap(f => (f.itens || []).filter(it => it.erro).map(it => `${f.nome} → ${it.nomeRef}`))
+                  ];
+                  if (quebrados.length) {
+                    setGerLoading(false);
+                    alert("Caderno NÃO gerado — referências quebradas (custo zeraria):\n\n" + quebrados.slice(0, 8).join("\n") + (quebrados.length > 8 ? `\n…e mais ${quebrados.length - 8}` : "") + "\n\nCorrija nas fichas/pratos e gere de novo.");
+                    return;
+                  }
                   if (count === 0) { alert("Este cliente não tem pratos cadastrados ainda. Cadastre os pratos nas Fichas primeiro."); setGerLoading(false); return; }
                   const agora = new Date().toISOString();
                   const novos = [];
