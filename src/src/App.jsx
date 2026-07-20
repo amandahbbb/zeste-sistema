@@ -171,16 +171,16 @@ function Logo({ small }) {
 
 // ── MÓDULOS ────────────────────────────────────────────────────
 const MODULOS = [
-  { id: "dashboard",  icon: "📊", label: "Dashboard"  },
-  { id: "comercial",  icon: "🤝", label: "Comercial"  },
-  { id: "financeiro", icon: "💰", label: "Financeiro"  },
+  { id: "dashboard",  icon: "🏠", label: "Início"      },
   { id: "fichas",     icon: "🍽️", label: "Operação"    },
-  { id: "studio",     icon: "✦", label: "Estúdio"     },
-  { id: "marketing",  icon: "📱", label: "Marketing"   },
-  { id: "breakeven",  icon: "📉", label: "Break-even"  },
+  { id: "portaladmin",icon: "👥", label: "Clientes"    },
+  { id: "engenharia", icon: "📈", label: "Engenharia"  },
   { id: "compras",    icon: "🛒", label: "Compras"     },
-  { id: "engenharia", icon: "📊", label: "Engenharia"  },
-  { id: "portaladmin",icon: "🔑", label: "Área de Membros" },
+  { id: "financeiro", icon: "💰", label: "Financeiro"  },
+  { id: "breakeven",  icon: "📉", label: "Break-even"  },
+  { id: "comercial",  icon: "🤝", label: "Comercial"   },
+  { id: "marketing",  icon: "📱", label: "Marketing"   },
+  { id: "studio",     icon: "✦", label: "Estúdio"     },
 ];
 
 // ── SIDEBAR DESKTOP ─────────────────────────────────────────────
