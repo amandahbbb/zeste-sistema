@@ -60,7 +60,7 @@ export default function PortalAdmin({ onBack, token }) {
         <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, marginBottom: 4 }}>Gerenciar Área de Membros</h2>
         <p style={{ color: C.cinzaE, fontSize: 13, marginBottom: 16 }}>Escolha um cliente para gerenciar documentos e etapas do projeto.</p>
         {loading ? <div style={{ padding: 30, textAlign: "center", color: C.cinzaE }}>Carregando…</div> :
-          clientes.length === 0 ? <div className="pa-card" style={{ padding: 30, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum cliente com acesso ao portal ainda.</div> :
+          clientes.length === 0 ? <div className="pa-card" style={{ padding: 30, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum cliente com acesso ao portal ainda. Toque em “+ Novo Cliente” para criar o primeiro acesso.</div> :
             <div className="pa-card">
               {clientes.map((c, i) => (
                 <button key={c.cliente_id} onClick={() => setSel(c)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: i < clientes.length - 1 ? `1px solid ${C.cinzaF}` : "none", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
@@ -135,7 +135,7 @@ function DocsAdmin({ docs, onSave, onDelete }) {
 
       <div className="pa-card">
         <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700 }}>Documentos compartilhados ({docs.length})</div>
-        {docs.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum documento ainda</div> :
+        {docs.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum documento compartilhado ainda. Use o formulário acima para enviar um link ao cliente.</div> :
           docs.map((d, i) => (
             <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: i < docs.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
               <div style={{ fontSize: 22 }}>{d.tipo === "pdf" ? "📄" : d.tipo === "img" ? "🖼" : "📎"}</div>
@@ -182,7 +182,7 @@ function EtapasAdmin({ etapas, onSave, onDelete }) {
 
       <div className="pa-card">
         <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700 }}>Etapas do projeto ({etapas.length})</div>
-        {etapas.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhuma etapa ainda</div> :
+        {etapas.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhuma etapa ainda. Cadastre as etapas do projeto para o cliente acompanhar o andamento.</div> :
           etapas.map((e, i) => (
             <div key={e.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderBottom: i < etapas.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
               <button onClick={() => toggle(e)} title={e.done ? "Concluída" : "Marcar como concluída"} style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${e.done ? C.verde : C.cinzaM}`, background: e.done ? C.verde : "#fff", color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0, marginTop: 2 }}>{e.done ? "✓" : ""}</button>
