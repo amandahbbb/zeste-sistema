@@ -120,7 +120,7 @@ function Fornecedores({ fornecedores, onSave, onDelete }) {
         <button className="cmp-btn" onClick={() => setModal("new")} style={{ background: C.lima, color: C.preto }}>+ Novo fornecedor</button>
       </div>
       <div className="cmp-card">
-        {lst.length === 0 && <div style={{ padding: 40, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum fornecedor cadastrado</div>}
+        {lst.length === 0 && <div style={{ padding: 40, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum fornecedor cadastrado. Toque em “+ Novo” para adicionar o primeiro.</div>}
         {lst.map(f => (
           <div key={f.id} className="cmp-row" onClick={() => setModal(f)}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: f.status === "Ativo" ? C.verde : C.cinzaM, flexShrink: 0 }} />
@@ -190,7 +190,7 @@ function Pedidos({ pedidos, fornecedores, onSave, onDelete }) {
         <button className="cmp-btn" onClick={() => setModal("new")} style={{ background: C.lima, color: C.preto }}>+ Novo pedido</button>
       </div>
       <div className="cmp-card">
-        {lst.length === 0 && <div style={{ padding: 40, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum pedido registrado</div>}
+        {lst.length === 0 && <div style={{ padding: 40, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum pedido registrado. Crie um pedido a partir de um fornecedor cadastrado.</div>}
         {lst.map(p => {
           const cor = STATUS_PEDIDO[p.status] || C.cinzaE;
           return (
