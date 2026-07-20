@@ -79,7 +79,7 @@ function AbaVendas({ pratos, vendas, periodo, setPeriodo, onSaveVendas }) {
           <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 15 }}>Quantidade vendida por prato</span>
           <span style={{ fontSize: 11, color: C.cinzaE }}>{pratos.length} pratos</span>
         </div>
-        {pratos.length === 0 ? <div style={{ padding: 32, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum prato cadastrado nas Fichas Técnicas</div> :
+        {pratos.length === 0 ? <div style={{ padding: 32, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum prato cadastrado ainda. Cadastre os pratos em Operação → Pratos — eles aparecem aqui automaticamente.</div> :
           pratos.map((p, i) => (
             <div key={p._id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: i < pratos.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -265,7 +265,7 @@ function AbaRelatorio({ analise }) {
     </th>
   );
 
-  if (classificados.length === 0) return <div style={{ padding: 40, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Sem dados para relatório. Calcule a matriz primeiro.</div>;
+  if (classificados.length === 0) return <div style={{ padding: 40, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Sem dados para o relatório. Preencha as vendas na aba Matriz e toque em “Calcular” — o relatório é gerado a partir dela.</div>;
 
   return (
     <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
