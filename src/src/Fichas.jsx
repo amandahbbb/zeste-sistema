@@ -289,7 +289,7 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter}){
   return(<div className="ft-page">
     <div className="ft-search"><input placeholder="🔍 Buscar ingrediente…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/><button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEdit({id:uid(),nome:'',un:'KG',p:0,fc:1,fk:1})}>+ Novo</button></div>
     <div className="ft-pc"><div className="ft-card">
-      {filtered.length===0&&<div style={{padding:32,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhum ingrediente encontrado</div>}
+      {filtered.length===0&&<div style={{padding:32,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhum ingrediente encontrado. Limpe a busca ou toque em “+ Novo” para cadastrar.</div>}
       {filtered.map(i=>(<div key={i.id} className="ft-row" onClick={()=>setEdit({...i})}>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{i.nome}</div><div style={{fontSize:11,color:'var(--cinzaE)',marginTop:2}}>{i.un} · FC {num(i.fc)} · FK {num(i.fk)}</div></div>
         <div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)',flexShrink:0}}>{brl(i.p)}</div>
@@ -319,7 +319,7 @@ function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFil
   return(<div className="ft-page">
     <div className="ft-search"><input placeholder="🔍 Buscar ficha…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/><button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEditForm({})}>+ Nova</button></div>
     <div className="ft-pc"><div className="ft-card">
-      {filtered.length===0&&<div style={{padding:32,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhuma ficha encontrada</div>}
+      {filtered.length===0&&<div style={{padding:32,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhuma ficha encontrada. As fichas nascem dos ingredientes — cadastre-os primeiro e toque em “+ Nova Ficha”.</div>}
       {filtered.map(f=>(<div key={f.id} className="ft-row" onClick={()=>setDetail(f)}>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.nome}</div>
           <div style={{display:'flex',gap:6,marginTop:3,flexWrap:'wrap',alignItems:'center'}}>
@@ -752,7 +752,7 @@ function HistoricoModal({item,onClose,onRevert}){
 
 // ── ROOT ──────────────────────────────────────────────────────────
 const TABS=[{id:'resumo',l:'RESUMO'},{id:'ingredientes',l:'INGREDIENTES'},{id:'fichas',l:'FICHAS'},{id:'pratos',l:'PRATOS'},{id:'producao',l:'PRODUÇÃO'},{id:'estoque',l:'ESTOQUE'}];
-const TABS_ADMIN=[...TABS,{id:'documentos',l:'DOCUMENTOS'}];
+const TABS_ADMIN=[...TABS,{id:'documentos',l:'CADERNOS'}];
 
 export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome,onLogout,userInfo}){
   const[ingredientes,setIngredientes]=useState([]);
@@ -872,7 +872,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px 0'}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           {onBack&&<button onClick={onBack} style={{color:'var(--lima)',fontSize:24,lineHeight:1,minWidth:36,minHeight:36,display:'flex',alignItems:'center'}}>‹</button>}
-          <div style={{display:'flex',alignItems:'baseline',gap:7}}><img src="/logo-icon-t.png" alt="Z" style={{height:24,width:'auto',marginRight:4}}/><span style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:800,color:'var(--lima)'}}>ZESTE</span><span style={{fontSize:9,color:'var(--cinzaE)',letterSpacing:'.14em'}}>{clienteNome?clienteNome.toUpperCase():'FICHAS TÉCNICAS'}</span></div>
+          <div style={{display:'flex',alignItems:'baseline',gap:7}}><img src="/logo-icon-t.png" alt="Z" style={{height:24,width:'auto',marginRight:4}}/><span style={{fontFamily:'var(--ff)',fontSize:20,fontWeight:800,color:'var(--lima)'}}>ZESTE</span><span style={{fontSize:9,color:'var(--cinzaE)',letterSpacing:'.14em'}}>{clienteNome?clienteNome.toUpperCase():'OPERAÇÃO'}</span></div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           {syncing&&<span style={{fontSize:10,color:'var(--lima)',fontFamily:'var(--ff)',fontWeight:700}}>SYNC…</span>}
