@@ -372,7 +372,7 @@ function FormL({init,onSave,onClose,lancamentos=[]}){
 }
 
 // ── FORM CLIENTE ──────────────────────────────────────────────────
-const EC={cliente:'',estabelecimento:'',projeto:'',inicio:td(),prazo:'',statusProjeto:'PROPOSTA',vlrContratado:'',vlrRecebido:'',forma:'PIX',obs:'',anexos:[],tipoCobranca:'unico',parcelas:1,diaPagamento:5,duracaoMeses:1,servicoTipo:'Consultoria'};
+const EC={cliente:'',estabelecimento:'',projeto:'',inicio:td(),prazo:'',statusProjeto:'PROPOSTA',vlrContratado:'',vlrRecebido:'',forma:'PIX',obs:'',anexos:[],tipoCobranca:'unico',parcelas:1,diaPagamento:5,duracaoMeses:1,servicoTipo:'Consultoria',recebimento:'antecipado',taxaModo:'auto'};
 function FormC({init,onSave,onClose}){
   const[f,setF]=useState(()=>({...EC,...(init||{}),id:(init?.id||uid())}));
   const S=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -396,10 +396,15 @@ function FormC({init,onSave,onClose}){
   const rmParc=i=>setParcCustom(prev=>prev.filter((_,j)=>j!==i));
   // Desconto do contrato: forma de cartão + taxa manual opcional + imposto do Simples
   const trib0=getTrib();
+  const[taxaModo,setTaxaModo]=useState(()=>init?.taxaModo||'auto');
   const[contFormaTaxa,setContFormaTaxa]=useState(()=>init?.contFormaTaxa??taxaForma('CRÉDITO 4X'));
+  // taxa efetiva: automática segue a Forma Pgto na operadora ativa; manual usa o campo
+  const taxaEfetiva = taxaModo==='auto' ? taxaForma(f.forma) : (+contFormaTaxa||0);
+  const ehCredito = (f.forma||'').includes('CRÉDITO');
+  const nxCliente = ehCredito ? (f.forma.includes('7-12')?12:+((f.forma.match(/(\d+)X/)||[])[1]||1)) : 1;
   const[contImposto,setContImposto]=useState(()=>init?.contImposto??(trib0.aplicarImposto?trib0.impostoPct:0));
-  const liqValor=v=>{const b=+(v)||0;return b-b*(+contFormaTaxa||0);}; // o que entra na conta (taxa já sai na hora)
-  return(<form onSubmit={e=>{e.preventDefault();onSave({...f,contFormaTaxa,contImposto,_parcCustom:f.tipoCobranca==='parcelado'?parcCustom:null});}}><div className="fg"><Fld label="Nome do Cliente" h><input required value={f.cliente} onChange={e=>S('cliente',e.target.value)} placeholder="Nome"/></Fld><Fld label="Estabelecimento" h><input value={f.estabelecimento} onChange={e=>S('estabelecimento',e.target.value)} placeholder="Restaurante / Bar"/></Fld><Fld label="Projeto / Escopo"><input required value={f.projeto} onChange={e=>S('projeto',e.target.value)} placeholder="Descreva o escopo"/></Fld><Fld label="Status" h><select value={f.statusProjeto} onChange={e=>S('statusProjeto',e.target.value)}>{Object.keys(SPROJ).map(s=><option key={s}>{s}</option>)}</select></Fld><Fld label="Forma Pgto" h><select value={f.forma} onChange={e=>S('forma',e.target.value)}>{Object.entries(FORMAS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}</select></Fld><Fld label="Início" h><input type="date" value={f.inicio} onChange={e=>S('inicio',e.target.value)}/></Fld><Fld label="Prazo Previsto" h><input type="date" value={f.prazo} onChange={e=>S('prazo',e.target.value)}/></Fld><Fld label="Valor Contratado (R$)" h><NumBR value={f.vlrContratado} onChange={v=>S('vlrContratado',v)}/></Fld><Fld label="Valor Recebido (R$)" h><NumBR value={f.vlrRecebido} onChange={v=>S('vlrRecebido',v)}/></Fld><Fld label="Tipo de Cobrança">
+  const liqValor=v=>{const b=+(v)||0;return b-b*taxaEfetiva;}; // o que entra na conta (taxa já sai na hora)
+  return(<form onSubmit={e=>{e.preventDefault();onSave({...f,taxaModo,recebimento:f.recebimento||'antecipado',contFormaTaxa:taxaEfetiva,contImposto,_parcCustom:f.tipoCobranca==='parcelado'?parcCustom:null});}}><div className="fg"><Fld label="Nome do Cliente" h><input required value={f.cliente} onChange={e=>S('cliente',e.target.value)} placeholder="Nome"/></Fld><Fld label="Estabelecimento" h><input value={f.estabelecimento} onChange={e=>S('estabelecimento',e.target.value)} placeholder="Restaurante / Bar"/></Fld><Fld label="Projeto / Escopo"><input required value={f.projeto} onChange={e=>S('projeto',e.target.value)} placeholder="Descreva o escopo"/></Fld><Fld label="Status" h><select value={f.statusProjeto} onChange={e=>S('statusProjeto',e.target.value)}>{Object.keys(SPROJ).map(s=><option key={s}>{s}</option>)}</select></Fld><Fld label="Forma Pgto" h><select value={f.forma} onChange={e=>S('forma',e.target.value)}>{Object.entries(FORMAS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}</select></Fld><Fld label="Início" h><input type="date" value={f.inicio} onChange={e=>S('inicio',e.target.value)}/></Fld><Fld label="Prazo Previsto" h><input type="date" value={f.prazo} onChange={e=>S('prazo',e.target.value)}/></Fld><Fld label="Valor Contratado (R$)" h><NumBR value={f.vlrContratado} onChange={v=>S('vlrContratado',v)}/></Fld><Fld label="Valor Recebido (R$)" h><NumBR value={f.vlrRecebido} onChange={v=>S('vlrRecebido',v)}/></Fld><Fld label="Tipo de Cobrança">
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7,marginTop:3}}>
         {[['unico','💳 Único','Pagamento em uma vez'],['parcelado','📋 Parcelado','Dividido em parcelas'],['mensal','🔄 Mensal','Valor recorrente mensal']].map(([id,l,desc])=>(
           <button key={id} type="button" onClick={()=>S('tipoCobranca',id)} style={{padding:'9px 8px',borderRadius:7,border:'2px solid '+(f.tipoCobranca===id?'var(--verde)':'var(--cinzaM)'),background:f.tipoCobranca===id?'var(--verde)':'transparent',color:f.tipoCobranca===id?'var(--branco)':'var(--cinzaE)',cursor:'pointer',textAlign:'center'}}>
@@ -409,6 +414,26 @@ function FormC({init,onSave,onClose}){
         ))}
       </div>
     </Fld>
+    {ehCredito&&<Fld label="Recebimento da Zeste">
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginTop:3}}>
+        {[['antecipado','⚡ Antecipado','Líquido total em 1 dia útil'],['agenda','📅 Agenda do cartão','Repasses mensais da operadora']].map(([id,l,desc])=>(
+          <button key={id} type="button" onClick={()=>S('recebimento',id)} style={{padding:'9px 8px',borderRadius:7,border:'2px solid '+((f.recebimento||'antecipado')===id?'var(--azul)':'var(--cinzaM)'),background:(f.recebimento||'antecipado')===id?'var(--azul)':'transparent',color:(f.recebimento||'antecipado')===id?'var(--branco)':'var(--cinzaE)',cursor:'pointer',textAlign:'center'}}>
+            <div style={{fontFamily:'var(--ff)',fontSize:11,fontWeight:700}}>{l}</div>
+            <div style={{fontSize:9,marginTop:2,opacity:.8}}>{desc}</div>
+          </button>
+        ))}
+      </div>
+      <div style={{fontSize:11,color:'var(--cinzaE)',marginTop:6,padding:'8px 10px',background:'var(--cinzaF)',borderRadius:7}}>
+        Cliente paga: <b>{(FORMAS[f.forma]||{}).label||f.forma}</b>{nxCliente>1?` (${nxCliente} parcelas dela)`:''} · Zeste recebe: <b>{(f.recebimento||'antecipado')==='antecipado'?'tudo em 1 dia útil (líquido, já sem a taxa)':`em ${nxCliente} repasse${nxCliente>1?'s':''} mensal${nxCliente>1?'is':''} da operadora`}</b>
+      </div>
+    </Fld>}
+    {f.tipoCobranca!=='parcelado'&&+(f.vlrContratado)>0&&(()=>{const tot=+(f.vlrContratado)||0;const vTax=tot*taxaEfetiva;const entra=tot-vTax;const vImp=tot*(+contImposto||0);return(
+      <div style={{marginTop:4,padding:'10px 12px',border:'1px solid var(--cinzaM)',borderRadius:9,fontSize:12}}>
+        <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'var(--cinzaE)'}}>Bruto{f.tipoCobranca==='mensal'?' / mês':''}</span><b>{brl(tot)}</b></div>
+        {taxaEfetiva>0&&<div style={{display:'flex',justifyContent:'space-between',color:'var(--coral)'}}><span>Taxa cartão ({pp(taxaEfetiva)})</span><span>−{brl(vTax)}</span></div>}
+        <div style={{display:'flex',justifyContent:'space-between',color:'var(--verde)',fontWeight:700}}><span>Entra na conta</span><span>{brl(entra)}</span></div>
+        {+contImposto>0&&<div style={{display:'flex',justifyContent:'space-between',color:'var(--cinzaE)'}}><span>Imposto DAS ({pp(+contImposto)}) — pago à parte no mês</span><span>−{brl(vImp)}</span></div>}
+      </div>);})()}
     {f.tipoCobranca==='parcelado'&&<><Fld label="Nº de Parcelas" h><input type="number" min="2" max="36" value={f.parcelas} onChange={e=>S('parcelas',+e.target.value)} placeholder="Ex: 3"/></Fld><Fld label="Dia do Pagamento" h><input type="number" min="1" max="28" value={f.diaPagamento} onChange={e=>S('diaPagamento',+e.target.value)} placeholder="Ex: 5"/></Fld></>}
     {f.tipoCobranca==='mensal'&&<><Fld label="Duração (meses)" h><input type="number" min="1" max="60" value={f.duracaoMeses} onChange={e=>S('duracaoMeses',+e.target.value)} placeholder="Ex: 6"/></Fld><Fld label="Dia do Pagamento" h><input type="number" min="1" max="28" value={f.diaPagamento} onChange={e=>S('diaPagamento',+e.target.value)} placeholder="Ex: 5"/></Fld></>}
     {f.tipoCobranca==='parcelado'&&f.vlrContratado&&<div style={{marginTop:4}}>
@@ -420,7 +445,7 @@ function FormC({init,onSave,onClose}){
         {parcCustom.map((p,i)=>(
           <div key={p.id} style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr auto',gap:6,alignItems:'center',background:'var(--cinzaF)',borderRadius:8,padding:'8px 10px'}}>
             <span style={{fontFamily:'var(--ff)',fontSize:12,fontWeight:700,color:'var(--cinzaE)',minWidth:24}}>{i+1}×</span>
-            <div><div style={{fontSize:9,color:'var(--cinzaE)',marginBottom:2,fontWeight:700}}>VALOR (R$)</div><NumBR value={p.valor} onChange={v=>updParc(i,'valor',v)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13,fontFamily:'var(--ff)',fontWeight:700,color:'var(--verde)'}}/>{(+contFormaTaxa>0||+contImposto>0)&&+(p.valor)>0&&<div style={{fontSize:9.5,color:'var(--cinzaE)',marginTop:2}}>líq. {brl(liqValor(p.valor))}</div>}</div>
+            <div><div style={{fontSize:9,color:'var(--cinzaE)',marginBottom:2,fontWeight:700}}>VALOR (R$)</div><NumBR value={p.valor} onChange={v=>updParc(i,'valor',v)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13,fontFamily:'var(--ff)',fontWeight:700,color:'var(--verde)'}}/>{(taxaEfetiva>0||+contImposto>0)&&+(p.valor)>0&&<div style={{fontSize:9.5,color:'var(--cinzaE)',marginTop:2}}>líq. {brl(liqValor(p.valor))}</div>}</div>
             <div><div style={{fontSize:9,color:'var(--cinzaE)',marginBottom:2,fontWeight:700}}>VENCIMENTO</div><input type="date" value={p.vencimento} onChange={e=>updParc(i,'vencimento',e.target.value)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13}}/></div>
             {parcCustom.length>1&&<button type="button" onClick={()=>rmParc(i)} style={{background:'#FEE2E2',border:'none',borderRadius:6,color:'var(--coral)',padding:'6px 8px',cursor:'pointer',fontSize:13}}>✕</button>}
           </div>
@@ -430,19 +455,26 @@ function FormC({init,onSave,onClose}){
         <span style={{fontSize:12,color:'var(--cinzaE)'}}>Total definido</span>
         <span style={{fontFamily:'var(--ff)',fontWeight:700,color:'var(--verde)',fontSize:14}}>{brl(parcCustom.reduce((s,p)=>s+(+(p.valor)||0),0))}</span>
       </div>
-      {(()=>{const tot=parcCustom.reduce((s,p)=>s+(+(p.valor)||0),0);const vImp=tot*(+contImposto||0);const vTax=tot*(+contFormaTaxa||0);const entra=tot-vTax;const sobra=entra-vImp;return(
+      {(()=>{const tot=parcCustom.reduce((s,p)=>s+(+(p.valor)||0),0);const vImp=tot*(+contImposto||0);const vTax=tot*taxaEfetiva;const entra=tot-vTax;const sobra=entra-vImp;return(
       <div style={{marginTop:8,border:'1px solid var(--cinzaM)',borderRadius:9,padding:'12px 14px'}}>
         <div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.06em',marginBottom:8}}>DESCONTOS SOBRE O CONTRATO</div>
         <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:10}}>
-          <div style={{flex:'1 1 130px'}}>
-            <div style={{fontSize:9,color:'var(--cinzaE)',fontWeight:700,marginBottom:2}}>TAXA CARTÃO (%)</div>
-            <div style={{display:'flex',gap:4,alignItems:'center'}}>
-              <input type="text" inputMode="decimal" value={(+contFormaTaxa*100).toString().replace('.',',')} onChange={e=>setContFormaTaxa((e.target.value.replace(/[^0-9.,]/g,'').replace(',','.')/100)||0)} style={{width:64,border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13,textAlign:'center'}}/>
-              <select onChange={e=>{if(e.target.value)setContFormaTaxa(taxaForma(e.target.value));}} value="" style={{flex:1,border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 6px',fontSize:11,color:'var(--cinzaE)'}}>
-                <option value="">{trib0.operadora}…</option>
-                {Object.keys(FORMAS).filter(k=>k.includes('CRÉDITO')||k==='DÉBITO').map(k=><option key={k} value={k}>{FORMAS[k].label} ({pp(taxaForma(k))})</option>)}
-              </select>
+          <div style={{flex:'1 1 170px'}}>
+            <div style={{fontSize:9,color:'var(--cinzaE)',fontWeight:700,marginBottom:2}}>TAXA CARTÃO</div>
+            <div style={{display:'flex',gap:4,marginBottom:4}}>
+              {[['auto','Automática'],['manual','Manual']].map(([m,l])=>(
+                <button key={m} type="button" onClick={()=>setTaxaModo(m)} style={{flex:1,padding:'6px 4px',borderRadius:6,border:'1.5px solid '+(taxaModo===m?'var(--verde)':'var(--cinzaM)'),background:taxaModo===m?'var(--verde)':'transparent',color:taxaModo===m?'#fff':'var(--cinzaE)',fontSize:10,fontWeight:700,cursor:'pointer'}}>{l}</button>
+              ))}
             </div>
+            {taxaModo==='auto'
+              ? <div style={{fontSize:11,color:'var(--verde)',fontWeight:700,padding:'6px 2px'}}>{(FORMAS[f.forma]||{}).label||f.forma} · {pp(taxaEfetiva)} <span style={{color:'var(--cinzaE)',fontWeight:400}}>({trib0.operadora})</span></div>
+              : <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                  <input type="text" inputMode="decimal" value={(+contFormaTaxa*100).toString().replace('.',',')} onChange={e=>setContFormaTaxa((e.target.value.replace(/[^0-9.,]/g,'').replace(',','.')/100)||0)} style={{width:64,border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 8px',fontSize:13,textAlign:'center'}}/>
+                  <select onChange={e=>{if(e.target.value)setContFormaTaxa(taxaForma(e.target.value));}} value="" style={{flex:1,border:'1.5px solid var(--cinzaM)',borderRadius:6,padding:'7px 6px',fontSize:11,color:'var(--cinzaE)'}}>
+                    <option value="">{trib0.operadora}…</option>
+                    {Object.keys(FORMAS).filter(k=>k.includes('CRÉDITO')||k==='DÉBITO').map(k=><option key={k} value={k}>{FORMAS[k].label} ({pp(taxaForma(k))})</option>)}
+                  </select>
+                </div>}
           </div>
           <div style={{flex:'1 1 90px'}}>
             <div style={{fontSize:9,color:'var(--cinzaE)',fontWeight:700,marginBottom:2}}>IMPOSTO (%)</div>
@@ -1062,7 +1094,18 @@ function DRE({lancamentos}){
 
 // ── CONTAS A RECEBER ──────────────────────────────────────────────
 function gerarRecebimentosContrato(cliente){
-  const {tipoCobranca,parcelas=1,diaPagamento=5,duracaoMeses=1,vlrContratado,inicio,projeto,cliente:nome,forma,_parcCustom} = cliente;
+  const {tipoCobranca,parcelas=1,diaPagamento=5,duracaoMeses=1,vlrContratado,inicio,projeto,cliente:nome,forma,_parcCustom,recebimento} = cliente;
+  const ehCred=(forma||'').includes('CRÉDITO');
+  const nx=ehCred?((forma||'').includes('7-12')?12:+(((forma||'').match(/(\d+)X/)||[])[1]||1)):1;
+  // agenda do cartão: cada cobrança paga em Nx vira Nx repasses mensais no caixa
+  const expandir=items=>{
+    if(!(ehCred&&recebimento==='agenda'&&nx>1)) return items;
+    return items.flatMap(l=>Array.from({length:nx},(_,i)=>{
+      const d=new Date(l.dataDoc+'T12:00:00');d.setMonth(d.getMonth()+i);
+      const dt=d.toISOString().slice(0,10);
+      return {...l,id:uid(),vlrBruto:(+l.vlrBruto||0)/nx,vlrLiquido:(+l.vlrBruto||0)/nx,dataDoc:dt,competencia:dt.slice(0,7),descricao:`${l.descricao} — repasse ${i+1}/${nx}`};
+    }));
+  };
   const vlr = +(vlrContratado)||0;
   if(!vlr||!inicio) return [];
   const base = new Date(inicio+'T12:00:00');
@@ -1077,16 +1120,16 @@ function gerarRecebimentosContrato(cliente){
   });
   if(tipoCobranca==='unico'){
     const d=new Date(base);d.setDate(diaPagamento||5);
-    return[mkLanc(d.toISOString().slice(0,10),vlr,projeto)];
+    return expandir([mkLanc(d.toISOString().slice(0,10),vlr,projeto)]);
   }
   if(tipoCobranca==='parcelado'){
     if(_parcCustom&&_parcCustom.length>0){
-      return _parcCustom.map((p,i)=>mkLanc(p.vencimento||base.toISOString().slice(0,10),+(p.valor)||0,`${projeto} — Parcela ${i+1}/${_parcCustom.length}`));
+      return expandir(_parcCustom.map((p,i)=>mkLanc(p.vencimento||base.toISOString().slice(0,10),+(p.valor)||0,`${projeto} — Parcela ${i+1}/${_parcCustom.length}`)));
     }
-    return Array.from({length:+parcelas},(_,i)=>{
+    return expandir(Array.from({length:+parcelas},(_,i)=>{
       const d=new Date(base);d.setMonth(d.getMonth()+i);d.setDate(diaPagamento||5);
       return mkLanc(d.toISOString().slice(0,10),vlr/+parcelas,`${projeto} — Parcela ${i+1}/${parcelas}`);
-    });
+    }));
   }
   if(tipoCobranca==='mensal'){
     return Array.from({length:+duracaoMeses},(_,i)=>{
@@ -1212,7 +1255,7 @@ function Clientes({clientes,onSave,onDelete,openNew,onSaveL,lancamentos}){
   const temRecebimentos = c => (lancamentos||[]).some(l=>l.tipo==='RECEITA'&&l.clienteFornecedor===c.cliente&&(l.status==='A RECEBER'||l.status==='RECEBIDO'));
   return(<div className="au page pc" style={{paddingTop:12}}><div style={{display:'flex',flexDirection:'column',gap:12}}>
     {clientes.length===0&&<div style={{textAlign:'center',padding:48,color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhum cliente cadastrado</div>}
-    {clientes.map(c=>{const aR=Math.max(0,(+(c.vlrContratado)||0)-(+(c.vlrRecebido)||0));const pR=c.vlrContratado>0?Math.min(1,c.vlrRecebido/c.vlrContratado):0;const sp=SPROJ[c.statusProjeto]||{bg:'var(--cinzaE)',fg:'var(--branco)'};return(<div key={c.id} className="card" style={{borderLeft:`4px solid ${sp.bg}`}}><div style={{padding:'14px 15px'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,flexWrap:'wrap',marginBottom:10}}><div><div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:2}}><span style={{fontFamily:'var(--ff)',fontSize:19,fontWeight:700,color:'var(--verde)'}}>{c.cliente}</span><span className="tag" style={{background:sp.bg,color:sp.fg}}>{c.statusProjeto}</span></div><div style={{fontSize:12,color:'var(--cinzaE)'}}>{c.estabelecimento}</div><div style={{fontSize:13,fontWeight:600,marginTop:2}}>{c.projeto}</div></div><div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+    {clientes.map(c=>{const aR=Math.max(0,(+(c.vlrContratado)||0)-(+(c.vlrRecebido)||0));const pR=c.vlrContratado>0?Math.min(1,c.vlrRecebido/c.vlrContratado):0;const sp=SPROJ[c.statusProjeto]||{bg:'var(--cinzaE)',fg:'var(--branco)'};return(<div key={c.id} className="card" style={{borderLeft:`4px solid ${sp.bg}`}}><div style={{padding:'14px 15px'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,flexWrap:'wrap',marginBottom:10}}><div><div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:2}}><span style={{fontFamily:'var(--ff)',fontSize:19,fontWeight:700,color:'var(--verde)'}}>{c.cliente}</span><span className="tag" style={{background:sp.bg,color:sp.fg}}>{c.statusProjeto}</span></div><div style={{fontSize:12,color:'var(--cinzaE)'}}>{c.estabelecimento}</div><div style={{fontSize:13,fontWeight:600,marginTop:2}}>{c.projeto}</div>{(c.forma||'').includes('CRÉDITO')&&<div style={{fontSize:11,color:'var(--cinzaE)',marginTop:3}}>💳 Cliente pagou: <b>{(FORMAS[c.forma]||{}).label||c.forma}</b> · Zeste recebe: <b>{c.recebimento==='agenda'?'na agenda do cartão':'antecipado (1 dia útil)'}</b>{+(c.contFormaTaxa)>0&&<> · taxa {pp(+c.contFormaTaxa)}{c.taxaModo==='manual'?' (manual)':''}</>}</div>}</div><div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
               {c.vlrContratado&&!temRecebimentos(c)&&<button onClick={()=>gerarRecebimentos(c)} disabled={gerando===c.id} style={{padding:'9px 12px',borderRadius:7,border:'1.5px solid var(--verde)',background:gerando===c.id?'var(--verde)':'transparent',color:gerando===c.id?'var(--branco)':'var(--verde)',fontSize:11,fontWeight:700,cursor:'pointer',minHeight:44}}>{gerando===c.id?'Gerando…':'📅 Gerar Recebimentos'}</button>}
               {temRecebimentos(c)&&<span style={{fontSize:10,padding:'4px 8px',background:'#ECFDF5',color:'#065F46',borderRadius:5,fontWeight:600,alignSelf:'center'}}>✓ Recebimentos gerados</span>}
               <button onClick={()=>setModal(c)} style={{background:'var(--cinzaF)',borderRadius:7,padding:'9px 13px',fontSize:14,fontWeight:600,color:'var(--azul)',minHeight:44}}>✏️</button>
