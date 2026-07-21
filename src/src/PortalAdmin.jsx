@@ -7,6 +7,7 @@ async function sbLoadRaw(table, t, query = "") { try { const r = await fetch(`${
 async function sbUpsert(table, item, t, clienteId) { await fetch(`${SB_URL}/rest/v1/${table}`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: item.id, cliente_id: clienteId, dados: item, updated_at: new Date().toISOString() }) }); }
 async function sbDel(table, id, t) { await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: sbH(t) }); }
 
+const _n = v => (v || "").toString().trim().toLowerCase();
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const td = () => new Date().toISOString().slice(0, 10);
 
@@ -50,10 +51,9 @@ export default function PortalAdmin({ onBack, token }) {
     sbLoadRaw("fin_pratos", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*`).then(r => setPratos(r.map(x => x.dados || x)));
     sbLoadRaw("fin_fichas", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=id`).then(r => setFichasCount(r.length));
     sbLoadRaw("crm_contatos", token, `deleted_at=is.null&select=id,data`).then(rows => {
+      const alvo = _n(sel.nome_display);
       const m = rows.map(r => ({ ...(r.data || {}), _rowId: r.id })).find(c =>
-        c.empresa?.toLowerCase() === sel.nome_display?.toLowerCase() ||
-        c.nome?.toLowerCase() === sel.nome_display?.toLowerCase() ||
-        c._rowId === cid
+        [_n(c.company), _n(c.empresa), _n(c.nome), _n(c.name)].includes(alvo) || c._rowId === cid
       );
       setCrm(m || null);
     });
