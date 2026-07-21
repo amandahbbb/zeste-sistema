@@ -337,7 +337,7 @@ function LoginScreen({ onLogin }) {
 // ── DASHBOARD ────────────────────────────────────────────────────
 function Dashboard() {
   const { token, user, setModulo } = useApp();
-  const [d, setD] = useState({ clientes:[], lancs:[], ings:[], pratos:[], crm:[], loading:true });
+  const [d, setD] = useState({ clientes:[], lancs:[], ings:[], pratos:[], crm:[], etapas:[], docsOp:[], fichasMeta:[], portalCl:[], loading:true });
   const [crmReloading, setCrmReloading] = useState(false);
   const mes = new Date().toISOString().slice(0, 7);
   const brl = v => v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -347,14 +347,19 @@ function Dashboard() {
   useEffect(() => {
     (async () => {
       const crmH = {"Content-Type":"application/json", apikey:SUPABASE_KEY, Authorization:`Bearer ${token||SUPABASE_KEY}`};
-      const [cl, ln, ig, pr, crm] = await Promise.all([
+      const sbGet = (path) => fetch(SUPABASE_URL+"/rest/v1/"+path,{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]);
+      const [cl, ln, ig, pr, crm, etp, dop, fch, pcl] = await Promise.all([
         db.from("clientes").select("id,nome,status,created_at", token),
-        fetch(SUPABASE_URL+"/rest/v1/fin_lancamentos?deleted_at=is.null&order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
-        fetch(SUPABASE_URL+"/rest/v1/fin_ingredientes?order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
-        fetch(SUPABASE_URL+"/rest/v1/fin_pratos?deleted_at=is.null&order=created_at.desc",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+(token||SUPABASE_KEY)}}).then(r=>r.json()).catch(()=>[]),
+        sbGet("fin_lancamentos?deleted_at=is.null&order=created_at.desc"),
+        sbGet("fin_ingredientes?order=created_at.desc"),
+        sbGet("fin_pratos?deleted_at=is.null&order=created_at.desc"),
         fetch(SUPABASE_URL+"/rest/v1/crm_contatos?deleted_at=is.null&select=id,data",{headers:crmH}).then(r=>r.json()).catch(()=>[]),
+        sbGet("portal_etapas?select=cliente_id,dados"),
+        sbGet("docs_operacionais?deleted_at=is.null&select=cliente_id,dados,updated_at"),
+        sbGet("fin_fichas?deleted_at=is.null&select=cliente_id,updated_at"),
+        sbGet("fin_portal_clientes?select=cliente_id,nome_display"),
       ]);
-      setD({ clientes:Array.isArray(cl)?cl:[], lancs:Array.isArray(ln)?ln.map(r=>r.dados||r):[], ings:Array.isArray(ig)?ig.map(r=>r.dados||r):[], pratos:Array.isArray(pr)?pr.map(r=>r.dados||r):[], crm:Array.isArray(crm)?crm.map(r=>({...r.data,_id:r.id})):[], loading:false });
+      setD({ clientes:Array.isArray(cl)?cl:[], lancs:Array.isArray(ln)?ln.map(r=>r.dados||r):[], ings:Array.isArray(ig)?ig.map(r=>r.dados||r):[], pratos:Array.isArray(pr)?pr.map(r=>({...(r.dados||r),_cid:r.cliente_id,_upd:r.updated_at})):[], crm:Array.isArray(crm)?crm.map(r=>({...r.data,_id:r.id})):[], etapas:Array.isArray(etp)?etp.map(r=>({...(r.dados||{}),_cid:r.cliente_id})):[], docsOp:Array.isArray(dop)?dop.map(r=>({...(r.dados||{}),_cid:r.cliente_id,_upd:r.updated_at})):[], fichasMeta:Array.isArray(fch)?fch:[], portalCl:Array.isArray(pcl)?pcl:[], loading:false });
     })();
   }, []);
 
@@ -420,12 +425,53 @@ function Dashboard() {
   const TrendBadge = ({t,bom}) => { if(!t) return null; const ok=t.dir===bom; return <span style={{fontSize:9,fontWeight:700,padding:'2px 5px',borderRadius:4,background:ok?'rgba(143,167,21,.15)':'rgba(232,97,75,.15)',color:ok?'#8FA715':'#E8614B'}}>{t.dir==='up'?'↑':'↓'}{t.pct}%</span>; };
   const QUICK = [{icon:'💰',label:'Financeiro',mod:'financeiro'},{icon:'🍳',label:'Fichas',mod:'fichas'},{icon:'🤝',label:'Comercial',mod:'comercial'},{icon:'📱',label:'Marketing',mod:'marketing'}];
 
+  // ── CENTRAL DE AÇÃO — regras derivadas dos dados já carregados ──
+  const nomeCliente = cid => d.portalCl.find(p=>p.cliente_id===cid)?.nome_display || cid;
+  const hojeISO = new Date().toISOString().slice(0,10);
+  const atencao = [];
+  {
+    const semPreco = d.pratos.filter(p=>p._cid&&p._cid!=='zeste'&&!p.precoVenda);
+    const porCliSP = [...new Set(semPreco.map(p=>p._cid))];
+    porCliSP.forEach(cid=>atencao.push({txt:`${semPreco.filter(p=>p._cid===cid).length} prato(s) sem preço de venda — ${nomeCliente(cid)}`, mod:'fichas'}));
+    const semMop = d.pratos.filter(p=>p._cid&&p._cid!=='zeste'&&!(p.modoPreparo||'').trim());
+    [...new Set(semMop.map(p=>p._cid))].forEach(cid=>atencao.push({txt:`${semMop.filter(p=>p._cid===cid).length} prato(s) sem modo de preparo — ${nomeCliente(cid)} (caderno sai incompleto)`, mod:'fichas'}));
+    d.crm.filter(c=>c.stage==='Cliente'&&!c.proximaReuniao).forEach(c=>atencao.push({txt:`Pós-venda parado: ${c.company||c.name} sem próximo contato agendado`, mod:'comercial'}));
+    d.etapas.filter(e=>!e.done&&e.data&&e.data<hojeISO).forEach(e=>atencao.push({txt:`Encontro passado sem conclusão: "${e.titulo}" — ${nomeCliente(e._cid)}`, mod:'portaladmin'}));
+    d.portalCl.forEach(pc=>{
+      const temPratos = d.pratos.some(p=>p._cid===pc.cliente_id);
+      const cadernos = d.docsOp.filter(x=>x._cid===pc.cliente_id&&x.visibilidade==='entregavel');
+      if(temPratos&&cadernos.length===0) atencao.push({txt:`${pc.nome_display} sem caderno publicado no portal`, mod:'fichas'});
+      const ultEdicao = Math.max(0,...d.pratos.filter(p=>p._cid===pc.cliente_id).map(p=>Date.parse(p._upd)||0),...d.fichasMeta.filter(f=>f.cliente_id===pc.cliente_id).map(f=>Date.parse(f.updated_at)||0));
+      if(cadernos.length&&ultEdicao&&cadernos.some(c=>(Date.parse(c._upd)||0)<ultEdicao-60000)) atencao.push({txt:`Caderno de ${pc.nome_display} desatualizado — fichas editadas depois da geração`, mod:'fichas'});
+    });
+  }
+  const proximosEncontros = d.etapas.filter(e=>!e.done&&e.data&&e.data>=hojeISO).sort((a,b)=>a.data>b.data?1:-1).slice(0,3);
+
   return (
     <div className="page-content">
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:'#F2EBD8',letterSpacing:'.02em'}}>{saudacaoFinal}{nomeExibido?', '+nomeExibido+'!':''}</div>
         <div style={{fontSize:12,color:'#555',marginTop:2}}>{dataStr}</div>
       </div>
+
+      {atencao.length>0&&<div style={{background:'#1B1B18',border:'1px solid #3A2620',borderLeft:'4px solid #E8614B',borderRadius:12,padding:'14px 16px',marginBottom:16}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:800,color:'#E8614B',letterSpacing:'.08em',marginBottom:8}}>EXIGE ATENÇÃO ({atencao.length})</div>
+        {atencao.slice(0,6).map((a,i)=>(
+          <button key={i} onClick={()=>setModulo(a.mod)} style={{display:'block',width:'100%',textAlign:'left',background:'none',border:'none',cursor:'pointer',padding:'5px 0',fontSize:13,color:'#D8D4C8'}}>• {a.txt} <span style={{color:'#555',fontSize:11}}>→</span></button>
+        ))}
+        {atencao.length>6&&<div style={{fontSize:11,color:'#555',marginTop:4}}>…e mais {atencao.length-6}</div>}
+      </div>}
+
+      {proximosEncontros.length>0&&<div style={{background:'#1B1B18',border:'1px solid #2A2A26',borderLeft:'4px solid #8FA715',borderRadius:12,padding:'14px 16px',marginBottom:16}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:800,color:'#8FA715',letterSpacing:'.08em',marginBottom:8}}>PRÓXIMOS ENCONTROS</div>
+        {proximosEncontros.map((e,i)=>(
+          <button key={i} onClick={()=>setModulo('portaladmin')} style={{display:'flex',gap:10,width:'100%',textAlign:'left',background:'none',border:'none',cursor:'pointer',padding:'5px 0',fontSize:13,color:'#D8D4C8',alignItems:'baseline'}}>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,color:'#8FA715',flexShrink:0}}>{new Date(e.data+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>
+            <span style={{flex:1}}>{e.titulo} — {nomeCliente(e._cid)}</span>
+          </button>
+        ))}
+      </div>}
+
       <div className="kpi-grid" style={{marginBottom:16}}>
         {[{label:'Receitas',val:brl(recMes),cor:'#8FA715',t:tRec,bom:'up'},{label:'Despesas',val:brl(desMes),cor:'#E8614B',t:tDes,bom:'down'},{label:'Resultado',val:brl(resultado),cor:resultado>=0?'#8FA715':'#E8614B',t:tRes,bom:'up'},{label:'Clientes Ativos',val:clAtivos,cor:'#1A4F71',t:null},{label:'CMV Médio',val:pct(cmvMedio),cor:cmvCor,t:null,sub:cmvMedio<.30?'✓ Excelente':cmvMedio<.35?'⚠ Atenção':'✗ Alto'}].map(({label,val,cor,t,bom,sub})=>(
           <div key={label} className="kpi-card" style={{borderLeftColor:cor}}>
