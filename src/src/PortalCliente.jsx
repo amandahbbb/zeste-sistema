@@ -351,10 +351,10 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
   useEffect(() => {
     const cid = clienteInfo.cliente_id;
     sbLoad("crm_contatos", token, "deleted_at=is.null&select=id,data").then(rows => {
+      const _n = v => (v || "").toString().trim().toLowerCase();
+      const alvo = _n(clienteInfo.nome_display);
       const match = rows.map(r => ({ ...r.data, _id: r.id })).find(c =>
-        c.empresa?.toLowerCase() === clienteInfo.nome_display?.toLowerCase() ||
-        c.nome?.toLowerCase() === clienteInfo.nome_display?.toLowerCase() ||
-        c._id === cid
+        [_n(c.company), _n(c.empresa), _n(c.nome), _n(c.name)].includes(alvo) || c._id === cid
       );
       if (match) setProjeto(match);
     });
