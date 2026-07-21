@@ -375,7 +375,7 @@ function DiagItem({item,idx,done,note,blockAccent,blockColor,onToggle,onNoteChan
   </div>;
 }
 
-function CRMModal({contact,onClose,onSave}){
+function CRMModal({contact,onClose,onSave,onDelete}){
   const[tab,setTab]=useState("diagnostico");
   const[c,setC]=useState(()=>JSON.parse(JSON.stringify(contact)));
   const[newNota,setNewNota]=useState({tipo:"Visita",nota:""});
@@ -471,6 +471,7 @@ function CRMModal({contact,onClose,onSave}){
         </div>}
       </div>
       <div style={{padding:"11px 20px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8,background:C.card,flexShrink:0}}>
+        <button onClick={()=>{if(window.confirm(`Excluir o contato "${c.name||c.company||""}"? Ele some do CRM (recuperável por suporte).`))onDelete(c);}} style={{padding:"8px 14px",borderRadius:7,border:"1px solid #7A2E1E",background:"transparent",cursor:"pointer",fontSize:13,color:"#E8614B",marginRight:"auto"}}>Excluir</button>
         <button onClick={onClose} style={{padding:"8px 18px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontSize:13,color:C.muted}}>Cancelar</button>
         <button onClick={async()=>{setSaving(true);setSaved(false);await onSave(c);setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2500);}} disabled={saving} style={{padding:"8px 20px",borderRadius:7,border:"none",background:saved?"#10B981":meta.accent,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,transition:"background .3s"}}>{saving?"Salvando…":saved?"✓ Salvo!":"Salvar"}</button>
       </div>
@@ -500,7 +501,7 @@ function NewContactModal({onClose,onSave}){
   </div>;
 }
 
-function CRMView(){
+function CRMView({modo="pipeline"}){
   const[contacts,setContacts]=useState([]);
   const[selected,setSelected]=useState(null);
   const[showNew,setShowNew]=useState(false);
@@ -524,6 +525,13 @@ function CRMView(){
       alert('Erro ao salvar. Verifique a conexão e tente novamente.');
     }
   };
+  const deleteContact=async(c)=>{
+    try{
+      await sbDelete(c._sbid,token);
+      setContacts(prev=>prev.filter(x=>x._sbid!==c._sbid));
+      setSelected(null);
+    }catch(e){console.error(e);alert('Erro ao excluir. Verifique a conexão e tente novamente.');}
+  };
   const addContact=async(c)=>{
     try{const sbid=await sbUpsert(c,token);setContacts(prev=>[...prev,{...c,_sbid:sbid}]);}catch(e){console.error(e);}
     setShowNew(false);
@@ -540,8 +548,11 @@ function CRMView(){
       <button onClick={reload} disabled={syncing} title="Sincronizar" style={{padding:"8px 12px",background:syncing?"#2A2A2A":C.surface,color:syncing?C.muted:C.text,border:`1px solid ${C.border}`,borderRadius:7,cursor:syncing?"default":"pointer",fontSize:14,flexShrink:0}}>{syncing?"⟳":"↻"}</button>
       <button onClick={()=>setShowNew(true)} style={{padding:"8px 14px",background:C.yellow,color:"#0E0E0C",border:"none",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>+ Novo</button>
     </div>
+    {modo==="clientes" ? (
+      <ClientesAtivos contacts={filtered.filter(c=>c.stage==="Cliente")} onOpen={setSelected} onSave={saveContact}/>
+    ) : (
     <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:8}}>
-      {STAGES.map(stage=>{const meta=STAGE_META[stage],stageC=filtered.filter(c=>c.stage===stage);return <div key={stage} style={{minWidth:200,flex:"0 0 200px"}}>
+      {STAGES.filter(s=>modo==="pipeline"?s!=="Cliente":true).map(stage=>{const meta=STAGE_META[stage],stageC=filtered.filter(c=>c.stage===stage);return <div key={stage} style={{minWidth:200,flex:"0 0 200px"}}>
         <div style={{marginBottom:8,padding:"9px 12px",background:C.card,borderRadius:8,border:`1px solid ${C.border}`,borderTop:`3px solid ${meta.accent}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{fontWeight:700,fontSize:11,color:C.text}}>{stage}</div><div style={{fontSize:10,color:C.muted,marginTop:1}}>{stageC.length} contato{stageC.length!==1?"s":""}</div></div>
           <span style={{fontSize:14,color:meta.accent}}>{meta.icon}</span>
@@ -550,7 +561,8 @@ function CRMView(){
         {stageC.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:11,padding:"16px 0",borderRadius:8,border:`1.5px dashed ${C.border}`,marginTop:4}}>Nenhum contato</div>}
       </div>;})}
     </div>
-    {selected&&<CRMModal contact={selected} onClose={()=>setSelected(null)} onSave={saveContact}/>}
+    )}
+    {selected&&<CRMModal contact={selected} onClose={()=>setSelected(null)} onSave={saveContact} onDelete={deleteContact}/>}
     {showNew&&<NewContactModal onClose={()=>setShowNew(false)} onSave={addContact}/>}
   </div>;
 }
@@ -560,7 +572,8 @@ export default function ComercialZeste({onBack,token:tokenProp}){
   // Sync token for CRM supabase calls
   if(tokenProp&&typeof window!=="undefined")window.__supabaseToken=tokenProp;
   const[activeSection,setActiveSection]=useState("filosofia");
-  const[showCRM,setShowCRM]=useState(true);
+  const[view,setView]=useState("pipeline"); // pipeline | clientes | manual
+  const showCRM = view!=="manual";
 
   const current=MANUAL_SECTIONS.find(s=>s.id===activeSection);
 
@@ -577,16 +590,11 @@ export default function ComercialZeste({onBack,token:tokenProp}){
         <div style={{width:1,height:20,background:C.border}}/>
         <span style={{fontSize:11,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",flexShrink:0}}>COMERCIAL</span>
         <div style={{flex:1}}/>
-        <button onClick={()=>setShowCRM(v=>!v)} style={{
-          padding:"8px 16px",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12,
-          flexShrink:0,letterSpacing:"0.05em",transition:"all 0.2s",
-          border:"none",
-          background:showCRM?`${C.border}`:`${C.yellow}`,
-          color:showCRM?C.muted:"#0E0E0C",
-          boxShadow:showCRM?"none":`0 0 14px ${C.yellow}55`,
-        }}>
-          {showCRM?"☰ Diretrizes Comerciais":"📋 CRM"}
-        </button>
+        <div style={{display:"flex",gap:4,flexShrink:0}}>
+          {[["pipeline","Pipeline"],["clientes","Clientes"],["manual","Diretrizes"]].map(([id,l])=>(
+            <button key={id} onClick={()=>setView(id)} style={{padding:"8px 14px",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12,letterSpacing:"0.05em",border:"none",background:view===id?C.yellow:"transparent",color:view===id?"#0E0E0C":C.muted}}>{l}</button>
+          ))}
+        </div>
       </div>
 
       {/* SECTION TABS — only in manual mode */}
@@ -601,7 +609,7 @@ export default function ComercialZeste({onBack,token:tokenProp}){
     {/* CONTENT */}
     <div style={{padding:"24px 18px",maxWidth:820,margin:"0 auto"}}>
       {showCRM ? (
-        <CRMView/>
+        <CRMView modo={view}/>
       ) : current && (
         <div>
           <div style={{marginBottom:24}}>
@@ -620,10 +628,58 @@ export default function ComercialZeste({onBack,token:tokenProp}){
               :<div/>}
             {MANUAL_SECTIONS.findIndex(s=>s.id===activeSection)<MANUAL_SECTIONS.length-1
               ?<button onClick={()=>setActiveSection(MANUAL_SECTIONS[MANUAL_SECTIONS.findIndex(s=>s.id===activeSection)+1].id)} style={{padding:"9px 14px",borderRadius:8,border:`1px solid ${C.yellow}`,background:`${C.yellow}15`,cursor:"pointer",fontSize:12,color:C.yellow,fontWeight:700}}>Próximo →</button>
-              :<button onClick={()=>setShowCRM(true)} style={{padding:"9px 14px",borderRadius:8,border:`1px solid ${C.green}`,background:`${C.green}15`,cursor:"pointer",fontSize:12,color:C.green,fontWeight:700}}>Abrir CRM →</button>}
+              :<button onClick={()=>setView("pipeline")} style={{padding:"9px 14px",borderRadius:8,border:`1px solid ${C.green}`,background:`${C.green}15`,cursor:"pointer",fontSize:12,color:C.green,fontWeight:700}}>Abrir CRM →</button>}
           </div>
         </div>
       )}
+    </div>
+  </div>;
+}
+
+
+// ── CLIENTES ATIVOS — carteira e pós-venda ───────────────────────
+const FASES_POSVENDA=["Enxergar","Estruturar","Evoluir","Escalar","Elevar"];
+function ClientesAtivos({contacts,onOpen,onSave}){
+  const porFase=FASES_POSVENDA.map((f,i)=>({f,n:contacts.filter(c=>(c.faseAtual||1)===i+1).length}));
+  if(contacts.length===0)return <div style={{textAlign:"center",color:C.faint,fontSize:13,padding:"40px 0",border:`1.5px dashed ${C.border}`,borderRadius:12}}>Nenhum cliente ativo ainda. Quando um contato fechar, mova-o para a etapa "Cliente" no Pipeline — ele aparece aqui.</div>;
+  return <div>
+    <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+      <div style={{padding:"10px 16px",background:C.card,border:`1px solid ${C.border}`,borderRadius:10}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:C.green}}>{contacts.length}</div>
+        <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:".05em"}}>ativos</div>
+      </div>
+      {porFase.filter(x=>x.n>0).map(x=>(
+        <div key={x.f} style={{padding:"10px 16px",background:C.card,border:`1px solid ${C.border}`,borderRadius:10}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:C.text}}>{x.n}</div>
+          <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:".05em"}}>{x.f}</div>
+        </div>
+      ))}
+    </div>
+    <div style={{display:"grid",gap:10}}>
+      {contacts.map(c=>{
+        const fase=c.faseAtual||1;
+        return <div key={c.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px"}}>
+          <div style={{display:"flex",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:180}}>
+              <div style={{fontWeight:700,fontSize:15,color:C.text}}>{c.company||c.name}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:2}}>{c.name}{c.segmento&&` · ${c.segmento}`}</div>
+              {c.proximaReuniao&&<div style={{fontSize:12,color:C.green,marginTop:4}}>📅 {c.tipoReuniao||"Contato"} · {new Date(c.proximaReuniao+"T12:00:00").toLocaleDateString("pt-BR")}{c.horarioReuniao&&` às ${c.horarioReuniao}`}</div>}
+              {!c.proximaReuniao&&<div style={{fontSize:12,color:C.faint,marginTop:4}}>Sem próximo contato agendado — pós-venda parado</div>}
+            </div>
+            <button onClick={()=>onOpen(c)} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontSize:12,color:C.muted,flexShrink:0}}>Abrir ficha</button>
+          </div>
+          <div style={{display:"flex",gap:5,marginTop:12}}>
+            {FASES_POSVENDA.map((f,i)=>{
+              const n=i+1,done=n<fase,cur=n===fase;
+              return <button key={f} title={f} onClick={()=>{if(n!==fase&&window.confirm(`Mudar "${c.company||c.name}" para a fase "${f}"? O cliente vê a fase no portal.`))onSave({...c,faseAtual:n});}}
+                style={{flex:1,padding:"7px 2px",borderRadius:7,cursor:"pointer",border:`1.5px solid ${cur?C.yellow:done?C.green:C.border}`,background:cur?C.yellow:done?`${C.green}25`:"transparent",color:cur?"#0E0E0C":done?C.green:C.faint}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:13}}>{done?"✓":n}</div>
+                <div style={{fontSize:8,fontWeight:700,letterSpacing:".02em"}}>{f}</div>
+              </button>;
+            })}
+          </div>
+        </div>;
+      })}
     </div>
   </div>;
 }
