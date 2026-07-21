@@ -27,9 +27,13 @@ const STYLE = `
 export default function PortalAdmin({ onBack, token }) {
   const [clientes, setClientes] = useState([]);
   const [sel, setSel] = useState(null);
-  const [aba, setAba] = useState("documentos");
+  const [aba, setAba] = useState("visao");
   const [docs, setDocs] = useState([]);
   const [etapas, setEtapas] = useState([]);
+  const [docsOp, setDocsOp] = useState([]);
+  const [pratos, setPratos] = useState([]);
+  const [fichasCount, setFichasCount] = useState(0);
+  const [crm, setCrm] = useState(null); // contato do CRM vinculado (fase do 5E)
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,9 +42,37 @@ export default function PortalAdmin({ onBack, token }) {
 
   useEffect(() => {
     if (!sel) return;
-    sbLoadRaw("portal_documentos", token, `cliente_id=eq.${sel.cliente_id}&select=*&order=created_at.desc`).then(r => setDocs(r.map(x => x.dados || x)));
-    sbLoadRaw("portal_etapas", token, `cliente_id=eq.${sel.cliente_id}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
+    setAba("visao");
+    const cid = sel.cliente_id;
+    sbLoadRaw("portal_documentos", token, `cliente_id=eq.${cid}&select=*&order=created_at.desc`).then(r => setDocs(r.map(x => x.dados || x)));
+    sbLoadRaw("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
+    sbLoadRaw("docs_operacionais", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*&order=updated_at.desc`).then(r => setDocsOp(r.map(x => x.dados || x)));
+    sbLoadRaw("fin_pratos", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*`).then(r => setPratos(r.map(x => x.dados || x)));
+    sbLoadRaw("fin_fichas", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=id`).then(r => setFichasCount(r.length));
+    sbLoadRaw("crm_contatos", token, `deleted_at=is.null&select=id,data`).then(rows => {
+      const m = rows.map(r => ({ ...(r.data || {}), _rowId: r.id })).find(c =>
+        c.empresa?.toLowerCase() === sel.nome_display?.toLowerCase() ||
+        c.nome?.toLowerCase() === sel.nome_display?.toLowerCase() ||
+        c._rowId === cid
+      );
+      setCrm(m || null);
+    });
   }, [sel]);
+
+  // fase do 5E vive no contato do CRM — o portal do cliente lê de lá
+  const saveFase = async n => {
+    if (!crm) return;
+    const novo = { ...crm, faseAtual: n };
+    setCrm(novo);
+    const { _rowId, ...data } = novo;
+    await fetch(`${SB_URL}/rest/v1/crm_contatos?id=eq.${_rowId}`, { method: "PATCH", headers: sbH(token), body: JSON.stringify({ data, updated_at: new Date().toISOString() }) });
+  };
+
+  const toggleVisibilidade = async d => {
+    const novo = { ...d, visibilidade: d.visibilidade === "entregavel" ? "interno" : "entregavel" };
+    setDocsOp(p => p.map(x => x.id === d.id ? novo : x));
+    await sbUpsert("docs_operacionais", novo, token, sel.cliente_id);
+  };
 
   const saveDoc = async d => { setDocs(p => p.find(x => x.id === d.id) ? p.map(x => x.id === d.id ? d : x) : [d, ...p]); await sbUpsert("portal_documentos", d, token, sel.cliente_id); };
   const delDoc = async id => { setDocs(p => p.filter(x => x.id !== id)); await sbDel("portal_documentos", id, token); };
@@ -58,7 +90,7 @@ export default function PortalAdmin({ onBack, token }) {
       </div>
       <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
         <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, marginBottom: 4 }}>Gerenciar Área de Membros</h2>
-        <p style={{ color: C.cinzaE, fontSize: 13, marginBottom: 16 }}>Escolha um cliente para gerenciar documentos e etapas do projeto.</p>
+        <p style={{ color: C.cinzaE, fontSize: 13, marginBottom: 16 }}>Escolha um cliente para ver o hub completo: projeto, documentos, pratos e portal.</p>
         {loading ? <div style={{ padding: 30, textAlign: "center", color: C.cinzaE }}>Carregando…</div> :
           clientes.length === 0 ? <div className="pa-card" style={{ padding: 30, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum cliente com acesso ao portal ainda. Toque em “+ Novo Cliente” para criar o primeiro acesso.</div> :
             <div className="pa-card">
@@ -89,13 +121,15 @@ export default function PortalAdmin({ onBack, token }) {
         </div>
       </div>
       <div style={{ display: "flex", background: C.preto, borderBottom: "1px solid #2A2A2A" }}>
-        {[["documentos", "📁 Documentos"], ["etapas", "🎯 Etapas do Projeto"]].map(([id, l]) => (
+        {[["visao", "Visão geral"], ["projeto", "Projeto"], ["documentos", "Documentos"], ["pratos", "Pratos"]].map(([id, l]) => (
           <button key={id} className="pa-tab" onClick={() => setAba(id)} style={{ color: aba === id ? C.lima : "#555", borderBottomColor: aba === id ? C.lima : "transparent" }}>{l}</button>
         ))}
       </div>
 
-      {aba === "documentos" && <DocsAdmin docs={docs} onSave={saveDoc} onDelete={delDoc} />}
-      {aba === "etapas" && <EtapasAdmin etapas={etapas} onSave={saveEtapa} onDelete={delEtapa} />}
+      {aba === "visao" && <VisaoGeral sel={sel} crm={crm} pratos={pratos} fichasCount={fichasCount} docsOp={docsOp} docs={docs} etapas={etapas} saveFase={saveFase} setAba={setAba} />}
+      {aba === "projeto" && <EtapasAdmin etapas={etapas} onSave={saveEtapa} onDelete={delEtapa} />}
+      {aba === "documentos" && <><CadernosAdmin docsOp={docsOp} onToggle={toggleVisibilidade} /><DocsAdmin docs={docs} onSave={saveDoc} onDelete={delDoc} /></>}
+      {aba === "pratos" && <PratosResumo pratos={pratos} />}
     </div>
   );
 }
@@ -198,6 +232,127 @@ function EtapasAdmin({ etapas, onSave, onDelete }) {
             </div>
           ))}
       </div>
+    </div>
+  );
+}
+
+
+// ── VISÃO GERAL — hub do cliente ─────────────────────────────────
+const FASES_5E = ["Enxergar", "Estruturar", "Evoluir", "Escalar", "Elevar"];
+function VisaoGeral({ sel, crm, pratos, fichasCount, docsOp, docs, etapas, saveFase, setAba }) {
+  const entregaveis = docsOp.filter(d => d.visibilidade === "entregavel").length;
+  const semMop = pratos.filter(p => !(p.modoPreparo || "").trim()).length;
+  const semPreco = pratos.filter(p => !p.precoVenda).length;
+  const proxima = etapas.filter(e => !e.done && e.data).sort((a, b) => (a.data > b.data ? 1 : -1))[0];
+  const faseAtual = crm?.faseAtual || 1;
+  const stats = [
+    { n: pratos.length, l: "pratos", aba: "pratos" },
+    { n: fichasCount, l: "fichas", aba: null },
+    { n: entregaveis, l: "cadernos no portal", aba: "documentos" },
+    { n: docs.length, l: "links compartilhados", aba: "documentos" },
+  ];
+  const alertas = [];
+  if (semPreco > 0) alertas.push(`${semPreco} prato${semPreco > 1 ? "s" : ""} sem preço de venda — não entra na matriz nem no caderno gerencial`);
+  if (semMop > 0) alertas.push(`${semMop} prato${semMop > 1 ? "s" : ""} sem modo de preparo — caderno operacional sai incompleto`);
+  if (entregaveis === 0 && pratos.length > 0) alertas.push("Nenhum caderno visível no portal — gere em Operação → Cadernos");
+  return (
+    <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
+        {stats.map(st => (
+          <button key={st.l} onClick={() => st.aba && setAba(st.aba)} className="pa-card" style={{ padding: "12px 6px", textAlign: "center", cursor: st.aba ? "pointer" : "default", border: `1px solid ${C.border}` }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 26, fontWeight: 800, color: C.preto }}>{st.n}</div>
+            <div style={{ fontSize: 10, color: C.cinzaE, letterSpacing: ".03em", textTransform: "uppercase", fontWeight: 700 }}>{st.l}</div>
+          </button>
+        ))}
+      </div>
+
+      {alertas.length > 0 && (
+        <div className="pa-card" style={{ padding: 14, marginBottom: 14, borderLeft: `4px solid ${C.coral}` }}>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 13, color: C.coral, marginBottom: 6, letterSpacing: ".05em" }}>EXIGE ATENÇÃO</div>
+          {alertas.map((a, i) => <div key={i} style={{ fontSize: 13, padding: "3px 0", color: C.preto }}>• {a}</div>)}
+        </div>
+      )}
+
+      <div className="pa-card" style={{ padding: 16, marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 10, letterSpacing: ".05em" }}>MÉTODO 5E — FASE ATUAL</div>
+        {!crm ? <div style={{ fontSize: 13, color: C.cinzaE, fontStyle: "italic" }}>Sem contato vinculado no CRM (Comercial). Cadastre a empresa "{sel.nome_display}" no CRM para controlar a fase do projeto aqui.</div> : (
+          <div style={{ display: "flex", gap: 6 }}>
+            {FASES_5E.map((f, i) => {
+              const n = i + 1, done = n < faseAtual, cur = n === faseAtual;
+              return (
+                <button key={f} onClick={() => { if (confirm(`Mudar a fase atual para "${f}"? O cliente vê isso no portal.`)) saveFase(n); }}
+                  style={{ flex: 1, padding: "10px 2px", borderRadius: 8, border: `1.5px solid ${cur ? C.lima : done ? C.verde : C.border}`, background: cur ? C.lima : done ? C.verde : "#fff", color: cur ? C.preto : done ? "#fff" : C.cinzaE, cursor: "pointer" }}>
+                  <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 15 }}>{done ? "✓" : n}</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".02em" }}>{f}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="pa-card" style={{ padding: 16 }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 8, letterSpacing: ".05em" }}>PRÓXIMO ENCONTRO</div>
+        {proxima ? (
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{proxima.titulo}</div>
+            <div style={{ fontSize: 13, color: C.cinzaE, marginTop: 2 }}>{new Date(proxima.data + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</div>
+            {proxima.escopo && <div style={{ fontSize: 13, color: C.cinzaE, marginTop: 4 }}>{proxima.escopo}</div>}
+          </div>
+        ) : <div style={{ fontSize: 13, color: C.cinzaE, fontStyle: "italic" }}>Nenhum encontro agendado. Adicione na aba Projeto.</div>}
+      </div>
+    </div>
+  );
+}
+
+// ── CADERNOS GERADOS — visibilidade no portal ────────────────────
+function CadernosAdmin({ docsOp, onToggle }) {
+  if (docsOp.length === 0) return null;
+  return (
+    <div style={{ padding: "16px 16px 0", maxWidth: 640, margin: "0 auto" }}>
+      <div className="pa-card" style={{ marginBottom: 0 }}>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700 }}>Cadernos gerados ({docsOp.length})</div>
+        {docsOp.map((d, i) => {
+          const vis = d.visibilidade === "entregavel";
+          return (
+            <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: i < docsOp.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
+              <div style={{ fontSize: 20 }}>{d.modelo === "fichas_praca" ? "🖼" : d.modelo === "caderno_gerencial" ? "📊" : "⚡"}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.titulo}</div>
+                <div style={{ fontSize: 11, color: vis ? C.verde : C.cinzaE }}>{vis ? "✓ Visível no portal do cliente" : "Interno — cliente não vê"}</div>
+              </div>
+              <button onClick={() => onToggle(d)} className="pa-btn" style={{ background: vis ? C.cinzaF : C.verde, color: vis ? C.cinzaE : "#fff", fontSize: 12, padding: "7px 12px" }}>{vis ? "Ocultar" : "Publicar"}</button>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 11, color: C.cinzaE, marginTop: 8 }}>💡 Os cadernos são gerados em Operação → Cadernos. Aqui você controla o que o cliente vê.</div>
+    </div>
+  );
+}
+
+// ── PRATOS DO CLIENTE — leitura ──────────────────────────────────
+function PratosResumo({ pratos }) {
+  const brl = n => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+  return (
+    <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
+      <div className="pa-card">
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700 }}>Pratos do cliente ({pratos.length})</div>
+        {pratos.length === 0 ? <div style={{ padding: 30, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhum prato ainda. Cadastre em Operação → Pratos com o cliente selecionado.</div> :
+          pratos.map((p, i) => (
+            <div key={p.id || i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: i < pratos.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{p.nome}</div>
+                <div style={{ fontSize: 11, color: C.cinzaE }}>
+                  {p.categoria || "sem categoria"}
+                  {!(p.modoPreparo || "").trim() && <span style={{ color: C.coral, fontWeight: 700 }}> · sem MOP</span>}
+                </div>
+              </div>
+              <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 16, color: p.precoVenda ? C.preto : C.coral }}>{p.precoVenda ? brl(p.precoVenda) : "sem preço"}</div>
+            </div>
+          ))}
+      </div>
+      <div style={{ fontSize: 11, color: C.cinzaE, marginTop: 8 }}>💡 Edição de pratos, fichas e custos acontece em Operação. Esta é a visão consolidada do cliente.</div>
     </div>
   );
 }
