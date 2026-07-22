@@ -8,7 +8,7 @@ Atualizado: 21/jul/2026
 
 - **Amanda** — co-fundadora da Zeste Consultoria Gastronômica (50/50 com Bruna Toledo), Balneário Camboriú/SC. Cuida do lado técnico/gastronômico: fichas técnicas, POPs, CMV, cardápios, engenharia de cardápios, treinamentos, padronização. **Não é desenvolvedora** — edita código pelo editor de lápis do GitHub, um arquivo por vez.
 - **Bruna Toledo** — sócia, comercial/administrativo e padronização.
-- **Bianca Bueno** — cliente (440 Bebida Café / 440 Restaurante e Café, `cliente_id: 440`; também dona da Bio Bakery). Crítica, quer entender tudo.
+- **Bianca Bueno** — cliente (440 Bebida Café / 440 Restaurante e Café, `cliente_id: 440`;.
 - **Lucca** — marido da Bianca, sócio e decisor no 440.
 - **Liziê Martinelli** — parceira confeiteira (Mormor Ateliê de Doces); cria as receitas e treina.
 
