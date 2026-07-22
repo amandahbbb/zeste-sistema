@@ -375,7 +375,7 @@ function DiagItem({item,idx,done,note,blockAccent,blockColor,onToggle,onNoteChan
   </div>;
 }
 
-function CRMModal({contact,onClose,onSave,onDelete}){
+function CRMModal({contact,onClose,onSave,onDelete,onFechar}){
   const[tab,setTab]=useState("diagnostico");
   const[c,setC]=useState(()=>JSON.parse(JSON.stringify(contact)));
   const[newNota,setNewNota]=useState({tipo:"Visita",nota:""});
@@ -472,6 +472,7 @@ function CRMModal({contact,onClose,onSave,onDelete}){
       </div>
       <div style={{padding:"11px 20px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8,background:C.card,flexShrink:0}}>
         <button onClick={()=>{if(window.confirm(`Excluir o contato "${c.name||c.company||""}"? Ele some do CRM (recuperável por suporte).`))onDelete(c);}} style={{padding:"8px 14px",borderRadius:7,border:"1px solid #7A2E1E",background:"transparent",cursor:"pointer",fontSize:13,color:"#E8614B",marginRight:"auto"}}>Excluir</button>
+        {c.stage!=="Cliente"&&onFechar&&<button onClick={()=>onFechar(c)} style={{padding:"8px 14px",borderRadius:7,border:"none",background:C.green,color:"#0E0E0C",cursor:"pointer",fontSize:13,fontWeight:800}}>🚀 Fechar projeto</button>}
         <button onClick={onClose} style={{padding:"8px 18px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontSize:13,color:C.muted}}>Cancelar</button>
         <button onClick={async()=>{setSaving(true);setSaved(false);await onSave(c);setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2500);}} disabled={saving} style={{padding:"8px 20px",borderRadius:7,border:"none",background:saved?"#10B981":meta.accent,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,transition:"background .3s"}}>{saving?"Salvando…":saved?"✓ Salvo!":"Salvar"}</button>
       </div>
@@ -502,6 +503,7 @@ function NewContactModal({onClose,onSave}){
 }
 
 function CRMView({modo="pipeline"}){
+  const[fechando,setFechando]=useState(null);
   const[contacts,setContacts]=useState([]);
   const[selected,setSelected]=useState(null);
   const[showNew,setShowNew]=useState(false);
@@ -562,7 +564,8 @@ function CRMView({modo="pipeline"}){
       </div>;})}
     </div>
     )}
-    {selected&&<CRMModal contact={selected} onClose={()=>setSelected(null)} onSave={saveContact} onDelete={deleteContact}/>}
+    {selected&&<CRMModal contact={selected} onClose={()=>setSelected(null)} onSave={saveContact} onDelete={deleteContact} onFechar={c=>{setSelected(null);setFechando(c);}}/>}
+    {fechando&&<FecharProjetoModal contato={fechando} onClose={()=>setFechando(null)} onSave={saveContact}/>}
     {showNew&&<NewContactModal onClose={()=>setShowNew(false)} onSave={addContact}/>}
   </div>;
 }
@@ -636,6 +639,115 @@ export default function ComercialZeste({onBack,token:tokenProp}){
   </div>;
 }
 
+
+
+// ── FECHAMENTO → KICK-OFF: cria cliente do portal + login + financeiro + etapa ──
+const slugify=t=>(t||"").toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,30)||"cliente";
+const uidFP=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+async function executarFechamento(d,token){
+  const h={"Content-Type":"application/json",apikey:SB_KEY,...(token&&{Authorization:`Bearer ${token}`})};
+  const passos=[];
+  // 1) Login (Supabase Auth)
+  try{
+    const r=await fetch(`${SB_URL}/auth/v1/signup`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_KEY},body:JSON.stringify({email:d.email,password:d.senha})});
+    const j=await r.json();
+    if(r.ok&&j?.id||j?.user){passos.push({p:"Login do cliente (Auth)",ok:true,msg:j?.session?"criado e ativo":"criado — se o login não funcionar de primeira, confirme o e-mail em Supabase → Auth → Users"});}
+    else if((j?.msg||j?.message||"").toLowerCase().includes("already")){passos.push({p:"Login do cliente (Auth)",ok:true,msg:"e-mail já tinha usuário — mantido"});}
+    else passos.push({p:"Login do cliente (Auth)",ok:false,msg:j?.msg||j?.message||"falhou — crie manualmente em Supabase → Auth"});
+  }catch{passos.push({p:"Login do cliente (Auth)",ok:false,msg:"sem conexão"});}
+  // 2) Acesso ao portal (fin_portal_clientes)
+  try{
+    const g=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes?email=eq.${encodeURIComponent(d.email)}&select=cliente_id`,{headers:h}).then(r=>r.json());
+    if(Array.isArray(g)&&g.length>0){passos.push({p:"Acesso ao portal",ok:true,msg:`já existia (${g[0].cliente_id}) — mantido`});d.clienteId=g[0].cliente_id;}
+    else{
+      const r=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes`,{method:"POST",headers:h,body:JSON.stringify({cliente_id:d.clienteId,nome_display:d.nomeDisplay,email:d.email,ativo:true})});
+      passos.push({p:"Acesso ao portal",ok:r.ok,msg:r.ok?`cliente_id "${d.clienteId}"`:"falhou — crie via SQL"});
+    }
+  }catch{passos.push({p:"Acesso ao portal",ok:false,msg:"sem conexão"});}
+  // 3) Cliente no Financeiro (fin_clientes)
+  try{
+    const g=await fetch(`${SB_URL}/rest/v1/fin_clientes?deleted_at=is.null&select=id,dados`,{headers:h}).then(r=>r.json());
+    const jaTem=Array.isArray(g)&&g.some(x=>((x.dados?.estabelecimento||x.dados?.cliente||"").toLowerCase()===d.nomeDisplay.toLowerCase()));
+    if(jaTem)passos.push({p:"Cliente no Financeiro",ok:true,msg:"já existia — mantido"});
+    else{
+      const item={id:uidFP(),cliente:d.contatoNome||d.nomeDisplay,estabelecimento:d.nomeDisplay,projeto:d.projeto,statusProjeto:"EM ANDAMENTO",inicio:new Date().toISOString().slice(0,10),vlrContratado:d.valor||"",vlrRecebido:"",forma:"PIX",obs:"Criado pelo fechamento no Comercial",tipoCobranca:"unico",parcelas:1,diaPagamento:5,duracaoMeses:1,servicoTipo:"Consultoria",recebimento:"antecipado",taxaModo:"auto"};
+      const r=await fetch(`${SB_URL}/rest/v1/fin_clientes`,{method:"POST",headers:{...h,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,dados:item,updated_at:new Date().toISOString()})});
+      passos.push({p:"Cliente no Financeiro",ok:r.ok,msg:r.ok?"criado (complete forma de pgto e parcelas lá)":"falhou"});
+    }
+  }catch{passos.push({p:"Cliente no Financeiro",ok:false,msg:"sem conexão"});}
+  // 4) Etapa de kick-off no projeto (portal_etapas) — id fixo = idempotente
+  try{
+    const eid=`kick-${d.clienteId}`;
+    const dados={id:eid,titulo:"Reunião de kick-off",data:d.dataKickoff,tipo:"reuniao",escopo:d.projeto?`Início do projeto: ${d.projeto}`:"Apresentação e alinhamento do projeto",preparar:"Sua presença (ou de alguém com poder de decisão)",done:false};
+    const r=await fetch(`${SB_URL}/rest/v1/portal_etapas`,{method:"POST",headers:{...h,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:eid,cliente_id:d.clienteId,dados})});
+    passos.push({p:"Kick-off na agenda do projeto",ok:r.ok,msg:r.ok?new Date(d.dataKickoff+"T12:00:00").toLocaleDateString("pt-BR"):"falhou"});
+  }catch{passos.push({p:"Kick-off na agenda do projeto",ok:false,msg:"sem conexão"});}
+  return passos;
+}
+
+function FecharProjetoModal({contato,onClose,onSave}){
+  const kd=new Date();kd.setDate(kd.getDate()+7);
+  const[d,setD]=useState({nomeDisplay:contato.company||contato.name||"",clienteId:slugify(contato.company||contato.name),email:contato.email||"",senha:"Zeste@"+Math.floor(1000+Math.random()*9000),projeto:"",valor:contato.value||"",dataKickoff:kd.toISOString().slice(0,10),contatoNome:contato.name||""});
+  const[rodando,setRodando]=useState(false);
+  const[resultado,setResultado]=useState(null);
+  const token=typeof window!=="undefined"?(window.__supabaseToken||null):null;
+  const set=(k,v)=>setD(p=>({...p,[k]:v}));
+  const executar=async()=>{
+    if(!d.email||!d.nomeDisplay){alert("Preencha estabelecimento e e-mail do cliente.");return;}
+    setRodando(true);
+    const passos=await executarFechamento({...d},token);
+    if(passos.every(x=>x.ok))onSave({...contato,stage:"Cliente",faseAtual:contato.faseAtual||1});
+    setResultado(passos);setRodando(false);
+  };
+  const copiarBoasVindas=()=>{
+    const txt=`Olá, ${d.contatoNome||""}! 🌿\nSeu acesso à Área do Cliente Zeste está pronto:\n\n🔗 zeste-sistema.netlify.app\n📧 ${d.email}\n🔑 ${d.senha}\n\nLá você acompanha o projeto, a agenda e recebe todos os documentos. Qualquer dúvida, é só chamar!`;
+    try{navigator.clipboard.writeText(txt);alert("Mensagem de boas-vindas copiada!");}catch{alert(txt);}
+  };
+  const inp={width:"100%",background:"#222",border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"9px 11px",fontSize:13,outline:"none"};
+  const lbl={fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".06em",display:"block",marginBottom:3};
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:60,display:"flex",alignItems:"center",justifyContent:"center",padding:14}} onClick={e=>{if(e.target===e.currentTarget&&!rodando)onClose();}}>
+      <div style={{background:"#161614",border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto",padding:20}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:800,color:C.green,marginBottom:2}}>🚀 Fechar projeto</div>
+        <div style={{fontSize:12,color:C.muted,marginBottom:14}}>Cria num passo só: login do cliente, acesso ao portal, registro no Financeiro e o kick-off na agenda.</div>
+        {!resultado?<>
+          <div style={{display:"grid",gap:10}}>
+            <div><label style={lbl}>ESTABELECIMENTO (nome no portal)</label><input style={inp} value={d.nomeDisplay} onChange={e=>{set("nomeDisplay",e.target.value);set("clienteId",slugify(e.target.value));}}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label style={lbl}>ID DO CLIENTE (interno)</label><input style={inp} value={d.clienteId} onChange={e=>set("clienteId",slugify(e.target.value))}/></div>
+              <div><label style={lbl}>VALOR CONTRATADO (R$)</label><input style={inp} inputMode="decimal" value={d.valor} onChange={e=>set("valor",e.target.value)}/></div>
+            </div>
+            <div><label style={lbl}>E-MAIL DO CLIENTE (login)</label><input style={inp} type="email" value={d.email} onChange={e=>set("email",e.target.value.trim())}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label style={lbl}>SENHA PROVISÓRIA</label><input style={inp} value={d.senha} onChange={e=>set("senha",e.target.value)}/></div>
+              <div><label style={lbl}>DATA DO KICK-OFF</label><input style={inp} type="date" value={d.dataKickoff} onChange={e=>set("dataKickoff",e.target.value)}/></div>
+            </div>
+            <div><label style={lbl}>PROJETO / ESCOPO</label><input style={inp} value={d.projeto} onChange={e=>set("projeto",e.target.value)} placeholder="Ex: Cardápio + fichas técnicas — Etapa 1"/></div>
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
+            <button onClick={onClose} disabled={rodando} style={{padding:"9px 16px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontSize:13,color:C.muted}}>Cancelar</button>
+            <button onClick={executar} disabled={rodando} style={{padding:"9px 18px",borderRadius:7,border:"none",background:C.green,color:"#0E0E0C",cursor:"pointer",fontSize:13,fontWeight:800}}>{rodando?"Criando…":"Criar tudo"}</button>
+          </div>
+        </>:<>
+          <div style={{display:"grid",gap:8,marginBottom:14}}>
+            {resultado.map((r,i)=>(<div key={i} style={{display:"flex",gap:8,alignItems:"baseline",fontSize:13,color:C.text}}>
+              <span style={{color:r.ok?C.green:"#E8614B",fontWeight:800}}>{r.ok?"✓":"✗"}</span>
+              <span style={{fontWeight:700}}>{r.p}</span><span style={{color:C.muted,fontSize:12}}>— {r.msg}</span>
+            </div>))}
+          </div>
+          <div style={{background:"#1D1D1A",border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:14}}>
+            <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".06em",marginBottom:6}}>ACESSO DO CLIENTE</div>
+            <div>🔗 zeste-sistema.netlify.app</div><div>📧 {d.email}</div><div>🔑 {d.senha}</div>
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+            <button onClick={copiarBoasVindas} style={{padding:"9px 14px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontSize:13,color:C.text}}>📋 Copiar boas-vindas</button>
+            <button onClick={onClose} style={{padding:"9px 18px",borderRadius:7,border:"none",background:C.green,color:"#0E0E0C",cursor:"pointer",fontSize:13,fontWeight:800}}>Concluir</button>
+          </div>
+        </>}
+      </div>
+    </div>
+  );
+}
 
 // ── CLIENTES ATIVOS — carteira e pós-venda ───────────────────────
 const FASES_POSVENDA=["Enxergar","Estruturar","Evoluir","Escalar","Elevar"];
