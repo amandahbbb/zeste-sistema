@@ -660,8 +660,13 @@ async function executarFechamento(d,token){
     const g=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes?email=eq.${encodeURIComponent(d.email)}&select=cliente_id`,{headers:h}).then(r=>r.json());
     if(Array.isArray(g)&&g.length>0){passos.push({p:"Acesso ao portal",ok:true,msg:`já existia (${g[0].cliente_id}) — mantido`});d.clienteId=g[0].cliente_id;}
     else{
-      const r=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes`,{method:"POST",headers:h,body:JSON.stringify({cliente_id:d.clienteId,nome_display:d.nomeDisplay,email:d.email,ativo:true})});
-      passos.push({p:"Acesso ao portal",ok:r.ok,msg:r.ok?`cliente_id "${d.clienteId}"`:"falhou — crie via SQL"});
+      // senha_hash é legado (login real é via Supabase Auth), mas a coluna é NOT NULL
+      const corpo={id:`${d.clienteId}-portal`,cliente_id:d.clienteId,nome_display:d.nomeDisplay,email:d.email,ativo:true,senha_hash:"auth-supabase"};
+      let r=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes`,{method:"POST",headers:h,body:JSON.stringify(corpo)});
+      if(!r.ok){ // fallback: id em texto (coluna pode não ser uuid)
+        r=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes`,{method:"POST",headers:h,body:JSON.stringify({...corpo,id:(crypto?.randomUUID?crypto.randomUUID():uidFP())})});
+      }
+      passos.push({p:"Acesso ao portal",ok:r.ok,msg:r.ok?`cliente_id "${d.clienteId}"`:`falhou (${(await r.text().catch(()=>""))||"erro"}) — crie via SQL`});
     }
   }catch{passos.push({p:"Acesso ao portal",ok:false,msg:"sem conexão"});}
   // 3) Cliente no Financeiro (fin_clientes)
