@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Documentos from "./Documentos.jsx";
 import { toast } from "./toast.js";
-import { calcAllFichas, calcPrato } from "./cmv.js";
+import { calcAllFichas, calcPrato, pickIngrediente } from "./cmv.js";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SB_URL="https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -43,12 +43,14 @@ function NumInput({value,onChange,step,min,placeholder,style,className}){
 
 
 
-function calcProducao(producao,pratosCalc,fichasCalc,ingredientes){
+function calcProducao(producao,pratosCalc,fichasCalc,ingredientes,meuCli){
   const agreg=new Map();
   const addIng=(nomeRef,qtdLiq,nomePrato)=>{
-    const ing=ingredientes.find(i=>i.nome===nomeRef);if(!ing)return;
-    const at=agreg.get(nomeRef)||{nome:ing.nome,un:ing.un,qtdLiq:0,qtdBruta:0,fc:ing.fc||1,preco:ing.p||0,custo:0,usadoEm:[]};
+    const pick=pickIngrediente(nomeRef,ingredientes,meuCli);if(!pick)return;
+    const ing=pick.ref;
+    const at=agreg.get(nomeRef)||{nome:ing.nome,un:ing.un,qtdLiq:0,qtdBruta:0,fc:ing.fc||1,preco:pick.precoUsado||0,custo:0,estoque:+(ing.estoque)||0,usadoEm:[]};
     at.qtdLiq+=qtdLiq;at.qtdBruta=at.qtdLiq*at.fc;at.custo=at.qtdBruta*at.preco;
+    at.faltaComprar=Math.max(0,at.qtdBruta-at.estoque);
     const u=at.usadoEm.find(u=>u.prato===nomePrato);
     if(u)u.qtd+=qtdLiq;else at.usadoEm.push({prato:nomePrato,qtd:qtdLiq});
     agreg.set(nomeRef,at);
@@ -61,8 +63,15 @@ function calcProducao(producao,pratosCalc,fichasCalc,ingredientes){
       else addIng(it.nomeRef,qtdLiq,nomePrato);
     }
   };
-  for(const{pratoNome,qtd}of producao){
-    const prato=pratosCalc.find(p=>p.nome===pratoNome);if(!prato||qtd<=0)continue;
+  for(const l of producao){
+    const{pratoNome,qtd}=l;if(qtd<=0)continue;
+    if(l.tipo==='ficha'){
+      // produção de receita base avulsa: qtd = nº de receitas inteiras
+      const ficha=fichasCalc.find(f=>f.nome===pratoNome);if(!ficha)continue;
+      expandFicha(pratoNome,qtd,`${pratoNome} (${qtd} receita${qtd>1?'s':''})`);
+      continue;
+    }
+    const prato=pratosCalc.find(p=>p.nome===pratoNome);if(!prato)continue;
     for(const comp of prato.comps||[]){
       const qtdKg=(Number(comp.qtdGramas)||0)/1000;const qtdTotal=qtdKg*qtd;
       if(comp.tipo==='ficha'){
@@ -73,7 +82,7 @@ function calcProducao(producao,pratosCalc,fichasCalc,ingredientes){
     }
   }
   const lista=Array.from(agreg.values()).sort((a,b)=>b.custo-a.custo);
-  return{lista,totalCusto:lista.reduce((s,i)=>s+i.custo,0)};
+  return{lista,totalCusto:lista.reduce((s,i)=>s+i.custo,0),custoFalta:lista.reduce((s,i)=>s+((i.faltaComprar??i.qtdBruta)*i.preco),0)};
 }
 
 const cmvColor=c=>c<.30?'#2D6E47':c<.35?'#B8860B':c<.40?'#E8914B':'#E8614B';
@@ -432,15 +441,30 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
 
 
 // ── PRODUÇÃO TAB ──────────────────────────────────────────────────
-function TabProducao({pratosCalc,fichasCalc,ingredientes}){
+function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli}){
   const[linhas,setLinhas]=useState([]);
   const[resultado,setResultado]=useState(null);
-  const addLinha=()=>setLinhas(p=>[...p,{pratoNome:pratosCalc[0]?.nome||'',qtd:1}]);
+  const[copiado,setCopiado]=useState(false);
+  const addLinha=()=>setLinhas(p=>[...p,{tipo:'prato',pratoNome:pratosCalc[0]?.nome||fichasCalc[0]?.nome||'',qtd:1}]);
   const updLinha=(i,k,v)=>setLinhas(p=>p.map((l,j)=>j===i?{...l,[k]:v}:l));
   const remLinha=i=>setLinhas(p=>p.filter((_,j)=>j!==i));
+  const setItem=(i,val)=>{const[tipo,...r]=val.split('|');updLinha(i,'tipo',tipo);setLinhas(p=>p.map((l,j)=>j===i?{...l,tipo,pratoNome:r.join('|')}:l));};
   const calcular=()=>{
-    const res=calcProducao(linhas.filter(l=>l.qtd>0),pratosCalc,fichasCalc,ingredientes);
-    setResultado(res);
+    const res=calcProducao(linhas.filter(l=>l.qtd>0),pratosCalc,fichasCalc,ingredientes,meuCli);
+    setResultado(res);setCopiado(false);
+  };
+  const copiarLista=()=>{
+    if(!resultado)return;
+    const cab=linhas.filter(l=>l.qtd>0).map(l=>`${l.qtd}× ${l.pratoNome}${l.tipo==='ficha'?' (receita)':''}`).join(' · ');
+    const corpo=resultado.lista.map(it=>{
+      const falta=it.faltaComprar??it.qtdBruta;
+      let ln=`• ${it.nome}: ${num(falta,3)} ${it.un}`;
+      if(it.estoque>0)ln+=falta>0?` (necessário ${num(it.qtdBruta,3)}, em estoque ${num(it.estoque,3)})`:` — já coberto pelo estoque (${num(it.estoque,3)} ${it.un})`;
+      return ln;
+    }).join('\n');
+    const txt=`🛒 LISTA DE COMPRAS — Zeste\nProdução: ${cab}\n\n${corpo}\n\nCusto estimado da compra: ${brl(resultado.custoFalta)}`;
+    try{navigator.clipboard.writeText(txt).then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),2500);});}
+    catch{alert(txt);}
   };
   return(<div className="ft-page">
     <div className="ft-pc" style={{paddingTop:14}}>
@@ -450,8 +474,9 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes}){
       </div>
       {linhas.length===0&&<div style={{textAlign:'center',padding:32,color:'var(--cinzaE)',fontStyle:'italic'}}>Adicione pratos para calcular a lista de compras</div>}
       {linhas.map((l,i)=>(<div key={i} style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
-        <select value={l.pratoNome} onChange={e=>updLinha(i,'pratoNome',e.target.value)} style={{flex:1,fontSize:14,padding:'10px 12px',border:'1.5px solid var(--cinzaM)',borderRadius:8,background:'var(--branco)',outline:'none'}}>
-          {pratosCalc.map(p=><option key={p.id} value={p.nome}>{p.nome}</option>)}
+        <select value={(l.tipo||'prato')+'|'+l.pratoNome} onChange={e=>setItem(i,e.target.value)} style={{flex:1,fontSize:14,padding:'10px 12px',border:'1.5px solid var(--cinzaM)',borderRadius:8,background:'var(--branco)',outline:'none'}}>
+          <optgroup label="Pratos (qtd = porções)">{pratosCalc.map(p=><option key={p.id} value={'prato|'+p.nome}>{p.nome}</option>)}</optgroup>
+          <optgroup label="Receitas base (qtd = receitas inteiras)">{fichasCalc.map(f=><option key={f.id} value={'ficha|'+f.nome}>{f.nome}</option>)}</optgroup>
         </select>
         <input type="number" min="1" value={l.qtd} onChange={e=>updLinha(i,'qtd',+e.target.value)} style={{width:70,textAlign:'center',fontSize:14,padding:'10px 8px',border:'1.5px solid var(--cinzaM)',borderRadius:8,outline:'none'}}/>
         <span style={{fontSize:11,color:'var(--cinzaE)',minWidth:28}}>und</span>
@@ -460,9 +485,11 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes}){
       {linhas.length>0&&<button className="ft-btn ft-btn-p" style={{width:'100%',marginTop:12}} onClick={calcular}>📋 CALCULAR LISTA DE COMPRAS</button>}
 
       {resultado&&(<div style={{marginTop:20}}>
-        <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16}}>
-          <div className="ft-kpi" style={{borderColor:'var(--coral)'}}><div className="ft-kpi-l" style={{color:'var(--coral)'}}>Custo Total</div><div className="ft-kpi-v" style={{color:'var(--coral)'}}>{brl(resultado.totalCusto)}</div></div>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16,alignItems:'stretch'}}>
+          <div className="ft-kpi" style={{borderColor:'var(--coral)'}}><div className="ft-kpi-l" style={{color:'var(--coral)'}}>Custo da produção</div><div className="ft-kpi-v" style={{color:'var(--coral)'}}>{brl(resultado.totalCusto)}</div></div>
+          {resultado.custoFalta<resultado.totalCusto-0.005&&<div className="ft-kpi" style={{borderColor:'var(--azul)'}}><div className="ft-kpi-l" style={{color:'var(--azul)'}}>A comprar (− estoque)</div><div className="ft-kpi-v" style={{color:'var(--azul)'}}>{brl(resultado.custoFalta)}</div></div>}
           <div className="ft-kpi" style={{borderColor:'var(--lima)'}}><div className="ft-kpi-l" style={{color:'var(--lima)'}}>Itens</div><div className="ft-kpi-v" style={{color:'var(--lima)'}}>{resultado.lista.length}</div></div>
+          <button onClick={copiarLista} className="ft-btn ft-btn-p" style={{padding:'10px 16px',fontSize:13,alignSelf:'center',background:copiado?'var(--verde)':undefined}}>{copiado?'✓ Copiada!':'📋 Copiar lista'}</button>
         </div>
         <SH>Lista de Compras</SH>
         <div className="ft-card">
@@ -477,7 +504,10 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes}){
               </div>
             </div>
             <div style={{flex:1,textAlign:'right',fontSize:13,color:'var(--cinzaE)'}}>{num(it.qtdLiq,3)} {it.un}</div>
-            <div style={{flex:1,textAlign:'right',fontSize:13,fontWeight:700,color:'var(--azul)'}}>{num(it.qtdBruta,3)} {it.un}{it.fc>1?` (FC ${num(it.fc)})`:''}</div>
+            <div style={{flex:1,textAlign:'right'}}>
+              <div style={{fontSize:13,fontWeight:700,color:(it.faltaComprar??it.qtdBruta)<=0?'var(--verde)':'var(--azul)'}}>{(it.faltaComprar??it.qtdBruta)<=0?'✓ estoque':`${num(it.faltaComprar??it.qtdBruta,3)} ${it.un}`}{it.fc>1?` (FC ${num(it.fc)})`:''}</div>
+              {it.estoque>0&&(it.faltaComprar??0)>0&&<div style={{fontSize:9.5,color:'var(--cinzaE)'}}>nec. {num(it.qtdBruta,3)} − est. {num(it.estoque,3)}</div>}
+            </div>
             <div style={{flex:1,textAlign:'right',fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'var(--coral)'}}>{brl(it.custo)}</div>
           </div>))}
         </div>
@@ -899,7 +929,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
     {aba==='ingredientes'&&<><Dica id="ingredientes">Tudo começa aqui: cadastre cada ingrediente com <b>preço por kg/L e fator de correção</b> (quanto se perde na limpeza). É desse preço que nascem todos os custos do sistema — mantenha atualizado.</Dica><TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter}/></>}
     {aba==='fichas'&&<><Dica id="fichas">Fichas são as <b>receitas base e pré-preparos</b> (um molho, uma polenta). Monte com os ingredientes e as quantidades — o custo por kg da receita pronta sai sozinho. Uma ficha pode entrar em vários pratos.</Dica><TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter}/></>}
     {aba==='pratos'&&<><Dica id="pratos">Pratos são o que vai <b>pro cardápio</b>: combine fichas e ingredientes com as gramaturas do empratamento. Preencha o <b>preço de venda</b> (vira CMV e matriz) e o <b>modo de preparo</b> (vira o caderno da cozinha — linhas começando com ⚠ viram alerta).</Dica><TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter}/></>}
-    {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes}/></>}
+    {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes} meuCli={meuCli}/></>}
     {aba==='estoque'&&<><Dica id="estoque">Controle de <b>estoque dos ingredientes</b>: registre entradas e saídas para saber o que tem e o que falta. O histórico das últimas movimentações fica guardado em cada item.</Dica><TabEstoque ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter}/></>}
     {aba==='documentos'&&ehAdmin&&<><Dica id="cadernos">"⚡ Gerar Caderno" monta <b>2 documentos</b> a partir dos pratos e fichas do cliente: o <b>Operacional</b> (cozinha, sem custos) e o <b>Gerencial</b> (custos e CMV, confidencial). Quem controla o que o cliente vê é o botão Publicar/Ocultar em <b>Clientes → Documentos</b>.</Dica><Documentos token={token} clientes={clientesList}/></>}
     {histItem&&<HistoricoModal item={histItem} onClose={()=>setHistItem(null)} onRevert={async(v)=>{
