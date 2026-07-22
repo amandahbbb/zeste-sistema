@@ -474,9 +474,9 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli}){
       </div>
       {linhas.length===0&&<div style={{textAlign:'center',padding:32,color:'var(--cinzaE)',fontStyle:'italic'}}>Adicione pratos para calcular a lista de compras</div>}
       {linhas.map((l,i)=>(<div key={i} style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
-        <select value={(l.tipo||'prato')+'|'+l.pratoNome} onChange={e=>setItem(i,e.target.value)} style={{flex:1,fontSize:14,padding:'10px 12px',border:'1.5px solid var(--cinzaM)',borderRadius:8,background:'var(--branco)',outline:'none'}}>
-          <optgroup label="Pratos (qtd = porções)">{pratosCalc.map(p=><option key={p.id} value={'prato|'+p.nome}>{p.nome}</option>)}</optgroup>
-          <optgroup label="Receitas base (qtd = receitas inteiras)">{fichasCalc.map(f=><option key={f.id} value={'ficha|'+f.nome}>{f.nome}</option>)}</optgroup>
+        <select value={(l.tipo||'prato')+'|'+l.pratoNome} onChange={e=>setItem(i,e.target.value)} style={{flex:1,fontSize:14,padding:'10px 12px',border:'1.5px solid var(--cinzaM)',borderRadius:8,background:'#fff',color:'#111614',colorScheme:'light',outline:'none'}}>
+          <optgroup label="Pratos (qtd = porções)" style={{background:'#fff',color:'#111614'}}>{pratosCalc.map(p=><option key={p.id} value={'prato|'+p.nome} style={{background:'#fff',color:'#111614'}}>{p.nome}</option>)}</optgroup>
+          <optgroup label="Receitas base (qtd = receitas inteiras)" style={{background:'#fff',color:'#111614'}}>{fichasCalc.map(f=><option key={f.id} value={'ficha|'+f.nome} style={{background:'#fff',color:'#111614'}}>{f.nome}</option>)}</optgroup>
         </select>
         <input type="number" min="1" value={l.qtd} onChange={e=>updLinha(i,'qtd',+e.target.value)} style={{width:70,textAlign:'center',fontSize:14,padding:'10px 8px',border:'1.5px solid var(--cinzaM)',borderRadius:8,outline:'none'}}/>
         <span style={{fontSize:11,color:'var(--cinzaE)',minWidth:28}}>und</span>
@@ -493,22 +493,22 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli}){
         </div>
         <SH>Lista de Compras</SH>
         <div className="ft-card">
-          <div style={{padding:'10px 14px',background:'var(--preto)',display:'flex',fontFamily:'var(--ff)',fontSize:11,color:'var(--lima)',letterSpacing:'.08em',gap:8}}>
-            <span style={{flex:2}}>INGREDIENTE</span><span style={{flex:1,textAlign:'right'}}>QTD LÍQ.</span><span style={{flex:1,textAlign:'right'}}>COMPRAR (C/ FC)</span><span style={{flex:1,textAlign:'right'}}>CUSTO</span>
+          <div style={{padding:'10px 14px',background:'var(--preto)',display:'grid',gridTemplateColumns:'minmax(0,2.2fr) 110px 190px 110px',gap:12,alignItems:'center',fontFamily:'var(--ff)',fontSize:11,color:'var(--lima)',letterSpacing:'.08em'}}>
+            <span>INGREDIENTE</span><span style={{textAlign:'right'}}>QTD LÍQ.</span><span style={{textAlign:'right'}}>COMPRAR (C/ FC)</span><span style={{textAlign:'right'}}>CUSTO</span>
           </div>
-          {resultado.lista.map((it,i)=>(<div key={it.nome} style={{padding:'10px 14px',borderBottom:i<resultado.lista.length-1?'1px solid var(--cinzaF)':'none',display:'flex',gap:8,alignItems:'center'}}>
-            <div style={{flex:2,minWidth:0}}>
+          {resultado.lista.map((it,i)=>(<div key={it.nome} style={{padding:'10px 14px',borderBottom:i<resultado.lista.length-1?'1px solid var(--cinzaF)':'none',display:'grid',gridTemplateColumns:'minmax(0,2.2fr) 110px 190px 110px',gap:12,alignItems:'center'}}>
+            <div style={{minWidth:0}}>
               <div style={{fontSize:13,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{it.nome}</div>
               <div style={{fontSize:10,color:'var(--cinzaE)',marginTop:2}}>
                 {it.usadoEm.map(u=>`${u.prato}: ${num(u.qtd*1000,0)}g`).join(' · ')}
               </div>
             </div>
-            <div style={{flex:1,textAlign:'right',fontSize:13,color:'var(--cinzaE)'}}>{num(it.qtdLiq,3)} {it.un}</div>
-            <div style={{flex:1,textAlign:'right'}}>
+            <div style={{textAlign:'right',fontSize:13,color:'var(--cinzaE)'}}>{num(it.qtdLiq,3)} {it.un}</div>
+            <div style={{textAlign:'right'}}>
               <div style={{fontSize:13,fontWeight:700,color:(it.faltaComprar??it.qtdBruta)<=0?'var(--verde)':'var(--azul)'}}>{(it.faltaComprar??it.qtdBruta)<=0?'✓ estoque':`${num(it.faltaComprar??it.qtdBruta,3)} ${it.un}`}{it.fc>1?` (FC ${num(it.fc)})`:''}</div>
               {it.estoque>0&&(it.faltaComprar??0)>0&&<div style={{fontSize:9.5,color:'var(--cinzaE)'}}>nec. {num(it.qtdBruta,3)} − est. {num(it.estoque,3)}</div>}
             </div>
-            <div style={{flex:1,textAlign:'right',fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'var(--coral)'}}>{brl(it.custo)}</div>
+            <div style={{textAlign:'right',fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:'var(--coral)'}}>{brl(it.custo)}</div>
           </div>))}
         </div>
       </div>)}
