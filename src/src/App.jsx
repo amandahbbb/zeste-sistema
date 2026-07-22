@@ -287,10 +287,11 @@ function LoginScreen({ onLogin }) {
     // Login único via Supabase Auth (admin e clientes)
     const data = await db.auth.signIn(email, senha);
     if (data.access_token) {
-      // Papel vem do app_metadata (só admin altera; cliente não edita). Fallback: user_metadata.
+      // SEGURANÇA: admin só com role explícito no app_metadata (definido via SQL/painel).
+      // Qualquer outro usuário é tratado como cliente — e só entra se estiver em fin_portal_clientes.
       const meta = { ...(data.user?.user_metadata || {}), ...(data.user?.app_metadata || {}) };
-      const role = meta.role === "cliente" ? "cliente" : "admin";
-      if (role === "cliente") {
+      const ehAdmin = (data.user?.app_metadata?.role === "admin") || (meta.role === "admin");
+      if (!ehAdmin) {
         // Busca info do cliente com o token REAL (não a anon key)
         try {
           const r = await fetch(SUPABASE_URL + "/rest/v1/fin_portal_clientes?email=eq." + encodeURIComponent(email) + "&ativo=eq.true&select=*", { headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + data.access_token } });
