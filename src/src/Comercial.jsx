@@ -687,6 +687,7 @@ async function executarFechamento(d,token){
     const r=await fetch(`${SB_URL}/rest/v1/portal_etapas`,{method:"POST",headers:{...h,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:eid,cliente_id:d.clienteId,dados})});
     passos.push({p:"Kick-off na agenda do projeto",ok:r.ok,msg:r.ok?new Date(d.dataKickoff+"T12:00:00").toLocaleDateString("pt-BR"):"falhou"});
   }catch{passos.push({p:"Kick-off na agenda do projeto",ok:false,msg:"sem conexão"});}
+  passos.push({p:"Papel do usuário (role + cliente_id)",ok:null,msg:"exige 1 comando no Supabase — veja abaixo"});
   return passos;
 }
 
@@ -701,9 +702,11 @@ function FecharProjetoModal({contato,onClose,onSave}){
     if(!d.email||!d.nomeDisplay){alert("Preencha estabelecimento e e-mail do cliente.");return;}
     setRodando(true);
     const passos=await executarFechamento({...d},token);
-    if(passos.every(x=>x.ok))onSave({...contato,stage:"Cliente",faseAtual:contato.faseAtual||1});
+    if(passos.filter(x=>x.ok!==null).every(x=>x.ok))onSave({...contato,stage:"Cliente",faseAtual:contato.faseAtual||1});
     setResultado(passos);setRodando(false);
   };
+  const sqlFinal=d=>`update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data,'{}'::jsonb) || '{"role":"cliente","cliente_id":"${d.clienteId}"}'::jsonb where email = '${d.email}';`;
+  const copiarSQL=()=>{try{navigator.clipboard.writeText(sqlFinal(d));alert("SQL copiado! Cole no Supabase → SQL Editor e clique em Run.");}catch{alert(sqlFinal(d));}};
   const copiarBoasVindas=()=>{
     const txt=`Olá, ${d.contatoNome||""}! 🌿\nSeu acesso à Área do Cliente Zeste está pronto:\n\n🔗 zeste-sistema.netlify.app\n📧 ${d.email}\n🔑 ${d.senha}\n\nLá você acompanha o projeto, a agenda e recebe todos os documentos. Qualquer dúvida, é só chamar!`;
     try{navigator.clipboard.writeText(txt);alert("Mensagem de boas-vindas copiada!");}catch{alert(txt);}
@@ -736,9 +739,14 @@ function FecharProjetoModal({contato,onClose,onSave}){
         </>:<>
           <div style={{display:"grid",gap:8,marginBottom:14}}>
             {resultado.map((r,i)=>(<div key={i} style={{display:"flex",gap:8,alignItems:"baseline",fontSize:13,color:C.text}}>
-              <span style={{color:r.ok?C.green:"#E8614B",fontWeight:800}}>{r.ok?"✓":"✗"}</span>
+              <span style={{color:r.ok===null?"#E8B04B":r.ok?C.green:"#E8614B",fontWeight:800}}>{r.ok===null?"⚠":r.ok?"✓":"✗"}</span>
               <span style={{fontWeight:700}}>{r.p}</span><span style={{color:C.muted,fontSize:12}}>— {r.msg}</span>
             </div>))}
+          </div>
+          <div style={{background:"#2A2013",border:"1px solid #6B5320",borderLeft:"4px solid #E8B04B",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+            <div style={{fontSize:11,color:"#E8B04B",fontWeight:800,letterSpacing:".06em",marginBottom:5}}>⚠ FALTA 1 PASSO MANUAL (30 s)</div>
+            <div style={{fontSize:12.5,color:C.text,lineHeight:1.5,marginBottom:9}}>Por segurança, o Supabase não deixa o sistema definir o papel do usuário — sem isso o cliente <b>não consegue entrar</b>. Copie o comando abaixo e rode em <b>Supabase → SQL Editor → Run</b>.</div>
+            <button onClick={copiarSQL} style={{padding:"8px 14px",borderRadius:7,border:"none",background:"#E8B04B",color:"#0E0E0C",cursor:"pointer",fontSize:12.5,fontWeight:800}}>📋 Copiar comando SQL</button>
           </div>
           <div style={{background:"#1D1D1A",border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:14}}>
             <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".06em",marginBottom:6}}>ACESSO DO CLIENTE</div>
