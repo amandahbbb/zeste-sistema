@@ -751,6 +751,19 @@ function HistoricoModal({item,onClose,onRevert}){
 }
 
 // ── ROOT ──────────────────────────────────────────────────────────
+
+// ── DICAS DE PRIMEIRO USO — descartáveis, guardadas no navegador ──
+function Dica({id,children}){
+  const K='zeste_dica_'+id;
+  const[vis,setVis]=useState(()=>{try{return !localStorage.getItem(K);}catch{return true;}});
+  if(!vis)return null;
+  return(<div style={{display:'flex',gap:10,alignItems:'flex-start',background:'#F4F7E8',border:'1px solid #D9E3B8',borderRadius:10,padding:'10px 12px',margin:'0 0 12px',fontSize:12.5,lineHeight:1.55,color:'#4A4A42'}}>
+    <span style={{flexShrink:0}}>💡</span>
+    <div style={{flex:1}}>{children}</div>
+    <button onClick={()=>{try{localStorage.setItem(K,'1');}catch{}setVis(false);}} style={{flexShrink:0,border:'none',background:'transparent',color:'#8FA715',fontWeight:700,fontSize:12,cursor:'pointer',padding:'2px 4px'}}>Entendi ✕</button>
+  </div>);
+}
+
 const TABS=[{id:'resumo',l:'RESUMO'},{id:'ingredientes',l:'INGREDIENTES'},{id:'fichas',l:'FICHAS'},{id:'pratos',l:'PRATOS'},{id:'producao',l:'PRODUÇÃO'},{id:'estoque',l:'ESTOQUE'}];
 const TABS_ADMIN=[...TABS,{id:'documentos',l:'CADERNOS'}];
 
@@ -882,13 +895,13 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
       </div>
       <nav className="ft-nav">{(ehAdmin?TABS_ADMIN:TABS).map((t,i)=>(<span key={t.id}>{i>0&&<div style={{width:1,background:'#252525',margin:'10px 0',flexShrink:0}}/>}<div className={`ft-tab${aba===t.id?' on':''}`} onClick={()=>setAba(t.id)}>{t.l}</div></span>))}</nav>
     </div>
-    {aba==='resumo'&&<TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc} clienteFilter={clienteFilter}/>}
-    {aba==='ingredientes'&&<TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter}/>}
-    {aba==='fichas'&&<TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter}/>}
-    {aba==='pratos'&&<TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter}/>}
-    {aba==='producao'&&<TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes}/>}
-    {aba==='estoque'&&<TabEstoque ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter}/>}
-    {aba==='documentos'&&ehAdmin&&<Documentos token={token} clientes={clientesList}/>}
+    {aba==='resumo'&&<><Dica id="resumo">Esta é a visão geral da operação. O fluxo do sistema é sempre: <b>Ingredientes → Fichas → Pratos → Cadernos</b>. Cada etapa alimenta a seguinte — o custo você nunca digita, ele é calculado.</Dica><TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc} clienteFilter={clienteFilter}/></>}
+    {aba==='ingredientes'&&<><Dica id="ingredientes">Tudo começa aqui: cadastre cada ingrediente com <b>preço por kg/L e fator de correção</b> (quanto se perde na limpeza). É desse preço que nascem todos os custos do sistema — mantenha atualizado.</Dica><TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter}/></>}
+    {aba==='fichas'&&<><Dica id="fichas">Fichas são as <b>receitas base e pré-preparos</b> (um molho, uma polenta). Monte com os ingredientes e as quantidades — o custo por kg da receita pronta sai sozinho. Uma ficha pode entrar em vários pratos.</Dica><TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter}/></>}
+    {aba==='pratos'&&<><Dica id="pratos">Pratos são o que vai <b>pro cardápio</b>: combine fichas e ingredientes com as gramaturas do empratamento. Preencha o <b>preço de venda</b> (vira CMV e matriz) e o <b>modo de preparo</b> (vira o caderno da cozinha — linhas começando com ⚠ viram alerta).</Dica><TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter}/></>}
+    {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes}/></>}
+    {aba==='estoque'&&<><Dica id="estoque">Controle de <b>estoque dos ingredientes</b>: registre entradas e saídas para saber o que tem e o que falta. O histórico das últimas movimentações fica guardado em cada item.</Dica><TabEstoque ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter}/></>}
+    {aba==='documentos'&&ehAdmin&&<><Dica id="cadernos">"⚡ Gerar Caderno" monta <b>2 documentos</b> a partir dos pratos e fichas do cliente: o <b>Operacional</b> (cozinha, sem custos) e o <b>Gerencial</b> (custos e CMV, confidencial). Quem controla o que o cliente vê é o botão Publicar/Ocultar em <b>Clientes → Documentos</b>.</Dica><Documentos token={token} clientes={clientesList}/></>}
     {histItem&&<HistoricoModal item={histItem} onClose={()=>setHistItem(null)} onRevert={async(v)=>{
       const clean={...v,_historico:undefined,_editadoPor:undefined,_editadoEm:undefined};
       if(histItem.componentes)await savePrato(clean);else await saveFicha(clean);
