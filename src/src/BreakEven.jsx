@@ -1,4 +1,10 @@
 import { useState, useEffect } from "react";
+import { calcAllFichas, calcPrato } from "./cmv.js";
+
+const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
+const sbH = t => ({ "Content-Type": "application/json", apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}` });
+async function beLoad(table, t, extra = "deleted_at=is.null&") { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?${extra}select=*`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => (x.dados ? { ...x.dados, _id: x.id, _cliente: x.cliente_id } : x)) : []; } catch { return []; } }
 
 const STYLE = `
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
@@ -100,7 +106,7 @@ function saveSaved(list) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch {}
 }
 
-export default function BreakEven({ onBack }) {
+export default function BreakEven({ onBack, token }) {
   const [tab, setTab] = useState("calc");
   const [clienteNome, setClienteNome] = useState("");
   const [fixos, setFixos] = useState(DEFAULT_FIXOS);
@@ -108,6 +114,44 @@ export default function BreakEven({ onBack }) {
   const [params, setParams] = useState(DEFAULT_PARAMS);
   const [saved, setSaved] = useState(loadSaved);
   const [flashSaved, setFlashSaved] = useState(false);
+  const [dadosSistema, setDadosSistema] = useState(null); // { porCliente: {cid: {nome, pratos, cmvMedio, ticketMedio}} }
+  const [clienteSel, setClienteSel] = useState("");
+  const [aplicado, setAplicado] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const [ings, fics, prts, portalCl] = await Promise.all([
+        beLoad("fin_ingredientes", token, ""), beLoad("fin_fichas", token), beLoad("fin_pratos", token),
+        beLoad("fin_portal_clientes", token, ""),
+      ]);
+      const porCliente = {};
+      for (const pc of portalCl) {
+        const cid = pc.cliente_id;
+        const fichasCalc = calcAllFichas(fics.filter(f => f._cliente === cid || f._cliente === "zeste"), ings, cid);
+        const meus = prts.filter(p => p._cliente === cid).map(p => calcPrato(p, ings, fichasCalc, cid)).filter(p => p.preco > 0);
+        if (meus.length === 0) continue;
+        // CMV médio ponderado pelo preço (aproxima o mix real melhor que média simples)
+        const somaPreco = meus.reduce((s, p) => s + p.preco, 0);
+        const somaCusto = meus.reduce((s, p) => s + p.custoTotal, 0);
+        porCliente[cid] = {
+          nome: pc.nome_display || cid,
+          qtd: meus.length,
+          cmvMedio: somaPreco > 0 ? (somaCusto / somaPreco) * 100 : 0,
+          ticketMedio: somaPreco / meus.length,
+        };
+      }
+      setDadosSistema({ porCliente });
+    })();
+  }, [token]);
+
+  const aplicarDoSistema = () => {
+    const d = dadosSistema?.porCliente?.[clienteSel];
+    if (!d) return;
+    setVariaveis(p => p.map(x => x.nome.toUpperCase().includes("CMV") ? { ...x, perc: +d.cmvMedio.toFixed(1) } : x));
+    setParams(p => ({ ...p, ticketMedio: Math.round(d.ticketMedio) }));
+    if (!clienteNome) setClienteNome(d.nome);
+    setAplicado({ ...d, quando: Date.now() });
+  };
 
   // ── Cálculos ──
   const totalFixo = fixos.reduce((s, x) => s + (+(x.valor) || 0), 0);
@@ -229,6 +273,24 @@ export default function BreakEven({ onBack }) {
             </button>
             <button className="be-btn be-btn-reset" onClick={reset}>↺ Limpar</button>
           </div>
+
+          {/* PUXAR DADOS REAIS DO SISTEMA */}
+          {dadosSistema && Object.keys(dadosSistema.porCliente).length > 0 && (
+            <div style={{ background: "#161614", border: "1px solid #2A2A2A", borderLeft: "4px solid #8FA715", borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
+              <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 12, fontWeight: 800, color: "#8FA715", letterSpacing: ".06em", marginBottom: 8 }}>USAR DADOS REAIS DO SISTEMA</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <select value={clienteSel} onChange={e => setClienteSel(e.target.value)} style={{ background: "#222", border: "1px solid #2A2A2A", borderRadius: 7, color: "#F2EBD8", padding: "8px 10px", fontSize: 13, colorScheme: "dark", flex: "1 1 200px" }}>
+                  <option value="">Escolha o cliente…</option>
+                  {Object.entries(dadosSistema.porCliente).map(([cid, d]) => <option key={cid} value={cid}>{d.nome} ({d.qtd} pratos)</option>)}
+                </select>
+                <button onClick={aplicarDoSistema} disabled={!clienteSel} style={{ padding: "9px 16px", borderRadius: 7, border: "none", background: clienteSel ? "#8FA715" : "#2A2A2A", color: clienteSel ? "#0E0E0C" : "#666", cursor: clienteSel ? "pointer" : "default", fontSize: 13, fontWeight: 800 }}>Puxar CMV e ticket</button>
+              </div>
+              {aplicado && <div style={{ fontSize: 12, color: "#F2EBD8", marginTop: 9, lineHeight: 1.5 }}>
+                ✓ Aplicado de <b>{aplicado.nome}</b>: CMV <b>{aplicado.cmvMedio.toFixed(1)}%</b> e ticket médio <b>R$ {aplicado.ticketMedio.toFixed(2)}</b>, calculados sobre {aplicado.qtd} prato{aplicado.qtd > 1 ? "s" : ""} com preço cadastrado.
+                <div style={{ color: "#7A7A6E", marginTop: 4 }}>É uma estimativa pelo cardápio (média ponderada pelo preço), não pelo que foi realmente vendido. Aluguel, folha e demais fixos continuam manuais — o sistema não tem esses dados do restaurante.</div>
+              </div>}
+            </div>
+          )}
 
           <div className="be-grid">
             {/* CUSTOS FIXOS */}
