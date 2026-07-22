@@ -649,7 +649,7 @@ async function executarFechamento(d,token){
   const passos=[];
   // 1) Login (Supabase Auth)
   try{
-    const r=await fetch(`${SB_URL}/auth/v1/signup`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_KEY},body:JSON.stringify({email:d.email,password:d.senha})});
+    const r=await fetch(`${SB_URL}/auth/v1/signup`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_KEY},body:JSON.stringify({email:d.email,password:d.senha,data:{role:"cliente"}})});
     const j=await r.json();
     if(r.ok&&j?.id||j?.user){passos.push({p:"Login do cliente (Auth)",ok:true,msg:j?.session?"criado e ativo":"criado — se o login não funcionar de primeira, confirme o e-mail em Supabase → Auth → Users"});}
     else if((j?.msg||j?.message||"").toLowerCase().includes("already")){passos.push({p:"Login do cliente (Auth)",ok:true,msg:"e-mail já tinha usuário — mantido"});}
