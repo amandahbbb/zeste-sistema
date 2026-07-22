@@ -233,6 +233,20 @@ export default function Documentos({ token, clientes = [] }) {
   );
 
   // LISTA
+  if (verExport) return (
+    <div className="doc-page">
+      <style>{STYLE}</style>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <button onClick={() => setVerExport(null)} style={{ color: C.verde, background: "none", border: "none", fontFamily: "'Antonio',sans-serif", fontSize: 16, fontWeight: 700, cursor: "pointer", minHeight: 44, padding: 0 }}>‹ Voltar</button>
+        <div style={{ flex: 1, fontFamily: "'Antonio',sans-serif", fontWeight: 700, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.titulo}</div>
+        <button className="doc-btn" onClick={() => { const f = document.getElementById("doc-export-frame"); try { f.contentWindow.focus(); f.contentWindow.print(); } catch { } }} style={{ background: C.azul, color: "#fff" }}>🖨 Imprimir</button>
+      </div>
+      <div className="doc-card" style={{ overflow: "hidden" }}>
+        <iframe id="doc-export-frame" title={d.titulo} srcDoc={verExport} style={{ display: "block", width: "100%", height: "78vh", border: "none", background: "#fff" }} />
+      </div>
+    </div>
+  );
+
   return (
     <div className="doc-page">
       <style>{STYLE}</style>
@@ -340,6 +354,7 @@ export default function Documentos({ token, clientes = [] }) {
 }
 
 // Exporta documento como HTML formatado (padrão Zeste) e abre para impressão/PDF
+// Devolve o HTML do documento (renderizado inline em iframe — window.open quebra no iOS)
 function exportarDoc(d, modelo) {
   const linha = t => (t || "").split("\n").filter(x => x.trim());
   const esc = s => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -407,11 +422,7 @@ function exportarDoc(d, modelo) {
     ${corpo}
     <div class="rodape">Documento gerado por Zeste \u00b7 Intelig\u00eancia para Neg\u00f3cios Gastron\u00f4micos</div>
   </body></html>`;
-  const w = window.open("", "_blank");
-  if (!w) { alert("Permita pop-ups para exportar o documento."); return; }
-  w.document.write(html);
-  w.document.close();
-  setTimeout(() => w.print(), 400);
+  return html;
 }
 
 function DocCampo({ c, val, onCh }) {
@@ -434,7 +445,8 @@ function Editor({ doc, clientes, onSave, onDelete, onCancel }) {
   const delItem = (sid, idx) => setSecao(sid, d.dados[sid].filter((_, i) => i !== idx));
   const updCampo = (sid, k, v) => setSecao(sid, { ...(d.dados[sid] || {}), [k]: v });
 
-  const exportar = () => exportarDoc(d, modelo);
+  const [verExport, setVerExport] = useState(null);
+  const exportar = () => setVerExport(exportarDoc(d, modelo));
 
 
   return (
