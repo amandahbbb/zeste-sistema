@@ -762,7 +762,7 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
-        <BreakEven onBack={() => setModulo("dashboard")} />
+        <BreakEven onBack={() => setModulo("dashboard")} token={session.token} />
       </AppCtx.Provider>
     </>
   );
