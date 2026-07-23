@@ -7,10 +7,10 @@ const sbH = t => ({ "Content-Type": "application/json", apikey: SB_KEY, Authoriz
 async function beLoad(table, t, extra = "deleted_at=is.null&") { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?${extra}select=*`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => (x.dados ? { ...x.dados, _id: x.id, _cliente: x.cliente_id } : x)) : []; } catch { return []; } }
 
 const STYLE = `
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#0E0E0C;color:#F2EBD8;}
-.be-wrap{min-height:100vh;background:#0E0E0C;font-family:'DM Sans',sans-serif;color:#F2EBD8;}
+.be-wrap{min-height:100vh;background:#0E0E0C;font-family:'Barlow',sans-serif;color:#F2EBD8;}
 .be-header{display:flex;align-items:center;gap:12px;padding:16px 20px;background:#181818;border-bottom:1px solid #2A2A2A;position:sticky;top:0;z-index:10;}
 .be-header-back{background:none;border:none;color:#8FA715;font-size:22px;cursor:pointer;padding:4px 8px;border-radius:6px;}
 .be-header-back:hover{background:#8FA71520;}
