@@ -580,8 +580,8 @@ export default function ComercialZeste({onBack,token:tokenProp}){
 
   const current=MANUAL_SECTIONS.find(s=>s.id===activeSection);
 
-  return <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans',sans-serif",color:C.text}}>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
+  return <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Barlow',sans-serif",color:C.text}}>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 
     {/* TOPBAR */}
     <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:50,padding:"0 16px"}}>
