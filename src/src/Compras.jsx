@@ -37,8 +37,8 @@ const FORMAS_PGTO = ["Boleto 30 dias", "Boleto 28 dias", "Pix à vista", "Cartã
 const STATUS_PEDIDO = { "Aguardando": C.cinzaE, "Confirmado": C.azul, "Em trânsito": C.lima, "Entregue": C.verde, "Cancelado": C.coral };
 
 const STYLE = `
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Nunito+Sans:wght@400;600;700&display=swap');
-.cmp-wrap{font-family:'Nunito Sans',sans-serif;background:${C.cinzaF};min-height:100vh;color:${C.preto}}
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600;700;800&display=swap');
+.cmp-wrap{font-family:'Barlow',sans-serif;background:${C.cinzaF};min-height:100vh;color:${C.preto}}
 .cmp-header{background:${C.preto};position:sticky;top:0;z-index:300;border-bottom:1px solid #2A2A2A}
 .cmp-tabs{display:flex;background:${C.preto};border-bottom:1px solid #2A2A2A;overflow-x:auto}
 .cmp-tab{flex:1;padding:12px 8px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:transparent;white-space:nowrap;letter-spacing:.04em;font-family:'Barlow Condensed',sans-serif;border-bottom:2px solid transparent}
