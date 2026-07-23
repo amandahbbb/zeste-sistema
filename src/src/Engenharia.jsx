@@ -30,8 +30,8 @@ const QUAD = {
 // ── CMV ENGINE (replicado de Fichas) ──
 
 const STYLE = `
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Nunito+Sans:wght@400;600;700&display=swap');
-.eng-wrap{font-family:'Nunito Sans',sans-serif;background:${C.cinzaF};min-height:100vh;color:${C.preto}}
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600;700;800&display=swap');
+.eng-wrap{font-family:'Barlow',sans-serif;background:${C.cinzaF};min-height:100vh;color:${C.preto}}
 .eng-header{background:${C.preto};position:sticky;top:0;z-index:300;border-bottom:1px solid #2A2A2A}
 .eng-tabs{display:flex;background:${C.preto};border-bottom:1px solid #2A2A2A;overflow-x:auto}
 .eng-tab{flex:1;padding:12px 8px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:transparent;white-space:nowrap;letter-spacing:.04em;font-family:'Barlow Condensed',sans-serif;border-bottom:2px solid transparent}
