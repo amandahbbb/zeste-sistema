@@ -268,6 +268,8 @@ const STAGE_META = {
   "Portas Fechadas":       { color:"#C4B5C044", accent:"#7D6B75", icon:"✕" },
 };
 const SEGMENTOS = ["Restaurante","Cafeteria","Padaria","Rotisserie","Dark Kitchen","Delivery","Franquia","Bar","Confeitaria","Catering","Outro"];
+const TEMPERATURAS = { quente: { l: "🔥 Quente", cor: "#E8614B" }, morno: { l: "🌤 Morno", cor: "#E8B04B" }, frio: { l: "❄ Frio", cor: "#6A9AC8" }, "sem-aderencia": { l: "— Sem aderência", cor: "#7A7A6E" }, "nao-retornar": { l: "🚫 Não retornar", cor: "#5A5A55" } };
+const ORIGENS = ["Prospecção digital","Prospecção presencial","Rota comercial","Lead passivo","Indicação","Parceria","Reativação"];
 const PROXIMOS_OPTIONS = [
   {id:"pp1",emoji:"📄",label:"Enviar proposta"},
   {id:"pp2",emoji:"📅",label:"Agendar follow-up"},
@@ -344,7 +346,7 @@ function ContactCard({contact,onClick}){
       <div style={{flex:1,minWidth:0,paddingRight:8}}>
         <div style={{fontWeight:700,fontSize:13,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{contact.name}</div>
         <div style={{fontSize:11,color:C.muted,marginTop:1}}>{contact.company}</div>
-        {(contact.bairro||contact.segmento)&&<div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>{contact.segmento&&<span style={{fontSize:10,background:"#2A2A28",color:C.muted,borderRadius:8,padding:"1px 7px",fontWeight:600}}>{contact.segmento}</span>}{contact.bairro&&<span style={{fontSize:10,background:"#2A2A28",color:C.muted,borderRadius:8,padding:"1px 7px"}}>📍 {contact.bairro}</span>}</div>}
+        {(contact.temperatura||contact.bairro||contact.segmento)&&<div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>{contact.temperatura&&TEMPERATURAS[contact.temperatura]&&<span style={{fontSize:10,background:`${TEMPERATURAS[contact.temperatura].cor}22`,color:TEMPERATURAS[contact.temperatura].cor,borderRadius:8,padding:"1px 7px",fontWeight:700}}>{TEMPERATURAS[contact.temperatura].l}</span>}{contact.segmento&&<span style={{fontSize:10,background:"#2A2A28",color:C.muted,borderRadius:8,padding:"1px 7px",fontWeight:600}}>{contact.segmento}</span>}{contact.bairro&&<span style={{fontSize:10,background:"#2A2A28",color:C.muted,borderRadius:8,padding:"1px 7px"}}>📍 {contact.bairro}</span>}</div>}
       </div>
       <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
         <Ring pct={pct} accent={meta.accent} size={30} stroke={4}/>
@@ -352,6 +354,7 @@ function ContactCard({contact,onClick}){
       </div>
     </div>
     {ppActive.length>0&&<div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:3}}>{ppActive.map(pp=><span key={pp.id} style={{fontSize:10,padding:"2px 7px",borderRadius:20,background:`${meta.accent}22`,color:meta.accent,fontWeight:700}}>{pp.emoji} {pp.label}</span>)}</div>}
+    {!contact.proximaReuniao&&contact.stage!=="Cliente"&&contact.stage!=="Portas Fechadas"&&<div style={{marginTop:7,fontSize:10,color:"#E8614B",fontWeight:700}}>⚠ Sem próximo passo definido</div>}
     {contact.proximaReuniao&&<div style={{marginTop:7,display:"flex",alignItems:"center",gap:5,padding:"5px 8px",borderRadius:6,background:`${meta.accent}15`,border:`1px solid ${meta.accent}33`}}>
       <span style={{fontSize:10}}>📅</span>
       <span style={{fontSize:10,fontWeight:700,color:meta.accent}}>{contact.tipoReuniao||'Reunião'}</span>
@@ -491,6 +494,8 @@ function NewContactModal({onClose,onSave}){
         {[["email","E-mail"],["phone","Telefone"]].map(([k,l])=><div key={k}><label style={lbl}>{l}</label><input value={c[k]} onChange={e=>set(k,e.target.value)} style={inp}/></div>)}
         <div><label style={lbl}>Segmento</label><select value={c.segmento} onChange={e=>set("segmento",e.target.value)} style={{...inp,background:C.card}}><option value="">—</option>{SEGMENTOS.map(s=><option key={s}>{s}</option>)}</select></div>
         <div><label style={lbl}>Etapa</label><select value={c.stage} onChange={e=>set("stage",e.target.value)} style={{...inp,background:C.card}}>{STAGES.map(s=><option key={s}>{s}</option>)}</select></div>
+        <div><label style={lbl}>Temperatura</label><select value={c.temperatura||""} onChange={e=>set("temperatura",e.target.value)} style={{...inp,background:C.card}}><option value="">—</option>{Object.entries(TEMPERATURAS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
+        <div><label style={lbl}>Origem do lead</label><select value={c.origem||""} onChange={e=>set("origem",e.target.value)} style={{...inp,background:C.card}}><option value="">—</option>{ORIGENS.map(o=><option key={o}>{o}</option>)}</select></div>
         <div style={{gridColumn:"span 2"}}><label style={lbl}>Endereço</label><input value={c.endereco} onChange={e=>set("endereco",e.target.value)} style={inp}/></div>
         {[["bairro","Bairro"],["regiao","Região"]].map(([k,l])=><div key={k}><label style={lbl}>{l}</label><input value={c[k]} onChange={e=>set(k,e.target.value)} style={inp}/></div>)}
         <div style={{gridColumn:"span 2",display:"flex",gap:9,justifyContent:"flex-end",marginTop:4}}>
@@ -550,17 +555,21 @@ function CRMView({modo="pipeline"}){
       <button onClick={reload} disabled={syncing} title="Sincronizar" style={{padding:"8px 12px",background:syncing?"#2A2A2A":C.surface,color:syncing?C.muted:C.text,border:`1px solid ${C.border}`,borderRadius:7,cursor:syncing?"default":"pointer",fontSize:14,flexShrink:0}}>{syncing?"⟳":"↻"}</button>
       <button onClick={()=>setShowNew(true)} style={{padding:"8px 14px",background:C.yellow,color:"#0E0E0C",border:"none",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>+ Novo</button>
     </div>
-    {modo==="clientes" ? (
+    {modo==="rotas" ? (
+      <RotasView token={token} onCriarContato={addContact}/>
+    ) : modo==="clientes" ? (
       <ClientesAtivos contacts={filtered.filter(c=>c.stage==="Cliente")} onOpen={setSelected} onSave={saveContact}/>
     ) : (
-    <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:8}}>
-      {STAGES.filter(s=>modo==="pipeline"?s!=="Cliente":true).map(stage=>{const meta=STAGE_META[stage],stageC=filtered.filter(c=>c.stage===stage);return <div key={stage} style={{minWidth:200,flex:"0 0 200px"}}>
+    <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:8,alignItems:"flex-start",scrollSnapType:"x proximity",WebkitOverflowScrolling:"touch"}}>
+      {STAGES.filter(s=>modo==="pipeline"?s!=="Cliente":true).map(stage=>{const meta=STAGE_META[stage],stageC=filtered.filter(c=>c.stage===stage);return <div key={stage} style={{minWidth:220,flex:"0 0 220px",display:"flex",flexDirection:"column",maxHeight:"calc(100vh - 215px)",scrollSnapAlign:"start"}}>
         <div style={{marginBottom:8,padding:"9px 12px",background:C.card,borderRadius:8,border:`1px solid ${C.border}`,borderTop:`3px solid ${meta.accent}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{fontWeight:700,fontSize:11,color:C.text}}>{stage}</div><div style={{fontSize:10,color:C.muted,marginTop:1}}>{stageC.length} contato{stageC.length!==1?"s":""}</div></div>
           <span style={{fontSize:14,color:meta.accent}}>{meta.icon}</span>
         </div>
-        {stageC.map(c=><ContactCard key={c.id} contact={c} onClick={()=>setSelected(c)}/>)}
-        {stageC.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:11,padding:"16px 0",borderRadius:8,border:`1.5px dashed ${C.border}`,marginTop:4}}>Nenhum contato</div>}
+        <div style={{overflowY:"auto",flex:1,minHeight:0,paddingRight:2}}>
+          {stageC.map(c=><ContactCard key={c.id} contact={c} onClick={()=>setSelected(c)}/>)}
+          {stageC.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:11,padding:"16px 0",borderRadius:8,border:`1.5px dashed ${C.border}`,marginTop:4}}>Nenhum contato</div>}
+        </div>
       </div>;})}
     </div>
     )}
@@ -594,7 +603,7 @@ export default function ComercialZeste({onBack,token:tokenProp}){
         <span style={{fontSize:11,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",flexShrink:0}}>COMERCIAL</span>
         <div style={{flex:1}}/>
         <div style={{display:"flex",gap:4,flexShrink:0}}>
-          {[["pipeline","Pipeline"],["clientes","Clientes"],["manual","Diretrizes"]].map(([id,l])=>(
+          {[["pipeline","Pipeline"],["clientes","Clientes"],["rotas","Rotas"],["manual","Diretrizes"]].map(([id,l])=>(
             <button key={id} onClick={()=>setView(id)} style={{padding:"8px 14px",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12,letterSpacing:"0.05em",border:"none",background:view===id?C.yellow:"transparent",color:view===id?"#0E0E0C":C.muted}}>{l}</button>
           ))}
         </div>
@@ -640,6 +649,159 @@ export default function ComercialZeste({onBack,token:tokenProp}){
 }
 
 
+
+// ── ROTAS COMERCIAIS — Anexo A do Sistema Comercial como ferramenta ──
+// Tabela crm_rotas: {id, dados jsonb, deleted_at} — padrão da casa
+const ROTA_CLASS = { quente: { l: "🔥 Quente", cor: "#E8614B" }, morno: { l: "🌤 Morno", cor: "#E8B04B" }, frio: { l: "❄ Frio", cor: "#6A9AC8" }, "nao-retornar": { l: "🚫 Não retornar", cor: "#5A5A55" } };
+async function rotasLoad(token){ try{ const r=await fetch(`${SB_URL}/rest/v1/crm_rotas?deleted_at=is.null&order=updated_at.desc&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${token||SB_KEY}`}}); const d=await r.json(); return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id})):[]; }catch{ return []; } }
+async function rotaUpsert(rota,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,Prefer:"resolution=merge-duplicates",...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_rotas`,{method:"POST",headers:h,body:JSON.stringify({id:rota.id,dados:rota,updated_at:new Date().toISOString()})}); }
+async function rotaDel(id,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_rotas?id=eq.${id}`,{method:"PATCH",headers:h,body:JSON.stringify({deleted_at:new Date().toISOString()})}); }
+
+function RotasView({token,onCriarContato}){
+  const[rotas,setRotas]=useState(null);
+  const[sel,setSel]=useState(null);
+  const[novaRota,setNovaRota]=useState(null);
+  const[novaParada,setNovaParada]=useState("");
+  const[resultado,setResultado]=useState(null); // parada em edição de resultado
+  useEffect(()=>{rotasLoad(token).then(setRotas);},[token]);
+  const salvar=async r=>{setRotas(p=>p.map(x=>x.id===r.id?r:x));if(sel?.id===r.id)setSel(r);await rotaUpsert(r,token);};
+  const criar=async()=>{
+    if(!novaRota?.nome){alert("Dá um nome pra rota (ex: Centro — quinta de manhã).");return;}
+    const r={id:uidFP(),nome:novaRota.nome,regiao:novaRota.regiao||"",data:novaRota.data||new Date().toISOString().slice(0,10),responsavel:novaRota.responsavel||"Apoio comercial",paradas:[]};
+    setRotas(p=>[r,...(p||[])]);setNovaRota(null);setSel(r);await rotaUpsert(r,token);
+  };
+  const addParada=async()=>{
+    if(!novaParada.trim())return;
+    const r={...sel,paradas:[...(sel.paradas||[]),{id:uidFP(),estabelecimento:novaParada.trim(),status:"pendente"}]};
+    setNovaParada("");await salvar(r);
+  };
+  const salvarResultado=async()=>{
+    const r={...sel,paradas:sel.paradas.map(p=>p.id===resultado.id?{...resultado,status:"visitado"}:p)};
+    setResultado(null);await salvar(r);
+  };
+  const converterParada=async p=>{
+    if(!window.confirm(`Criar contato no CRM a partir de "${p.estabelecimento}"?`))return;
+    await onCriarContato({id:uidFP(),name:p.respNome||"Responsável a confirmar",company:p.estabelecimento,phone:p.contato||"",segmento:"",stage:p.classificacao==="quente"?"Leads":"Prospects",temperatura:p.classificacao,origem:"Rota comercial",bairro:sel.regiao||"",endereco:"",proximosPassos:{},notas:[{data:new Date().toISOString().slice(0,10),nota:`Origem: rota "${sel.nome}" (${new Date(sel.data+"T12:00:00").toLocaleDateString("pt-BR")}). ${p.quemRecebeu?`Recebeu: ${p.quemRecebeu}. `:""}${p.melhorHorario?`Melhor horário: ${p.melhorHorario}. `:""}${p.obs||""}`}]});
+    const r={...sel,paradas:sel.paradas.map(x=>x.id===p.id?{...x,convertida:true}:x)};
+    await salvar(r);
+  };
+  const copiarRelatorio=()=>{
+    const vis=sel.paradas.filter(p=>p.status==="visitado");
+    const linhas=vis.map(p=>{const c=ROTA_CLASS[p.classificacao]?.l||"—";return `• ${p.estabelecimento} — ${c}${p.respNome?` · resp.: ${p.respNome}`:""}${p.contato?` · ${p.contato}`:""}${p.melhorHorario?` · melhor horário: ${p.melhorHorario}`:""}${p.obs?`\n  ${p.obs}`:""}`;}).join("\n");
+    const txt=`📋 RELATÓRIO DE ROTA — ${sel.nome}\n${new Date(sel.data+"T12:00:00").toLocaleDateString("pt-BR")} · ${sel.responsavel}${sel.regiao?` · ${sel.regiao}`:""}\n\nVisitados: ${vis.length}/${sel.paradas.length}\n🔥 Quentes: ${vis.filter(p=>p.classificacao==="quente").length} · 🌤 Mornos: ${vis.filter(p=>p.classificacao==="morno").length}\n\n${linhas}`;
+    try{navigator.clipboard.writeText(txt);alert("Relatório copiado!");}catch{alert(txt);}
+  };
+  const inp={width:"100%",background:"#222",border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"9px 11px",fontSize:13,outline:"none",colorScheme:"dark"};
+  const lbl={fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".06em",display:"block",marginBottom:3};
+
+  if(rotas===null)return <div style={{color:C.muted,fontSize:13,padding:"30px 0",textAlign:"center"}}>Carregando rotas…</div>;
+
+  // ── detalhe de uma rota ──
+  if(sel){
+    const vis=sel.paradas.filter(p=>p.status==="visitado").length;
+    return <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+        <button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.yellow,fontWeight:800,fontSize:14,cursor:"pointer",padding:0}}>‹ Rotas</button>
+        <div style={{flex:1,minWidth:160}}>
+          <div style={{fontWeight:800,fontSize:16,color:C.text}}>{sel.nome}</div>
+          <div style={{fontSize:11,color:C.muted}}>{new Date(sel.data+"T12:00:00").toLocaleDateString("pt-BR")} · {sel.responsavel}{sel.regiao?` · ${sel.regiao}`:""} · {vis}/{sel.paradas.length} visitadas</div>
+        </div>
+        <button onClick={copiarRelatorio} style={{padding:"8px 13px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",color:C.text,cursor:"pointer",fontSize:12,fontWeight:700}}>📋 Relatório do dia</button>
+        <button onClick={async()=>{if(window.confirm(`Excluir a rota "${sel.nome}"?`)){await rotaDel(sel.id,token);setRotas(p=>p.filter(x=>x.id!==sel.id));setSel(null);}}} style={{padding:"8px 13px",borderRadius:7,border:"1px solid #7A2E1E",background:"transparent",color:"#E8614B",cursor:"pointer",fontSize:12}}>Excluir</button>
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        <input value={novaParada} onChange={e=>setNovaParada(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addParada()} placeholder="+ Adicionar estabelecimento à rota…" style={{...inp,flex:1}}/>
+        <button onClick={addParada} style={{padding:"9px 16px",borderRadius:7,border:"none",background:C.yellow,color:"#0E0E0C",cursor:"pointer",fontWeight:800,fontSize:13,flexShrink:0}}>Adicionar</button>
+      </div>
+
+      <div style={{display:"grid",gap:8}}>
+        {sel.paradas.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:12,padding:"26px 0",border:`1.5px dashed ${C.border}`,borderRadius:10}}>Nenhuma parada ainda. Adicione os estabelecimentos da rota acima — a ordem da lista é a ordem da visita.</div>}
+        {sel.paradas.map((p,i)=>{const cls=ROTA_CLASS[p.classificacao];return(
+          <div key={p.id} style={{background:C.card,border:`1px solid ${C.border}`,borderLeft:`4px solid ${p.status==="visitado"?(cls?.cor||C.green):C.border}`,borderRadius:10,padding:"11px 13px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:C.faint,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
+              <div style={{flex:1,minWidth:140}}>
+                <div style={{fontWeight:700,fontSize:14,color:C.text}}>{p.estabelecimento}</div>
+                {p.status==="visitado"&&<div style={{fontSize:11,color:C.muted,marginTop:2}}>{cls?.l||"—"}{p.respNome?` · resp.: ${p.respNome}`:""}{p.contato?` · ${p.contato}`:""}{p.convertida?" · ✓ no CRM":""}</div>}
+              </div>
+              {p.status!=="visitado"
+                ? <button onClick={()=>setResultado({...p})} style={{padding:"7px 12px",borderRadius:7,border:"none",background:C.green,color:"#0E0E0C",cursor:"pointer",fontSize:12,fontWeight:800,flexShrink:0}}>Registrar visita</button>
+                : <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    {(p.classificacao==="quente"||p.classificacao==="morno")&&!p.convertida&&<button onClick={()=>converterParada(p)} style={{padding:"7px 12px",borderRadius:7,border:"none",background:C.yellow,color:"#0E0E0C",cursor:"pointer",fontSize:12,fontWeight:800}}>→ CRM</button>}
+                    <button onClick={()=>setResultado({...p})} style={{padding:"7px 10px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:12}}>Editar</button>
+                  </div>}
+            </div>
+          </div>);})}
+      </div>
+
+      {resultado&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:60,display:"flex",alignItems:"center",justifyContent:"center",padding:14}} onClick={e=>{if(e.target===e.currentTarget)setResultado(null);}}>
+        <div style={{background:"#161614",border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:440,maxHeight:"92vh",overflowY:"auto",padding:18}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:800,color:C.text,marginBottom:12}}>{resultado.estabelecimento}</div>
+          <div style={{display:"grid",gap:10}}>
+            <div><label style={lbl}>CLASSIFICAÇÃO DA VISITA</label>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                {Object.entries(ROTA_CLASS).map(([k,v])=>(
+                  <button key={k} onClick={()=>setResultado(r=>({...r,classificacao:k}))} style={{padding:"9px 6px",borderRadius:7,cursor:"pointer",fontSize:12,fontWeight:700,border:`2px solid ${resultado.classificacao===k?v.cor:C.border}`,background:resultado.classificacao===k?`${v.cor}22`:"transparent",color:resultado.classificacao===k?v.cor:C.muted}}>{v.l}</button>
+                ))}
+              </div>
+            </div>
+            <div><label style={lbl}>QUEM RECEBEU O MATERIAL</label><input style={inp} value={resultado.quemRecebeu||""} onChange={e=>setResultado(r=>({...r,quemRecebeu:e.target.value}))}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label style={lbl}>RESPONSÁVEL / DECISOR</label><input style={inp} value={resultado.respNome||""} onChange={e=>setResultado(r=>({...r,respNome:e.target.value}))}/></div>
+              <div><label style={lbl}>CONTATO (WHATS/IG)</label><input style={inp} value={resultado.contato||""} onChange={e=>setResultado(r=>({...r,contato:e.target.value}))}/></div>
+            </div>
+            <div><label style={lbl}>MELHOR DIA/HORÁRIO DE CONTATO</label><input style={inp} value={resultado.melhorHorario||""} onChange={e=>setResultado(r=>({...r,melhorHorario:e.target.value}))}/></div>
+            <div><label style={lbl}>OBSERVAÇÕES (reação, comentários)</label><textarea rows={2} style={{...inp,resize:"vertical"}} value={resultado.obs||""} onChange={e=>setResultado(r=>({...r,obs:e.target.value}))}/></div>
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
+            <button onClick={()=>setResultado(null)} style={{padding:"9px 14px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:13}}>Cancelar</button>
+            <button onClick={salvarResultado} disabled={!resultado.classificacao} style={{padding:"9px 18px",borderRadius:7,border:"none",background:resultado.classificacao?C.green:"#2A2A2A",color:resultado.classificacao?"#0E0E0C":"#666",cursor:resultado.classificacao?"pointer":"default",fontSize:13,fontWeight:800}}>Salvar visita</button>
+          </div>
+          {resultado.classificacao==="quente"&&<div style={{marginTop:10,fontSize:11,color:"#E8614B",fontWeight:700}}>🔥 Contato quente: avise a Bruna na hora, assim que sair do estabelecimento (Anexo A).</div>}
+        </div>
+      </div>}
+    </div>;
+  }
+
+  // ── lista de rotas ──
+  return <div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+      <div style={{fontSize:12,color:C.muted,maxWidth:520,lineHeight:1.5}}>Rotas de prospecção presencial (Anexo A): monte a rota, o apoio registra cada visita em campo, e as paradas quentes viram contatos no CRM com um toque.</div>
+      <button onClick={()=>setNovaRota({data:new Date().toISOString().slice(0,10)})} style={{padding:"9px 16px",borderRadius:7,border:"none",background:C.yellow,color:"#0E0E0C",cursor:"pointer",fontWeight:800,fontSize:13}}>+ Nova rota</button>
+    </div>
+    {rotas.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:12,padding:"30px 0",border:`1.5px dashed ${C.border}`,borderRadius:10}}>Nenhuma rota ainda. Crie a primeira — ex.: "Centro BC — quinta de manhã".</div>}
+    <div style={{display:"grid",gap:8}}>
+      {rotas.map(r=>{const vis=(r.paradas||[]).filter(p=>p.status==="visitado");const quentes=vis.filter(p=>p.classificacao==="quente").length;return(
+        <div key={r.id} onClick={()=>setSel(r)} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 15px",cursor:"pointer"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:160}}>
+              <div style={{fontWeight:800,fontSize:15,color:C.text}}>{r.nome}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{new Date(r.data+"T12:00:00").toLocaleDateString("pt-BR")} · {r.responsavel}{r.regiao?` · ${r.regiao}`:""}</div>
+            </div>
+            <div style={{fontSize:12,color:C.muted,fontWeight:700}}>{vis.length}/{(r.paradas||[]).length} visitadas{quentes>0?<span style={{color:"#E8614B"}}> · 🔥 {quentes}</span>:null}</div>
+          </div>
+        </div>);})}
+    </div>
+    {novaRota&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:60,display:"flex",alignItems:"center",justifyContent:"center",padding:14}} onClick={e=>{if(e.target===e.currentTarget)setNovaRota(null);}}>
+      <div style={{background:"#161614",border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:420,padding:18}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:800,color:C.text,marginBottom:12}}>Nova rota</div>
+        <div style={{display:"grid",gap:10}}>
+          <div><label style={lbl}>NOME DA ROTA</label><input style={inp} placeholder="Centro BC — quinta de manhã" value={novaRota.nome||""} onChange={e=>setNovaRota(p=>({...p,nome:e.target.value}))}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div><label style={lbl}>REGIÃO / BAIRRO</label><input style={inp} value={novaRota.regiao||""} onChange={e=>setNovaRota(p=>({...p,regiao:e.target.value}))}/></div>
+            <div><label style={lbl}>DATA</label><input type="date" style={inp} value={novaRota.data||""} onChange={e=>setNovaRota(p=>({...p,data:e.target.value}))}/></div>
+          </div>
+          <div><label style={lbl}>RESPONSÁVEL</label><input style={inp} placeholder="Apoio comercial" value={novaRota.responsavel||""} onChange={e=>setNovaRota(p=>({...p,responsavel:e.target.value}))}/></div>
+        </div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
+          <button onClick={()=>setNovaRota(null)} style={{padding:"9px 14px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:13}}>Cancelar</button>
+          <button onClick={criar} style={{padding:"9px 18px",borderRadius:7,border:"none",background:C.yellow,color:"#0E0E0C",cursor:"pointer",fontSize:13,fontWeight:800}}>Criar rota</button>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
 
 // ── FECHAMENTO → KICK-OFF: cria cliente do portal + login + financeiro + etapa ──
 const slugify=t=>(t||"").toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,30)||"cliente";
