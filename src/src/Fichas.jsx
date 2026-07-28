@@ -104,6 +104,10 @@ const SEED_PRT=[{"nome":"FIL\u00c9 DE TIL\u00c1PIA COM ESPAGUETE AO PESTO","cate
 
 // ── ESTILOS ───────────────────────────────────────────────────────
 const STYLE=`
+/* Força selects/options claros — evita dropdown preto no dark mode do iOS/iPad */
+select{color-scheme:light !important;background-color:#fff !important;color:#1a1a1a !important;}
+select option{background-color:#fff !important;color:#1a1a1a !important;}
+
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{--lima:#C5D943;--verde:#2D6E47;--azul:#2E7DD1;--coral:#E8614B;--preto:#111614;--cinzaF:#F0F0EA;--cinzaM:#DDDDD5;--cinzaE:#888882;--branco:#FFFFFF;--ff:'Barlow Condensed',sans-serif;--fb:'Barlow',sans-serif;--safe:env(safe-area-inset-bottom,0px)}
