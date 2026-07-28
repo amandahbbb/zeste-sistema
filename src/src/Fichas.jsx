@@ -192,10 +192,19 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
   const pesoFinalPrev=calcItems.reduce((s,i)=>s+(i.pesoFinal||0),0);
   const custoTotal=custoSomado*(1+(Number(f.margemSeguranca)||0));
   return(<Modal title={ficha?'Editar Ficha':'Nova Ficha'} onClose={onClose}>
+    {(Number(f.rendReal)>0||(f.itens||[]).length>2)&&<div style={{fontSize:11.5,color:'var(--cinzaE)',background:'var(--cinzaF)',borderRadius:8,padding:'8px 11px',marginBottom:12,lineHeight:1.5}}>💡 <b>Rendimento real</b> é opcional. Vazio = o sistema soma os ingredientes (ideal para molhos e pré-preparos). Preencha quando o preparo muda o rendimento: massa que perde água ao assar, sopa que reduz, ou bolo que rende X fatias — é esse número que vira a base do custo por kg / litro / fatia.</div>}
     <div className="ft-fg" style={{marginBottom:14}}>
       <div className="ft-fld"><label className="ft-flbl">Nome da ficha</label><input value={f.nome} onChange={e=>setF(p=>({...p,nome:e.target.value.toUpperCase()}))}/></div>
       <div className="ft-fld h"><label className="ft-flbl">Margem Segurança (%)</label><NumInput step="0.01" value={f.margemSeguranca} onChange={v=>setF(p=>({...p,margemSeguranca:v}))}/></div>
       <div className="ft-fld h"><label className="ft-flbl">Peso da porção (g)</label><NumInput value={f.pesoPorcao||''} onChange={v=>setF(p=>({...p,pesoPorcao:v}))} placeholder="opcional"/></div>
+      <div className="ft-fld h"><label className="ft-flbl">Rendimento real (opcional)</label>
+        <div style={{display:'flex',gap:6}}>
+          <NumInput step="0.01" value={f.rendReal||''} onChange={v=>setF(p=>({...p,rendReal:v}))} placeholder="ex: 12"/>
+          <select value={f.rendUnidade||'kg'} onChange={e=>setF(p=>({...p,rendUnidade:e.target.value}))} style={{border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'0 8px',fontSize:13,background:'#fff',colorScheme:'light'}}>
+            <option value="kg">kg</option><option value="L">L</option><option value="un">un</option><option value="fatias">fatias</option>
+          </select>
+        </div>
+      </div>
       {ehAdmin&&<div className="ft-fld h"><label className="ft-flbl">Cliente</label><select value={f._cliente||'zeste'} onChange={e=>setF(p=>({...p,_cliente:e.target.value}))}><option value="zeste">Zeste (base)</option><option value="440">440 Restaurante</option><option value="440-conf">440 Confeitaria (interno)</option><option value="mimo-baby">Mimo Baby</option></select></div>}
     </div>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
@@ -216,7 +225,11 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
     <div className="ft-fld" style={{marginTop:12}}><label className="ft-flbl">Modo de preparo (opcional)</label><textarea rows={3} value={f.modoPreparo||''} onChange={e=>setF(p=>({...p,modoPreparo:e.target.value}))} style={{resize:'vertical',minHeight:60}} placeholder="Descreva o passo a passo…"/></div>
     <div style={{background:'var(--preto)',borderRadius:10,padding:'14px 16px',marginTop:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.1em'}}>CUSTO TOTAL</div><div style={{fontFamily:'var(--ff)',fontSize:22,fontWeight:700,color:'var(--lima)'}}>{brl(custoTotal)}</div></div>
-      <div style={{textAlign:'right'}}><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>MARGEM {pct(f.margemSeguranca)}</div><div style={{fontSize:12,color:'var(--cinzaE)'}}>Base: {brl(custoSomado)}{pesoFinalPrev>0?` · rende ${num(pesoFinalPrev)}kg`:''}{+f.pesoPorcao>0&&pesoFinalPrev>0?` = ${Math.floor(pesoFinalPrev*1000/+f.pesoPorcao)} porções de ${num(+f.pesoPorcao)}g`:''}</div></div>
+      <div style={{textAlign:'right'}}><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>MARGEM {pct(f.margemSeguranca)}</div><div style={{fontSize:12,color:'var(--cinzaE)'}}>Base: {brl(custoSomado)}{(() => {
+        const rend=Number(f.rendReal)||0, un=f.rendUnidade||'kg';
+        if(rend>0)return ` · rende ${num(rend)} ${un} = ${brl(custoTotal/rend)}/${un==='fatias'?'fatia':un==='un'?'un':un}`;
+        return pesoFinalPrev>0?` · rende ${num(pesoFinalPrev)}kg`+((+f.pesoPorcao>0)?` = ${Math.floor(pesoFinalPrev*1000/+f.pesoPorcao)} porções de ${num(+f.pesoPorcao)}g`:''):'';
+      })()}</div></div>
     </div>
     <div style={{display:'flex',gap:8,justifyContent:'space-between',marginTop:16}}>
       {ficha&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(ficha.id);onClose();}}>🗑 Excluir</button>}
