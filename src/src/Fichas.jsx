@@ -17,8 +17,8 @@ async function sbInsertIng(item,clienteId,t){try{const r=await fetch(`${SB_URL}/
 const uid=()=>Math.random().toString(36).slice(2,9);
 
 // ── FORNECEDORES (Jeito A: preço do fornecedor "atual" espelha no p do ingrediente) ──
-async function fornList(cli,t){try{const r=await fetch(`${SB_URL}/rest/v1/crm_fornecedores?cliente_id=eq.${cli}&deleted_at=is.null&select=*&order=dados->>nome`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id})):[];}catch{return[];}}
-async function fornSave(f,cli,t){return fetch(`${SB_URL}/rest/v1/crm_fornecedores`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:f.id,cliente_id:cli,dados:f,updated_at:new Date().toISOString()})});}
+async function fornList(cli,t){try{const r=await fetch(`${SB_URL}/rest/v1/compras_fornecedores?cliente_id=eq.${cli}&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id})).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"")):[];}catch{return[];}}
+async function fornSave(f,cli,t){return fetch(`${SB_URL}/rest/v1/compras_fornecedores`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:f.id,cliente_id:cli,dados:f,updated_at:new Date().toISOString()})});}
 async function precosList(cli,ingId,t){try{const r=await fetch(`${SB_URL}/rest/v1/fornecedor_precos?cliente_id=eq.${cli}&ingrediente_id=eq.${ingId}&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d:[];}catch{return[];}}
 async function precoUpsert(row,t){return fetch(`${SB_URL}/rest/v1/fornecedor_precos`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(row)});}
 async function precoDel(id,t){return fetch(`${SB_URL}/rest/v1/fornecedor_precos?id=eq.${id}`,{method:"PATCH",headers:sbH(t),body:JSON.stringify({deleted_at:new Date().toISOString()})});}
@@ -367,6 +367,8 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
   const [precos,setPrecos]=useState(null);
   const [forns,setForns]=useState([]);
   const [addNovo,setAddNovo]=useState(false);
+  const [editId,setEditId]=useState(null);
+  const [editPreco,setEditPreco]=useState("");
   const [nf,setNf]=useState({fornId:"",preco:"",unidade:ing.un||"KG"});
   const [novoForn,setNovoForn]=useState(null);
   useEffect(()=>{(async()=>{
@@ -382,10 +384,11 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
     onPrecoAtual(+row.preco); // sobe o preço pro form do ingrediente (vira o p)
   };
   const addPreco=async()=>{
-    if(!nf.fornId||!(+nf.preco>0)){alert("Escolha o fornecedor e informe o preço.");return;}
-    const row={id:uid(),cliente_id:cli,ingrediente_id:ing.id,fornecedor_id:nf.fornId,preco:+nf.preco,unidade:nf.unidade,atual:precos.length===0,atualizado_em:new Date().toISOString()};
+    const precoNum=parseFloat(String(nf.preco).replace(',','.'))||0;
+    if(!nf.fornId||!(precoNum>0)){alert("Escolha o fornecedor e informe o preço.");return;}
+    const row={id:uid(),cliente_id:cli,ingrediente_id:ing.id,fornecedor_id:nf.fornId,preco:precoNum,unidade:nf.unidade,atual:precos.length===0,atualizado_em:new Date().toISOString()};
     await precoUpsert(row,token);
-    if(row.atual)onPrecoAtual(+nf.preco);
+    if(row.atual)onPrecoAtual(precoNum);
     setPrecos([...precos,row]);setNf({fornId:"",preco:"",unidade:ing.un||"KG"});setAddNovo(false);
   };
   const removerPreco=async(row)=>{
@@ -395,7 +398,7 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
   };
   const criarForn=async()=>{
     if(!novoForn?.nome){alert("Nome do fornecedor.");return;}
-    const f={id:uid(),nome:novoForn.nome,whatsapp:novoForn.whatsapp||"",obs:""};
+    const f={id:uid(),nome:novoForn.nome,telefone:novoForn.whatsapp||"",whatsapp:novoForn.whatsapp||"",categoria:novoForn.categoria||"",status:"Ativo",pagamento:"",prazoEntrega:"",contato:""};
     await fornSave(f,cli,token);
     setForns([...forns,f]);setNf(p=>({...p,fornId:f.id}));setNovoForn(null);
   };
@@ -406,14 +409,23 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
       <button className="ft-btn" style={{padding:'6px 11px',fontSize:12,border:'1.5px solid var(--cinzaM)',background:'transparent',color:'var(--cinzaE)'}} onClick={()=>setAddNovo(v=>!v)}>+ Fornecedor</button>
     </div>
     {precos.length===0&&!addNovo&&<div style={{fontSize:12,color:'var(--cinzaE)',fontStyle:'italic',padding:'4px 0 8px'}}>Nenhum fornecedor. Adicione um para definir o preço deste ingrediente — o fornecedor marcado como <b>atual</b> é o preço usado nas fichas.</div>}
-    {precos.map(row=>(<div key={row.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,marginBottom:6,background:row.atual?'#F4F7E8':'var(--cinzaF)',border:row.atual?'1.5px solid var(--lima)':'1px solid transparent'}}>
-      <button onClick={()=>marcarAtual(row)} title={row.atual?'Fornecedor atual':'Marcar como atual'} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,padding:0,lineHeight:1}}>{row.atual?'⭐':'☆'}</button>
-      <div style={{flex:1,minWidth:0}}>
+    {precos.map(row=>(editId===row.id?(
+      <div key={row.id} style={{background:'#F4F7E8',border:'1.5px solid var(--lima)',borderRadius:8,padding:10,marginBottom:6}}>
+        <div style={{fontSize:12,fontWeight:700,marginBottom:6}}>{nomeForn(row.fornecedor_id)} — editar preço</div>
+        <div style={{display:'flex',gap:6}}>
+          <div style={{flex:1}}><NumInput step="0.01" value={editPreco} onChange={setEditPreco} placeholder="Preço"/></div>
+          <button className="ft-btn ft-btn-g" style={{padding:'8px 12px',fontSize:12}} onClick={()=>setEditId(null)}>Cancelar</button>
+          <button className="ft-btn ft-btn-p" style={{padding:'8px 14px',fontSize:12}} onClick={async()=>{const nr={...row,preco:+editPreco,atualizado_em:new Date().toISOString()};await precoUpsert(nr,token);setPrecos(precos.map(p=>p.id===row.id?nr:p));if(nr.atual)onPrecoAtual(+editPreco);setEditId(null);}}>Salvar preço</button>
+        </div>
+      </div>
+    ):(<div key={row.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,marginBottom:6,background:row.atual?'#F4F7E8':'var(--cinzaF)',border:row.atual?'1.5px solid var(--lima)':'1px solid transparent'}}>
+      <button onClick={()=>marcarAtual(row)} title={row.atual?'Fornecedor atual (usado nas fichas)':'Usar este preço nas fichas'} style={{width:22,height:22,flexShrink:0,borderRadius:6,border:`2px solid ${row.atual?'var(--lima)':'var(--cinzaM)'}`,background:row.atual?'var(--lima)':'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#0E0E0C',padding:0}}>{row.atual?'✓':''}</button>
+      <div style={{flex:1,minWidth:0,cursor:'pointer'}} onClick={()=>{setEditId(row.id);setEditPreco(row.preco);}}>
         <div style={{fontSize:13,fontWeight:600}}>{nomeForn(row.fornecedor_id)}</div>
-        <div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(row.preco)}/{row.unidade}{row.atual?' · usado nas fichas':''}</div>
+        <div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(row.preco)}/{row.unidade}{row.atual?' · usado nas fichas':''} · <span style={{color:'var(--azul)'}}>editar</span></div>
       </div>
       <button onClick={()=>removerPreco(row)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--coral)',fontSize:13}}>✕</button>
-    </div>))}
+    </div>)))}
     {addNovo&&<div style={{background:'var(--cinzaF)',borderRadius:8,padding:10,marginTop:6}}>
       {!novoForn?<>
         <div style={{display:'flex',gap:6,marginBottom:6}}>
@@ -423,10 +435,11 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
             <option value="__novo">+ Cadastrar novo fornecedor</option>
           </select>
         </div>
+        <div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700,letterSpacing:'.04em',margin:'4px 0 3px'}}>PREÇO POR UNIDADE (R$)</div>
         <div style={{display:'flex',gap:6}}>
-          <div style={{flex:1}}><NumInput step="0.01" value={nf.preco} onChange={v=>setNf(p=>({...p,preco:v}))} placeholder="Preço"/></div>
-          <select value={nf.unidade} onChange={e=>setNf(p=>({...p,unidade:e.target.value}))} style={{border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'0 8px',fontSize:13,background:'#fff',colorScheme:'light'}}><option>KG</option><option>L</option><option>UN</option></select>
-          <button className="ft-btn ft-btn-p" style={{padding:'8px 14px',fontSize:13}} onClick={addPreco}>OK</button>
+          <div style={{flex:1}}><input type="text" inputMode="decimal" value={nf.preco} onChange={e=>setNf(p=>({...p,preco:e.target.value.replace(/[^0-9.,]/g,'')}))} placeholder="ex: 18,90" style={{width:'100%',border:'2px solid var(--lima)',borderRadius:7,padding:'11px 12px',fontSize:16,fontWeight:700,background:'#fff'}}/></div>
+          <select value={nf.unidade} onChange={e=>setNf(p=>({...p,unidade:e.target.value}))} style={{border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'0 10px',fontSize:14,background:'#fff',colorScheme:'light'}}><option>KG</option><option>L</option><option>UN</option></select>
+          <button className="ft-btn ft-btn-p" style={{padding:'8px 16px',fontSize:14}} onClick={addPreco}>OK</button>
         </div>
       </>:<>
         <div style={{fontSize:12,fontWeight:700,marginBottom:6}}>Novo fornecedor</div>
@@ -438,7 +451,7 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
         </div>
       </>}
     </div>}
-    <div style={{fontSize:10.5,color:'var(--cinzaE)',marginTop:8,lineHeight:1.5}}>⭐ O fornecedor marcado define o <b>Preço/KG</b> acima automaticamente. Trocar de fornecedor atualiza o custo em todas as fichas que usam este ingrediente.</div>
+    <div style={{fontSize:10.5,color:'var(--cinzaE)',marginTop:8,lineHeight:1.5}}>✓ O fornecedor marcado define o <b>Preço/KG</b> acima automaticamente. Trocar atualiza o custo em todas as fichas que usam este ingrediente. Toque em um fornecedor da lista para editar o preço.</div>
   </div>);
 }
 
