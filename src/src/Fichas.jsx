@@ -288,14 +288,24 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
       <div className="ft-fld h"><label className="ft-flbl">Categoria</label><input value={p.categoria} onChange={e=>setP(pr=>({...pr,categoria:e.target.value}))}/></div>
       {ehAdmin&&<div className="ft-fld h"><label className="ft-flbl">Cliente</label><select value={p._cliente||'zeste'} onChange={e=>setP(pr=>({...pr,_cliente:e.target.value}))}><option value="zeste">Zeste (base)</option><option value="440">440 Restaurante</option><option value="440-conf">440 Confeitaria (interno)</option><option value="mimo-baby">Mimo Baby</option></select></div>}
       <div className="ft-fld h"><label className="ft-flbl">Porções</label><input type="number" inputMode="numeric" min="1" value={p.porcao} onChange={e=>setP(pr=>({...pr,porcao:+e.target.value}))}/></div>
-      <div className="ft-fld"><label className="ft-flbl">Preço de venda — inteiro (R$)</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))}/></div>
-      <div className="ft-fld h"><label className="ft-flbl">Rende (fatias/unid.)</label><NumInput step="1" min="0" value={p.rendFatias} onChange={v=>setP(pr=>({...pr,rendFatias:v}))} placeholder="ex: 12 (opcional)"/></div>
-      {+p.rendFatias>0&&<div className="ft-fld h"><label className="ft-flbl">Preço da fatia/unid. (R$)</label><NumInput step="0.01" min="0" value={p.precoFatia} onChange={v=>setP(pr=>({...pr,precoFatia:v}))}/></div>}
+      <div className="ft-fld"><label className="ft-flbl">Este prato é montado como</label>
+        <div style={{display:'flex',gap:8}}>
+          {[['porcao','🍽 Por porção','Prato individual (salgado, sobremesa unitária)'],['inteiro','🎂 Receita inteira','Bolo/torta que rende N fatias']].map(([id,l,desc])=>(
+            <button key={id} type="button" onClick={()=>setP(pr=>({...pr,modoRend:id}))} style={{flex:1,padding:'10px 8px',borderRadius:8,border:`2px solid ${(p.modoRend||'porcao')===id?'var(--verde)':'var(--cinzaM)'}`,background:(p.modoRend||'porcao')===id?'#EAF4EC':'#fff',cursor:'pointer',textAlign:'left'}}>
+              <div style={{fontSize:12.5,fontWeight:700,color:'var(--preto)'}}>{l}</div>
+              <div style={{fontSize:10,color:'var(--cinzaE)',marginTop:2}}>{desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="ft-fld"><label className="ft-flbl">{(p.modoRend||'porcao')==='inteiro'?'Preço de venda — bolo inteiro (R$)':'Preço de venda (R$)'}</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))}/></div>
+      {(p.modoRend||'porcao')==='inteiro'&&<div className="ft-fld h"><label className="ft-flbl">Rende quantas fatias/unid.</label><NumInput step="1" min="0" value={p.rendFatias} onChange={v=>setP(pr=>({...pr,rendFatias:v}))} placeholder="ex: 12"/></div>}
+      {(p.modoRend||'porcao')==='inteiro'&&+p.rendFatias>0&&<div className="ft-fld h"><label className="ft-flbl">Preço da fatia/unid. (R$)</label><NumInput step="0.01" min="0" value={p.precoFatia} onChange={v=>setP(pr=>({...pr,precoFatia:v}))}/></div>}
       <div className="ft-fld"><label className="ft-flbl">Foto do prato empratado (link)</label><input value={p.foto||''} onChange={e=>setP(pr=>({...pr,foto:e.target.value}))} placeholder="Cole o link da foto (Drive, Instagram, etc)"/></div>
     </div>
     {p.foto&&<div style={{marginBottom:14,textAlign:'center'}}><img src={p.foto} alt="" style={{maxWidth:'100%',maxHeight:180,borderRadius:10,objectFit:'cover'}} onError={e=>{e.target.style.display='none';}}/></div>}
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-      <span style={{fontFamily:'var(--ff)',fontSize:13,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.08em'}}>COMPONENTES (POR PORÇÃO)</span>
+      <span style={{fontFamily:'var(--ff)',fontSize:13,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.08em'}}>{(p.modoRend||'porcao')==='inteiro'?'COMPONENTES (RECEITA INTEIRA / BOLO)':'COMPONENTES (POR PORÇÃO)'}</span>
       <button className="ft-btn ft-btn-p" style={{padding:'8px 14px',fontSize:12}} onClick={()=>setPicker(true)}>+ Adicionar</button>
     </div>
     {calcComps.map((c,i)=>(<div key={i} style={{background:'var(--cinzaF)',borderRadius:10,padding:'12px 14px',marginBottom:8,border:'1px solid var(--cinzaM)'}}>
@@ -304,7 +314,7 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         <button onClick={()=>remComp(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
       <div style={{display:'flex',gap:12,alignItems:'center'}}>
-        <div style={{flex:1}}><label className="ft-flbl">QUANTIDADE (KG)</label><NumInput step="0.001" min="0" value={(Number(c.qtdGramas)||0)/1000} onChange={v=>updComp(i,'qtdGramas',Math.round((v||0)*1000))}/></div>
+        <div style={{flex:1}}><label className="ft-flbl">{(p.modoRend||'porcao')==='inteiro'?'QUANTIDADE NO BOLO (KG)':'QUANTIDADE (KG)'}</label><NumInput step="0.001" min="0" value={(Number(c.qtdGramas)||0)/1000} onChange={v=>updComp(i,'qtdGramas',Math.round((v||0)*1000))}/></div>
         <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(c.custo)}</div></div>
       </div>
     </div>))}
