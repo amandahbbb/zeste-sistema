@@ -15,6 +15,15 @@ async function sbInsertIng(item,clienteId,t){try{const r=await fetch(`${SB_URL}/
 
 // ── UTILITÁRIOS ───────────────────────────────────────────────────
 const uid=()=>Math.random().toString(36).slice(2,9);
+
+// ── FORNECEDORES (Jeito A: preço do fornecedor "atual" espelha no p do ingrediente) ──
+async function fornList(cli,t){try{const r=await fetch(`${SB_URL}/rest/v1/crm_fornecedores?cliente_id=eq.${cli}&deleted_at=is.null&select=*&order=dados->>nome`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id})):[];}catch{return[];}}
+async function fornSave(f,cli,t){return fetch(`${SB_URL}/rest/v1/crm_fornecedores`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:f.id,cliente_id:cli,dados:f,updated_at:new Date().toISOString()})});}
+async function precosList(cli,ingId,t){try{const r=await fetch(`${SB_URL}/rest/v1/fornecedor_precos?cliente_id=eq.${cli}&ingrediente_id=eq.${ingId}&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d:[];}catch{return[];}}
+async function precoUpsert(row,t){return fetch(`${SB_URL}/rest/v1/fornecedor_precos`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(row)});}
+async function precoDel(id,t){return fetch(`${SB_URL}/rest/v1/fornecedor_precos?id=eq.${id}`,{method:"PATCH",headers:sbH(t),body:JSON.stringify({deleted_at:new Date().toISOString()})});}
+
+
 const brl=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pct=v=>v==null||isNaN(v)?'—':(v*100).toFixed(1)+'%';
 const num=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:d});
@@ -306,7 +315,8 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
 }
 
 // ── INGREDIENTES TAB ──────────────────────────────────────────────
-function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLixeira,onRestaurar}){
+function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLixeira,onRestaurar,token,ehAdmin}){
+  const tokenIng=token; const clienteFilterAtivo=clienteFilter&&clienteFilter!=='zeste'?clienteFilter:null;
   const[q,setQ]=useState('');const[edit,setEdit]=useState(null);
   const[lixeira,setLixeira]=useState(null);
   const abrirLixeira=async()=>{setLixeira([]);setLixeira(await carregarLixeira());};
@@ -341,12 +351,94 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLix
         <div className="ft-fld h"><label className="ft-flbl">Fator Correção</label><NumInput step="0.01" value={edit.fc} onChange={v=>setEdit(f=>({...f,fc:v}))}/></div>
         <div className="ft-fld h"><label className="ft-flbl">Fator Cocção</label><NumInput step="0.01" value={edit.fk} onChange={v=>setEdit(f=>({...f,fk:v}))}/></div>
       </div>
+      {edit.nome&&edit.id&&(edit._cliente&&edit._cliente!=='zeste'||clienteFilterAtivo)&&<SecaoFornecedores ing={edit} cli={edit._cliente&&edit._cliente!=='zeste'?edit._cliente:(clienteFilterAtivo||'zeste')} token={tokenIng} onPrecoAtual={p=>setEdit(f=>({...f,p}))}/>}
       <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}>
         {edit.nome&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(edit.id);setEdit(null);}}>🗑</button>}
         <button className="ft-btn ft-btn-g" onClick={()=>setEdit(null)}>Cancelar</button>
         <button className="ft-btn ft-btn-p" onClick={()=>{onSave(edit);setEdit(null);}}>Salvar</button>
       </div>
     </Modal>}
+  </div>);
+}
+
+
+// ── Seção "Fornecedores" dentro do editor de ingrediente ──
+function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
+  const [precos,setPrecos]=useState(null);
+  const [forns,setForns]=useState([]);
+  const [addNovo,setAddNovo]=useState(false);
+  const [nf,setNf]=useState({fornId:"",preco:"",unidade:ing.un||"KG"});
+  const [novoForn,setNovoForn]=useState(null);
+  useEffect(()=>{(async()=>{
+    setForns(await fornList(cli,token));
+    setPrecos(await precosList(cli,ing.id,token));
+  })();},[ing.id,cli]);
+  const nomeForn=id=>forns.find(f=>f.id===id)?.nome||"—";
+  const marcarAtual=async(row)=>{
+    // desmarca os outros, marca este, espelha o preço no p do ingrediente
+    for(const p of precos){if(p.atual&&p.id!==row.id)await precoUpsert({...p,atual:false,atualizado_em:new Date().toISOString()},token);}
+    await precoUpsert({...row,atual:true,atualizado_em:new Date().toISOString()},token);
+    setPrecos(precos.map(p=>({...p,atual:p.id===row.id})));
+    onPrecoAtual(+row.preco); // sobe o preço pro form do ingrediente (vira o p)
+  };
+  const addPreco=async()=>{
+    if(!nf.fornId||!(+nf.preco>0)){alert("Escolha o fornecedor e informe o preço.");return;}
+    const row={id:uid(),cliente_id:cli,ingrediente_id:ing.id,fornecedor_id:nf.fornId,preco:+nf.preco,unidade:nf.unidade,atual:precos.length===0,atualizado_em:new Date().toISOString()};
+    await precoUpsert(row,token);
+    if(row.atual)onPrecoAtual(+nf.preco);
+    setPrecos([...precos,row]);setNf({fornId:"",preco:"",unidade:ing.un||"KG"});setAddNovo(false);
+  };
+  const removerPreco=async(row)=>{
+    if(!window.confirm(`Remover ${nomeForn(row.fornecedor_id)} deste ingrediente?`))return;
+    await precoDel(row.id,token);
+    setPrecos(precos.filter(p=>p.id!==row.id));
+  };
+  const criarForn=async()=>{
+    if(!novoForn?.nome){alert("Nome do fornecedor.");return;}
+    const f={id:uid(),nome:novoForn.nome,whatsapp:novoForn.whatsapp||"",obs:""};
+    await fornSave(f,cli,token);
+    setForns([...forns,f]);setNf(p=>({...p,fornId:f.id}));setNovoForn(null);
+  };
+  if(precos===null)return <div style={{fontSize:12,color:'var(--cinzaE)',padding:'8px 0'}}>Carregando fornecedores…</div>;
+  return(<div style={{marginTop:14,borderTop:'1px solid var(--cinzaF)',paddingTop:12}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14}}>FORNECEDORES</div>
+      <button className="ft-btn" style={{padding:'6px 11px',fontSize:12,border:'1.5px solid var(--cinzaM)',background:'transparent',color:'var(--cinzaE)'}} onClick={()=>setAddNovo(v=>!v)}>+ Fornecedor</button>
+    </div>
+    {precos.length===0&&!addNovo&&<div style={{fontSize:12,color:'var(--cinzaE)',fontStyle:'italic',padding:'4px 0 8px'}}>Nenhum fornecedor. Adicione um para definir o preço deste ingrediente — o fornecedor marcado como <b>atual</b> é o preço usado nas fichas.</div>}
+    {precos.map(row=>(<div key={row.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,marginBottom:6,background:row.atual?'#F4F7E8':'var(--cinzaF)',border:row.atual?'1.5px solid var(--lima)':'1px solid transparent'}}>
+      <button onClick={()=>marcarAtual(row)} title={row.atual?'Fornecedor atual':'Marcar como atual'} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,padding:0,lineHeight:1}}>{row.atual?'⭐':'☆'}</button>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:13,fontWeight:600}}>{nomeForn(row.fornecedor_id)}</div>
+        <div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(row.preco)}/{row.unidade}{row.atual?' · usado nas fichas':''}</div>
+      </div>
+      <button onClick={()=>removerPreco(row)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--coral)',fontSize:13}}>✕</button>
+    </div>))}
+    {addNovo&&<div style={{background:'var(--cinzaF)',borderRadius:8,padding:10,marginTop:6}}>
+      {!novoForn?<>
+        <div style={{display:'flex',gap:6,marginBottom:6}}>
+          <select value={nf.fornId} onChange={e=>{if(e.target.value==='__novo')setNovoForn({});else setNf(p=>({...p,fornId:e.target.value}));}} style={{flex:1,border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'8px',fontSize:13,background:'#fff',colorScheme:'light'}}>
+            <option value="">Escolha o fornecedor…</option>
+            {forns.map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
+            <option value="__novo">+ Cadastrar novo fornecedor</option>
+          </select>
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          <div style={{flex:1}}><NumInput step="0.01" value={nf.preco} onChange={v=>setNf(p=>({...p,preco:v}))} placeholder="Preço"/></div>
+          <select value={nf.unidade} onChange={e=>setNf(p=>({...p,unidade:e.target.value}))} style={{border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'0 8px',fontSize:13,background:'#fff',colorScheme:'light'}}><option>KG</option><option>L</option><option>UN</option></select>
+          <button className="ft-btn ft-btn-p" style={{padding:'8px 14px',fontSize:13}} onClick={addPreco}>OK</button>
+        </div>
+      </>:<>
+        <div style={{fontSize:12,fontWeight:700,marginBottom:6}}>Novo fornecedor</div>
+        <input placeholder="Nome do fornecedor" value={novoForn.nome||''} onChange={e=>setNovoForn(p=>({...p,nome:e.target.value}))} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'8px',fontSize:13,marginBottom:6}}/>
+        <input placeholder="WhatsApp (ex: 47999998888)" value={novoForn.whatsapp||''} onChange={e=>setNovoForn(p=>({...p,whatsapp:e.target.value}))} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'8px',fontSize:13,marginBottom:6}}/>
+        <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+          <button className="ft-btn ft-btn-g" style={{padding:'7px 12px',fontSize:12}} onClick={()=>setNovoForn(null)}>Cancelar</button>
+          <button className="ft-btn ft-btn-p" style={{padding:'7px 12px',fontSize:12}} onClick={criarForn}>Criar</button>
+        </div>
+      </>}
+    </div>}
+    <div style={{fontSize:10.5,color:'var(--cinzaE)',marginTop:8,lineHeight:1.5}}>⭐ O fornecedor marcado define o <b>Preço/KG</b> acima automaticamente. Trocar de fornecedor atualiza o custo em todas as fichas que usam este ingrediente.</div>
   </div>);
 }
 
@@ -969,7 +1061,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
       <nav className="ft-nav">{(ehAdmin?TABS_ADMIN:TABS).map((t,i)=>(<span key={t.id}>{i>0&&<div style={{width:1,background:'#252525',margin:'10px 0',flexShrink:0}}/>}<div className={`ft-tab${aba===t.id?' on':''}`} onClick={()=>setAba(t.id)}>{t.l}</div></span>))}</nav>
     </div>
     {aba==='resumo'&&<><Dica id="resumo">Esta é a visão geral da operação. O fluxo do sistema é sempre: <b>Ingredientes → Fichas → Pratos → Cadernos</b>. Cada etapa alimenta a seguinte — o custo você nunca digita, ele é calculado.</Dica><TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc} clienteFilter={clienteFilter}/></>}
-    {aba==='ingredientes'&&<><Dica id="ingredientes">Tudo começa aqui: cadastre cada ingrediente com <b>preço por kg/L e fator de correção</b> (quanto se perde na limpeza). É desse preço que nascem todos os custos do sistema — mantenha atualizado.</Dica><TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter} carregarLixeira={carregarLixeira} onRestaurar={restaurarIngrediente}/></>}
+    {aba==='ingredientes'&&<><Dica id="ingredientes">Tudo começa aqui: cadastre cada ingrediente com <b>preço por kg/L e fator de correção</b> (quanto se perde na limpeza). É desse preço que nascem todos os custos do sistema — mantenha atualizado.</Dica><TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter} carregarLixeira={carregarLixeira} onRestaurar={restaurarIngrediente} token={token} ehAdmin={ehAdmin}/></>}
     {aba==='fichas'&&<><Dica id="fichas">Fichas são as <b>receitas base e pré-preparos</b> (um molho, uma polenta). Monte com os ingredientes e as quantidades — o custo por kg da receita pronta sai sozinho. Uma ficha pode entrar em vários pratos.</Dica><TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin}/></>}
     {aba==='pratos'&&<><Dica id="pratos">Pratos são o que vai <b>pro cardápio</b>: combine fichas e ingredientes com as gramaturas do empratamento. Preencha o <b>preço de venda</b> (vira CMV e matriz) e o <b>modo de preparo</b> (vira o caderno da cozinha — linhas começando com ⚠ viram alerta).</Dica><TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin}/></>}
     {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes} meuCli={meuCli}/></>}
