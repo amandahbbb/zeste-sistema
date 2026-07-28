@@ -327,13 +327,13 @@ export default function Compras({ onBack, token, clienteId }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([sbLoad("compras_fornecedores", token, clienteId), sbLoad("compras_pedidos", token, clienteId), sbLoad("compras_produtos", token, clienteId)])
+    Promise.all([sbLoad("crm_fornecedores", token, clienteId), sbLoad("compras_pedidos", token, clienteId), sbLoad("compras_produtos", token, clienteId)])
       .then(([f, p, pr]) => { setFornecedores(f); setPedidos(p); setProdutos(pr); })
       .finally(() => setLoading(false));
   }, []);
 
-  const saveForn = async f => { setFornecedores(p => p.find(x => x.id === f.id) ? p.map(x => x.id === f.id ? f : x) : [f, ...p]); await sbUpsert("compras_fornecedores", f, token, clienteId); };
-  const delForn = async id => { setFornecedores(p => p.filter(x => x.id !== id)); await sbDel("compras_fornecedores", id, token); };
+  const saveForn = async f => { setFornecedores(p => p.find(x => x.id === f.id) ? p.map(x => x.id === f.id ? f : x) : [f, ...p]); await sbUpsert("crm_fornecedores", f, token, clienteId); };
+  const delForn = async id => { setFornecedores(p => p.filter(x => x.id !== id)); await sbDel("crm_fornecedores", id, token); };
   const savePed = async p => { setPedidos(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [p, ...prev]); await sbUpsert("compras_pedidos", p, token, clienteId); };
   const delPed = async id => { setPedidos(p => p.filter(x => x.id !== id)); await sbDel("compras_pedidos", id, token); };
   const saveProd = async p => { setProdutos(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [p, ...prev]); await sbUpsert("compras_produtos", p, token, clienteId); };
