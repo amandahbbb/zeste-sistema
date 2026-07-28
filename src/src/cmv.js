@@ -41,11 +41,20 @@ export function calcFicha(ficha,ingredientes,fichas,meuCli){
     return{...it,ref,qtdBruta,custo,pesoFinal,precoKg,precoBase,ehVersaoCliente,fc,fk};
   });
   const custoSomado=itens.reduce((s,i)=>s+i.custo,0);
-  const pesoFinal=itens.reduce((s,i)=>s+i.pesoFinal,0);
+  const pesoCalculado=itens.reduce((s,i)=>s+i.pesoFinal,0);
   const margem=Number(ficha.margemSeguranca||0);
   const custoTotal=custoSomado*(1+margem);
+  // Rendimento real (opcional): se preenchido, é a base de custo verdadeira —
+  // resolve massa assada que perde água, sopa que reduz, etc. Vazio = soma dos itens (comportamento antigo).
+  const rendManual=Number(ficha.rendReal)||0;
+  const rendUnidade=ficha.rendUnidade||'kg';
+  // pesoFinal em kg para o cálculo de custo/kg. Se o rendimento é em kg/L, usa direto;
+  // se é em unidades/fatias, o peso continua vindo dos itens (custo/kg segue válido para quem usa a ficha como componente).
+  const pesoFinal=(rendManual>0&&(rendUnidade==='kg'||rendUnidade==='L'))?rendManual:pesoCalculado;
   const custoPorKg=pesoFinal>0?custoTotal/pesoFinal:0;
-  return{...ficha,itens,custoTotal,pesoFinal,_custoPorKg:custoPorKg};
+  // Custo por unidade de rendimento (fatia, litro, porção) — só quando há rendimento manual.
+  const custoPorRend=rendManual>0?custoTotal/rendManual:0;
+  return{...ficha,itens,custoTotal,pesoFinal,pesoCalculado,_custoPorKg:custoPorKg,rendReal:rendManual||null,rendUnidade,custoPorRend};
 }
 
 export function calcAllFichas(fichasRaw,ingredientes,meuCli){
