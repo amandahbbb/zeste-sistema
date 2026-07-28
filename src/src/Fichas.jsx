@@ -587,13 +587,24 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
         </div>
       </div>);})}
     </div>
-    {detail&&<Modal title={detail.nome} onClose={()=>setDetail(null)}>
+    {detail&&(()=>{
+      const ehInt=(detail.modoRend||'porcao')==='inteiro';
+      const rf=Number(detail.rendFatias)||0;
+      // Quando é bolo com fatias, a visão PRINCIPAL do detalhe é a fatia (é como se vende no balcão)
+      const usaFatia=ehInt&&rf>0&&Number(detail.precoFatia)>0;
+      const custoV=usaFatia?detail.custoTotal/rf:detail.custoTotal;
+      const precoV=usaFatia?Number(detail.precoFatia):detail.precoVenda;
+      const cmvV=precoV>0?custoV/precoV:0;
+      const sufixo=usaFatia?' / fatia':(ehInt?' / bolo':'');
+      return <Modal title={detail.nome} onClose={()=>setDetail(null)}>
+      {ehInt&&<div style={{display:'inline-block',background:usaFatia?'#E8F5E9':'#F0F4FF',color:usaFatia?'var(--verde)':'var(--azul)',fontSize:11,fontWeight:800,padding:'4px 10px',borderRadius:20,marginBottom:10,letterSpacing:'.03em'}}>{usaFatia?`🍰 VENDIDO POR FATIA (rende ${rf})`:'🎂 VENDIDO INTEIRO'}</div>}
       <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16}}>
-        <div className="ft-kpi" style={{borderColor:'var(--coral)'}}><div className="ft-kpi-l" style={{color:'var(--coral)'}}>Custo</div><div className="ft-kpi-v" style={{color:'var(--coral)'}}>{brl(detail.custoTotal)}</div></div>
-        {detail.precoVenda>0&&<><div className="ft-kpi" style={{borderColor:'var(--lima)'}}><div className="ft-kpi-l" style={{color:'var(--lima)'}}>Venda</div><div className="ft-kpi-v" style={{color:'var(--lima)'}}>{brl(detail.precoVenda)}</div></div>
-        <div className="ft-kpi" style={{borderColor:cmvColor(detail.cmv)}}><div className="ft-kpi-l" style={{color:cmvColor(detail.cmv)}}>CMV</div><div className="ft-kpi-v" style={{color:cmvColor(detail.cmv)}}>{pct(detail.cmv)} — {cmvLabel(detail.cmv)}</div></div>
-        <div className="ft-kpi" style={{borderColor:'var(--azul)'}}><div className="ft-kpi-l" style={{color:'var(--azul)'}}>Margem</div><div className="ft-kpi-v" style={{color:'var(--azul)'}}>{brl(detail.precoVenda-detail.custoTotal)}</div></div></>}
+        <div className="ft-kpi" style={{borderColor:'var(--coral)'}}><div className="ft-kpi-l" style={{color:'var(--coral)'}}>Custo{sufixo}</div><div className="ft-kpi-v" style={{color:'var(--coral)'}}>{brl(custoV)}</div></div>
+        {precoV>0&&<><div className="ft-kpi" style={{borderColor:'var(--lima)'}}><div className="ft-kpi-l" style={{color:'var(--lima)'}}>Venda{sufixo}</div><div className="ft-kpi-v" style={{color:'var(--lima)'}}>{brl(precoV)}</div></div>
+        <div className="ft-kpi" style={{borderColor:cmvColor(cmvV)}}><div className="ft-kpi-l" style={{color:cmvColor(cmvV)}}>CMV</div><div className="ft-kpi-v" style={{color:cmvColor(cmvV)}}>{pct(cmvV)} — {cmvLabel(cmvV)}</div></div>
+        <div className="ft-kpi" style={{borderColor:'var(--azul)'}}><div className="ft-kpi-l" style={{color:'var(--azul)'}}>Lucro{sufixo}</div><div className="ft-kpi-v" style={{color:'var(--azul)'}}>{brl(precoV-custoV)}</div></div></>}
       </div>
+      {usaFatia&&detail.precoVenda>0&&<div style={{fontSize:12,color:'var(--cinzaE)',marginTop:-6,marginBottom:14,padding:'8px 12px',background:'var(--cinzaF)',borderRadius:8}}>🎂 Bolo inteiro: custo {brl(detail.custoTotal)} · venda {brl(detail.precoVenda)} · CMV {pct(detail.cmv)}</div>}
       <SH>Componentes</SH>
       <div className="ft-card">
         {(detail.comps||[]).map((c,i)=>{const ehFicha=c.tipo==='ficha';const fichaObj=ehFicha?fichasCalc.find(f=>f.nome===c.nomeRef):null;return(<div key={i} onClick={ehFicha&&fichaObj?()=>setFichaDet(fichaObj):undefined} style={{padding:'10px 14px',borderBottom:i<detail.comps.length-1?'1px solid var(--cinzaF)':'none',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:ehFicha&&fichaObj?'pointer':'default',background:ehFicha&&fichaObj?'#FFFDF5':'transparent'}}>
@@ -601,8 +612,8 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
           <div style={{fontFamily:'var(--ff)',fontSize:14,fontWeight:700,color:c.erro?'var(--coral)':'var(--verde)',flexShrink:0}}>{c.erro?'⚠️':brl(c.custo)}</div>
         </div>);})}
       </div>
-      {detail.precoVenda>0&&<div style={{marginTop:14,background:cmvColor(detail.cmv)+'18',borderLeft:`3px solid ${cmvColor(detail.cmv)}`,borderRadius:6,padding:'10px 12px',fontSize:13,color:cmvColor(detail.cmv),fontWeight:600}}>
-        CMV {pct(detail.cmv)} — {cmvLabel(detail.cmv)} · Lucro bruto de {brl(detail.precoVenda-detail.custoTotal)} por porção
+      {precoV>0&&<div style={{marginTop:14,background:cmvColor(cmvV)+'18',borderLeft:`3px solid ${cmvColor(cmvV)}`,borderRadius:6,padding:'10px 12px',fontSize:13,color:cmvColor(cmvV),fontWeight:600}}>
+        CMV {pct(cmvV)} — {cmvLabel(cmvV)} · Lucro bruto de {brl(precoV-custoV)}{sufixo}
       </div>}
       {detail._ultimaEdicao&&<div style={{fontSize:11,color:'var(--cinzaE)',marginTop:10}}>Última edição: {detail._ultimaEdicao} em {detail._ultimaEdicaoEm?new Date(detail._ultimaEdicaoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</div>}
       <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
@@ -610,7 +621,7 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
         <button className="ft-btn ft-btn-g" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setHistItem(detail)}>📜 Histórico</button>
         <button className="ft-btn ft-btn-p" style={{marginLeft:'auto',padding:'10px 14px',fontSize:13}} onClick={()=>{setEditForm(pratosCalc.find(p=>p.id===detail.id)||detail);setDetail(null);}}>✏️ Editar</button>
       </div>
-    </Modal>}
+    </Modal>;})()}
     {editForm&&<PratoForm open={true} prato={editForm.id?editForm:null} onClose={()=>setEditForm(null)} onSave={onSave} onDelete={onDelete} ingredientes={ingredientes} fichasCalc={fichasCalc} souCli={souCli} ehAdmin={ehAdmin}/>}
     {fichaDet&&<Modal title={`📋 ${fichaDet.nome}`} onClose={()=>setFichaDet(null)}>
       <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16}}>
