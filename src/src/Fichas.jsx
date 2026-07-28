@@ -271,17 +271,26 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
     const custo=qtdKg*fc*custoPorKg;
     return{...c,custoPorKg,fc,custo};
   });
-  const custoTotal=calcComps.reduce((s,c)=>s+c.custo,0);
+  const custoTotal=calcComps.reduce((s,c)=>s+c.custo,0)*(1+(+p.margemSeguranca||0));
   const preco=Number(p.precoVenda)||0;
   const cmv=preco>0?custoTotal/preco:0;
   const lucro=preco-custoTotal;
+  // sanidade + fatia (preview)
+  const compsSemPreco=calcComps.filter(c=>c.tipo!=='ficha'&&(!c.custoPorKg||c.custoPorKg<=0)).map(c=>c.nomeRef);
+  const rendFat=Number(p.rendFatias)||0;
+  const custoFat=rendFat>0?custoTotal/rendFat:0;
+  const precoFat=Number(p.precoFatia)||0;
+  const cmvFat=(rendFat>0&&precoFat>0)?custoFat/precoFat:0;
   return(<Modal title={prato?'Editar Prato':'Novo Prato'} onClose={onClose}>
+    {compsSemPreco.length>0&&<div style={{background:'#FDECEA',border:'1px solid #F5C6C0',borderLeft:'4px solid var(--coral)',borderRadius:8,padding:'9px 12px',marginBottom:12,fontSize:12.5,color:'#8B2E23'}}>⚠ Custo incompleto: sem preço em <b>{compsSemPreco.slice(0,4).join(', ')}</b>{compsSemPreco.length>4?` +${compsSemPreco.length-4}`:''}. Defina o preço (ou fornecedor) desses ingredientes.</div>}
     <div className="ft-fg" style={{marginBottom:14}}>
       <div className="ft-fld"><label className="ft-flbl">Nome do prato</label><input value={p.nome} onChange={e=>setP(pr=>({...pr,nome:e.target.value.toUpperCase()}))}/></div>
       <div className="ft-fld h"><label className="ft-flbl">Categoria</label><input value={p.categoria} onChange={e=>setP(pr=>({...pr,categoria:e.target.value}))}/></div>
       {ehAdmin&&<div className="ft-fld h"><label className="ft-flbl">Cliente</label><select value={p._cliente||'zeste'} onChange={e=>setP(pr=>({...pr,_cliente:e.target.value}))}><option value="zeste">Zeste (base)</option><option value="440">440 Restaurante</option><option value="440-conf">440 Confeitaria (interno)</option><option value="mimo-baby">Mimo Baby</option></select></div>}
       <div className="ft-fld h"><label className="ft-flbl">Porções</label><input type="number" inputMode="numeric" min="1" value={p.porcao} onChange={e=>setP(pr=>({...pr,porcao:+e.target.value}))}/></div>
-      <div className="ft-fld"><label className="ft-flbl">Preço de venda (R$)</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))}/></div>
+      <div className="ft-fld"><label className="ft-flbl">Preço de venda — inteiro (R$)</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))}/></div>
+      <div className="ft-fld h"><label className="ft-flbl">Rende (fatias/unid.)</label><NumInput step="1" min="0" value={p.rendFatias} onChange={v=>setP(pr=>({...pr,rendFatias:v}))} placeholder="ex: 12 (opcional)"/></div>
+      {+p.rendFatias>0&&<div className="ft-fld h"><label className="ft-flbl">Preço da fatia/unid. (R$)</label><NumInput step="0.01" min="0" value={p.precoFatia} onChange={v=>setP(pr=>({...pr,precoFatia:v}))}/></div>}
       <div className="ft-fld"><label className="ft-flbl">Foto do prato empratado (link)</label><input value={p.foto||''} onChange={e=>setP(pr=>({...pr,foto:e.target.value}))} placeholder="Cole o link da foto (Drive, Instagram, etc)"/></div>
     </div>
     {p.foto&&<div style={{marginBottom:14,textAlign:'center'}}><img src={p.foto} alt="" style={{maxWidth:'100%',maxHeight:180,borderRadius:10,objectFit:'cover'}} onError={e=>{e.target.style.display='none';}}/></div>}
@@ -305,8 +314,19 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--coral)'}}>{brl(custoTotal)}</div></div>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>VENDA</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--lima)'}}>{brl(preco)}</div></div>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>LUCRO</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:lucro>=0?'var(--lima)':'var(--coral)'}}>{brl(lucro)}</div></div>
-      <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CMV</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:cmvColor(cmv)}}>{pct(cmv)}</div></div>
+      <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CMV</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:cmvColor(cmv)}}>{preco>0?pct(cmv):'—'}</div></div>
     </div>
+    {preco<=0&&<div style={{background:'#FEF6E7',border:'1px solid #F5D98B',borderLeft:'4px solid #E8B04B',borderRadius:8,padding:'8px 12px',marginTop:8,fontSize:12.5,color:'#7A5A12'}}>⚠ Sem preço de venda — este prato não entra na matriz de engenharia e o CMV não é calculado (não é "0% excelente", é "não precificado").</div>}
+    {rendFat>0&&<div style={{background:'#F0F4FF',border:'1px solid #C7D6F5',borderRadius:10,padding:'12px 16px',marginTop:10}}>
+      <div style={{fontFamily:'var(--ff)',fontSize:12,fontWeight:800,color:'var(--azul)',letterSpacing:'.05em',marginBottom:8}}>POR FATIA / UNIDADE ({rendFat}×)</div>
+      <div style={{display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+        <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CUSTO/FATIA</div><div style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:700,color:'var(--coral)'}}>{brl(custoFat)}</div></div>
+        <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>PREÇO/FATIA</div><div style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:700,color:'var(--lima)'}}>{precoFat>0?brl(precoFat):'—'}</div></div>
+        <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>LUCRO/FATIA</div><div style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:700,color:(precoFat-custoFat)>=0?'var(--lima)':'var(--coral)'}}>{precoFat>0?brl(precoFat-custoFat):'—'}</div></div>
+        <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CMV/FATIA</div><div style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:700,color:precoFat>0?cmvColor(cmvFat):'var(--cinzaE)'}}>{precoFat>0?pct(cmvFat):'—'}</div></div>
+      </div>
+      <div style={{fontSize:10.5,color:'var(--cinzaE)',marginTop:8}}>💡 Custo/fatia = custo do bolo ÷ {rendFat}. Confirme o rendimento real após pesar e cortar no Dia de Teste.</div>
+    </div>}
     <div style={{display:'flex',gap:8,justifyContent:'space-between',marginTop:16}}>
       {prato&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(prato.id);onClose();}}>🗑 Excluir</button>}
       <div style={{display:'flex',gap:8,marginLeft:'auto'}}>
@@ -480,7 +500,7 @@ function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFil
           </div>
         </div>
         <div style={{textAlign:'right',flexShrink:0}}>
-          <div style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:'var(--verde)'}}>{brl(f.custoTotal)}</div>
+          <div style={{textAlign:'right'}}><div style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:'var(--verde)'}}>{brl(f.custoTotal)}</div>{f.custoIncompleto&&<div style={{fontSize:10,fontWeight:700,color:'var(--coral)'}} title="Ingrediente sem preço">⚠ incompleto</div>}</div>
           <div style={{fontSize:10,color:'var(--cinzaE)'}}>{brl(f._custoPorKg)}/kg</div>
         </div>
       </div>))}
@@ -533,6 +553,8 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
             <div style={{textAlign:'right',flexShrink:0}}>
               <div style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:'var(--coral)'}}>{brl(p.custoTotal)}</div>
               {p.precoVenda>0&&<div style={{fontSize:11,fontWeight:700,color:cmvC}}>CMV {pct(p.cmv)}</div>}
+              {p.custoIncompleto&&<div style={{fontSize:10,fontWeight:700,color:'var(--coral)'}} title="Ingrediente sem preço">⚠ custo incompleto</div>}
+              {!(p.precoVenda>0)&&<div style={{fontSize:10,fontWeight:700,color:'#B8860B'}}>sem preço</div>}
             </div>
           </div>);})}
         </div>
