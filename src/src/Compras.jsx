@@ -37,6 +37,10 @@ const FORMAS_PGTO = ["Boleto 30 dias", "Boleto 28 dias", "Pix à vista", "Cartã
 const STATUS_PEDIDO = { "Aguardando": C.cinzaE, "Confirmado": C.azul, "Em trânsito": C.lima, "Entregue": C.verde, "Cancelado": C.coral };
 
 const STYLE = `
+/* Força selects/options claros — evita dropdown preto no dark mode do iOS/iPad */
+select{color-scheme:light !important;background-color:#fff !important;color:#1a1a1a !important;}
+select option{background-color:#fff !important;color:#1a1a1a !important;}
+
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600;700;800&display=swap');
 .cmp-wrap{font-family:'Barlow',sans-serif;background:${C.cinzaF};min-height:100vh;color:${C.preto}}
 .cmp-header{background:${C.preto};position:sticky;top:0;z-index:300;border-bottom:1px solid #2A2A2A}
