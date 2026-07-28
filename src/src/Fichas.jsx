@@ -186,7 +186,6 @@ function ItemPicker({open,onClose,ingredientes,fichasCalc,allowFicha=true,onPick
 function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,souCli,ehAdmin}){
   const[f,setF]=useState(()=>ficha?{...ficha}:{id:uid(),nome:'',margemSeguranca:0.1,itens:[],modoPreparo:'',_cliente:souCli||'zeste'});
   const[picker,setPicker]=useState(false);
-  const[vista,setVista]=useState('fatia'); // qual visão mostrar quando é bolo inteiro
   if(!open)return null;
   const addItem=(item)=>setF(p=>({...p,itens:[...p.itens,{...item,qtdLiquida:0.1}]}));
   const updItem=(i,k,v)=>setF(p=>({...p,itens:p.itens.map((it,j)=>j===i?{...it,[k]:v}:it)}));
@@ -260,6 +259,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
 function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,souCli,ehAdmin}){
   const[p,setP]=useState(()=>prato?{...prato}:{id:uid(),nome:'',categoria:'Clássicos Zeste',porcao:1,precoVenda:0,componentes:[],modoPreparo:'',_cliente:souCli||'zeste'});
   const[picker,setPicker]=useState(false);
+  const[vista,setVista]=useState('fatia'); // qual visão mostrar quando é bolo inteiro
   if(!open)return null;
   const addComp=(item)=>setP(pr=>({...pr,componentes:[...pr.componentes,{...item,qtdGramas:100}]}));
   const updComp=(i,k,v)=>setP(pr=>({...pr,componentes:pr.componentes.map((c,j)=>j===i?{...c,[k]:v}:c)}));
