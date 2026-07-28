@@ -412,10 +412,10 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
     {precos.map(row=>(editId===row.id?(
       <div key={row.id} style={{background:'#F4F7E8',border:'1.5px solid var(--lima)',borderRadius:8,padding:10,marginBottom:6}}>
         <div style={{fontSize:12,fontWeight:700,marginBottom:6}}>{nomeForn(row.fornecedor_id)} — editar preço</div>
-        <div style={{display:'flex',gap:6}}>
-          <div style={{flex:1}}><NumInput step="0.01" value={editPreco} onChange={setEditPreco} placeholder="Preço"/></div>
-          <button className="ft-btn ft-btn-g" style={{padding:'8px 12px',fontSize:12}} onClick={()=>setEditId(null)}>Cancelar</button>
-          <button className="ft-btn ft-btn-p" style={{padding:'8px 14px',fontSize:12}} onClick={async()=>{const nr={...row,preco:+editPreco,atualizado_em:new Date().toISOString()};await precoUpsert(nr,token);setPrecos(precos.map(p=>p.id===row.id?nr:p));if(nr.atual)onPrecoAtual(+editPreco);setEditId(null);}}>Salvar preço</button>
+        <input type="text" inputMode="decimal" value={editPreco} onChange={e=>setEditPreco(e.target.value.replace(/[^0-9.,]/g,''))} placeholder="ex: 18,90" style={{display:'block',width:'100%',boxSizing:'border-box',border:'2px solid var(--lima)',borderRadius:8,padding:'13px 14px',fontSize:17,fontWeight:700,background:'#fff',marginBottom:8}}/>
+        <div style={{display:'flex',gap:8}}>
+          <button className="ft-btn ft-btn-g" style={{flex:1,padding:'11px',fontSize:14}} onClick={()=>setEditId(null)}>Cancelar</button>
+          <button className="ft-btn ft-btn-p" style={{flex:1,padding:'11px',fontSize:14}} onClick={async()=>{const pv=parseFloat(String(editPreco).replace(',','.'))||0;const nr={...row,preco:pv,atualizado_em:new Date().toISOString()};await precoUpsert(nr,token);setPrecos(precos.map(p=>p.id===row.id?nr:p));if(nr.atual)onPrecoAtual(pv);setEditId(null);}}>Salvar preço</button>
         </div>
       </div>
     ):(<div key={row.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,marginBottom:6,background:row.atual?'#F4F7E8':'var(--cinzaF)',border:row.atual?'1.5px solid var(--lima)':'1px solid transparent'}}>
@@ -435,11 +435,11 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
             <option value="__novo">+ Cadastrar novo fornecedor</option>
           </select>
         </div>
-        <div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700,letterSpacing:'.04em',margin:'4px 0 3px'}}>PREÇO POR UNIDADE (R$)</div>
-        <div style={{display:'flex',gap:6}}>
-          <div style={{flex:1}}><input type="text" inputMode="decimal" value={nf.preco} onChange={e=>setNf(p=>({...p,preco:e.target.value.replace(/[^0-9.,]/g,'')}))} placeholder="ex: 18,90" style={{width:'100%',border:'2px solid var(--lima)',borderRadius:7,padding:'11px 12px',fontSize:16,fontWeight:700,background:'#fff'}}/></div>
-          <select value={nf.unidade} onChange={e=>setNf(p=>({...p,unidade:e.target.value}))} style={{border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'0 10px',fontSize:14,background:'#fff',colorScheme:'light'}}><option>KG</option><option>L</option><option>UN</option></select>
-          <button className="ft-btn ft-btn-p" style={{padding:'8px 16px',fontSize:14}} onClick={addPreco}>OK</button>
+        <div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700,letterSpacing:'.04em',margin:'8px 0 4px'}}>PREÇO POR UNIDADE (R$)</div>
+        <input type="text" inputMode="decimal" value={nf.preco} onChange={e=>setNf(p=>({...p,preco:e.target.value.replace(/[^0-9.,]/g,'')}))} placeholder="ex: 18,90" style={{display:'block',width:'100%',boxSizing:'border-box',border:'2px solid var(--lima)',borderRadius:8,padding:'13px 14px',fontSize:17,fontWeight:700,background:'#fff',marginBottom:8}}/>
+        <div style={{display:'flex',gap:8,alignItems:'stretch'}}>
+          <select value={nf.unidade} onChange={e=>setNf(p=>({...p,unidade:e.target.value}))} style={{flex:'0 0 90px',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'10px 8px',fontSize:15,background:'#fff',colorScheme:'light'}}><option>KG</option><option>L</option><option>UN</option></select>
+          <button className="ft-btn ft-btn-p" style={{flex:1,padding:'12px',fontSize:15}} onClick={addPreco}>Adicionar preço</button>
         </div>
       </>:<>
         <div style={{fontSize:12,fontWeight:700,marginBottom:6}}>Novo fornecedor</div>
