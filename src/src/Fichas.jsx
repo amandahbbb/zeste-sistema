@@ -186,6 +186,7 @@ function ItemPicker({open,onClose,ingredientes,fichasCalc,allowFicha=true,onPick
 function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,souCli,ehAdmin}){
   const[f,setF]=useState(()=>ficha?{...ficha}:{id:uid(),nome:'',margemSeguranca:0.1,itens:[],modoPreparo:'',_cliente:souCli||'zeste'});
   const[picker,setPicker]=useState(false);
+  const[vista,setVista]=useState('fatia'); // qual visão mostrar quando é bolo inteiro
   if(!open)return null;
   const addItem=(item)=>setF(p=>({...p,itens:[...p.itens,{...item,qtdLiquida:0.1}]}));
   const updItem=(i,k,v)=>setF(p=>({...p,itens:p.itens.map((it,j)=>j===i?{...it,[k]:v}:it)}));
@@ -277,6 +278,7 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
   const lucro=preco-custoTotal;
   // sanidade + fatia (preview)
   const compsSemPreco=calcComps.filter(c=>c.tipo!=='ficha'&&(!c.custoPorKg||c.custoPorKg<=0)).map(c=>c.nomeRef);
+  const ehInteiro=(p.modoRend||'porcao')==='inteiro';
   const rendFat=Number(p.rendFatias)||0;
   const custoFat=rendFat>0?custoTotal/rendFat:0;
   const precoFat=Number(p.precoFatia)||0;
@@ -298,9 +300,10 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
           ))}
         </div>
       </div>
-      <div className="ft-fld"><label className="ft-flbl">{(p.modoRend||'porcao')==='inteiro'?'Preço de venda — bolo inteiro (R$)':'Preço de venda (R$)'}</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))}/></div>
-      {(p.modoRend||'porcao')==='inteiro'&&<div className="ft-fld h"><label className="ft-flbl">Rende quantas fatias/unid.</label><NumInput step="1" min="0" value={p.rendFatias} onChange={v=>setP(pr=>({...pr,rendFatias:v}))} placeholder="ex: 12"/></div>}
-      {(p.modoRend||'porcao')==='inteiro'&&+p.rendFatias>0&&<div className="ft-fld h"><label className="ft-flbl">Preço da fatia/unid. (R$)</label><NumInput step="0.01" min="0" value={p.precoFatia} onChange={v=>setP(pr=>({...pr,precoFatia:v}))}/></div>}
+      {!ehInteiro&&<div className="ft-fld"><label className="ft-flbl">Preço de venda (R$)</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))}/></div>}
+      {ehInteiro&&<div className="ft-fld h"><label className="ft-flbl">Rende quantas fatias</label><NumInput step="1" min="0" value={p.rendFatias} onChange={v=>setP(pr=>({...pr,rendFatias:v}))} placeholder="ex: 12"/></div>}
+      {ehInteiro&&<div className="ft-fld h"><label className="ft-flbl">Preço da FATIA (R$)</label><NumInput step="0.01" min="0" value={p.precoFatia} onChange={v=>setP(pr=>({...pr,precoFatia:v}))} placeholder="balcão"/></div>}
+      {ehInteiro&&<div className="ft-fld"><label className="ft-flbl">Preço do BOLO INTEIRO (R$)</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))} placeholder="encomenda"/></div>}
       <div className="ft-fld"><label className="ft-flbl">Foto do prato empratado (link)</label><input value={p.foto||''} onChange={e=>setP(pr=>({...pr,foto:e.target.value}))} placeholder="Cole o link da foto (Drive, Instagram, etc)"/></div>
     </div>
     {p.foto&&<div style={{marginBottom:14,textAlign:'center'}}><img src={p.foto} alt="" style={{maxWidth:'100%',maxHeight:180,borderRadius:10,objectFit:'cover'}} onError={e=>{e.target.style.display='none';}}/></div>}
@@ -320,23 +323,37 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
     </div>))}
     {p.componentes.length===0&&<div style={{textAlign:'center',padding:20,color:'var(--cinzaE)',fontStyle:'italic'}}>Clique "+ Adicionar" para incluir componentes</div>}
     <div className="ft-fld" style={{marginTop:12}}><label className="ft-flbl">Empratamento / modo (opcional)</label><textarea rows={2} value={p.modoPreparo||''} onChange={e=>setP(pr=>({...pr,modoPreparo:e.target.value}))} style={{resize:'vertical',minHeight:50}} placeholder="1. Empratar…"/></div>
-    <div style={{background:'var(--preto)',borderRadius:10,padding:'14px 16px',marginTop:14,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+    {!ehInteiro&&<div style={{background:'var(--preto)',borderRadius:10,padding:'14px 16px',marginTop:14,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--coral)'}}>{brl(custoTotal)}</div></div>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>VENDA</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--lima)'}}>{brl(preco)}</div></div>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>LUCRO</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:lucro>=0?'var(--lima)':'var(--coral)'}}>{brl(lucro)}</div></div>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CMV</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:cmvColor(cmv)}}>{preco>0?pct(cmv):'—'}</div></div>
-    </div>
-    {preco<=0&&<div style={{background:'#FEF6E7',border:'1px solid #F5D98B',borderLeft:'4px solid #E8B04B',borderRadius:8,padding:'8px 12px',marginTop:8,fontSize:12.5,color:'#7A5A12'}}>⚠ Sem preço de venda — este prato não entra na matriz de engenharia e o CMV não é calculado (não é "0% excelente", é "não precificado").</div>}
-    {rendFat>0&&<div style={{background:'#F0F4FF',border:'1px solid #C7D6F5',borderRadius:10,padding:'12px 16px',marginTop:10}}>
-      <div style={{fontFamily:'var(--ff)',fontSize:12,fontWeight:800,color:'var(--azul)',letterSpacing:'.05em',marginBottom:8}}>POR FATIA / UNIDADE ({rendFat}×)</div>
-      <div style={{display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
-        <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CUSTO/FATIA</div><div style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:700,color:'var(--coral)'}}>{brl(custoFat)}</div></div>
-        <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>PREÇO/FATIA</div><div style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:700,color:'var(--lima)'}}>{precoFat>0?brl(precoFat):'—'}</div></div>
-        <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>LUCRO/FATIA</div><div style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:700,color:(precoFat-custoFat)>=0?'var(--lima)':'var(--coral)'}}>{precoFat>0?brl(precoFat-custoFat):'—'}</div></div>
-        <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CMV/FATIA</div><div style={{fontFamily:'var(--ff)',fontSize:17,fontWeight:700,color:precoFat>0?cmvColor(cmvFat):'var(--cinzaE)'}}>{precoFat>0?pct(cmvFat):'—'}</div></div>
-      </div>
-      <div style={{fontSize:10.5,color:'var(--cinzaE)',marginTop:8}}>💡 Custo/fatia = custo do bolo ÷ {rendFat}. Confirme o rendimento real após pesar e cortar no Dia de Teste.</div>
     </div>}
+    {!ehInteiro&&preco<=0&&<div style={{background:'#FEF6E7',border:'1px solid #F5D98B',borderLeft:'4px solid #E8B04B',borderRadius:8,padding:'8px 12px',marginTop:8,fontSize:12.5,color:'#7A5A12'}}>⚠ Sem preço de venda — este prato não entra na matriz de engenharia e o CMV não é calculado (não é "0% excelente", é "não precificado").</div>}
+    {ehInteiro&&(()=>{
+      const isFatia=vista==='fatia';
+      const rf=Number(p.rendFatias)||0;
+      const cInt=custoTotal, cFat=rf>0?custoTotal/rf:0;
+      const vInt=Number(p.precoVenda)||0, vFat=Number(p.precoFatia)||0;
+      const custoV=isFatia?cFat:cInt, precoV=isFatia?vFat:vInt;
+      const lucroV=precoV-custoV, cmvV=precoV>0?custoV/precoV:0;
+      return(<div style={{marginTop:12}}>
+        <div style={{display:'flex',gap:0,marginBottom:10,border:'2px solid var(--verde)',borderRadius:10,overflow:'hidden'}}>
+          {[['fatia',`🍰 Vendo por FATIA${rf>0?` (÷${rf})`:''}`],['inteiro','🎂 Vendo INTEIRO']].map(([id,l])=>(
+            <button key={id} type="button" onClick={()=>setVista(id)} style={{flex:1,padding:'10px 8px',border:'none',cursor:'pointer',fontWeight:800,fontSize:13,fontFamily:'var(--ff)',letterSpacing:'.03em',background:vista===id?'var(--verde)':'#fff',color:vista===id?'#fff':'var(--cinzaE)'}}>{l}</button>
+          ))}
+        </div>
+        {isFatia&&rf<=0&&<div style={{background:'#FEF6E7',border:'1px solid #F5D98B',borderRadius:8,padding:'8px 12px',fontSize:12.5,color:'#7A5A12'}}>Defina "Rende quantas fatias" acima para calcular o custo por fatia.</div>}
+        {(!isFatia||rf>0)&&<div style={{background:'var(--preto)',borderRadius:10,padding:'14px 16px',display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+          <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CUSTO{isFatia?'/FATIA':' DO BOLO'}</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--coral)'}}>{brl(custoV)}</div></div>
+          <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>VENDA</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--lima)'}}>{precoV>0?brl(precoV):'—'}</div></div>
+          <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>LUCRO</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:lucroV>=0?'var(--lima)':'var(--coral)'}}>{precoV>0?brl(lucroV):'—'}</div></div>
+          <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CMV</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:precoV>0?cmvColor(cmvV):'var(--cinzaE)'}}>{precoV>0?pct(cmvV):'—'}</div></div>
+        </div>}
+        {precoV<=0&&(!isFatia||rf>0)&&<div style={{fontSize:11,color:'#B8860B',marginTop:6,fontWeight:600}}>⚠ Defina o preço {isFatia?'da fatia':'do bolo inteiro'} para ver o CMV.</div>}
+        <div style={{fontSize:10.5,color:'var(--cinzaE)',marginTop:8}}>💡 Custo do bolo: {brl(cInt)}{rf>0?` · ÷ ${rf} fatias = ${brl(cFat)}/fatia`:''}. Confirme o rendimento real após pesar e cortar no Dia de Teste.</div>
+      </div>);
+    })()}
     <div style={{display:'flex',gap:8,justifyContent:'space-between',marginTop:16}}>
       {prato&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(prato.id);onClose();}}>🗑 Excluir</button>}
       <div style={{display:'flex',gap:8,marginLeft:'auto'}}>
