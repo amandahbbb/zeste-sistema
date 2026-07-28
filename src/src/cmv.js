@@ -42,6 +42,10 @@ export function calcFicha(ficha,ingredientes,fichas,meuCli){
   });
   const custoSomado=itens.reduce((s,i)=>s+i.custo,0);
   const pesoCalculado=itens.reduce((s,i)=>s+i.pesoFinal,0);
+  // TRAVAS DE SANIDADE: item com preço 0 (não tipo ficha) = custo incompleto; ref quebrada
+  const itensSemPreco=itens.filter(i=>!i.erro&&i.tipo!=='ficha'&&(!i.precoKg||i.precoKg<=0)).map(i=>i.nomeRef);
+  const temRefQuebrada=itens.some(i=>i.erro);
+  const custoIncompleto=itensSemPreco.length>0||temRefQuebrada;
   const margem=Number(ficha.margemSeguranca||0);
   const custoTotal=custoSomado*(1+margem);
   // Rendimento real (opcional): se preenchido, é a base de custo verdadeira —
@@ -54,7 +58,7 @@ export function calcFicha(ficha,ingredientes,fichas,meuCli){
   const custoPorKg=pesoFinal>0?custoTotal/pesoFinal:0;
   // Custo por unidade de rendimento (fatia, litro, porção) — só quando há rendimento manual.
   const custoPorRend=rendManual>0?custoTotal/rendManual:0;
-  return{...ficha,itens,custoTotal,pesoFinal,pesoCalculado,_custoPorKg:custoPorKg,rendReal:rendManual||null,rendUnidade,custoPorRend};
+  return{...ficha,itens,custoTotal,pesoFinal,pesoCalculado,_custoPorKg:custoPorKg,rendReal:rendManual||null,rendUnidade,custoPorRend,custoIncompleto,itensSemPreco,temRefQuebrada};
 }
 
 export function calcAllFichas(fichasRaw,ingredientes,meuCli){
@@ -98,9 +102,22 @@ export function calcPrato(prato,ingredientes,fichas,meuCli){
   });
   // Margem de segurança do prato (a planilha usa 5%). Prato sem o campo = 0 (nada muda).
   const custoTotal=comps.reduce((s,c)=>s+c.custo,0)*(1+(+prato.margemSeguranca||0));
+  // TRAVAS: componente sem preço / ref quebrada / ficha-componente com custo incompleto
+  const compsSemPreco=comps.filter(c=>!c.erro&&(!c.custoPorKg||c.custoPorKg<=0)).map(c=>c.nomeRef);
+  const temRefQuebrada=comps.some(c=>c.erro);
+  const custoIncompleto=compsSemPreco.length>0||temRefQuebrada;
   const preco=Number(prato.precoVenda||0);
+  const semPreco=!(preco>0); // preço de venda não cadastrado (evita CMV 0% "excelente" falso)
   const cmv=preco>0?custoTotal/preco:0;
   const margem=preco>0?(preco-custoTotal)/preco:0;
   const margemRS=preco-custoTotal;
-  return{...prato,comps,custoTotal,cmv,margem,margemRS,preco,_custoPorKg:custoTotal/((comps.reduce((s,c)=>s+(c.qtdKg||0),0))||1)};
+  // RENDIMENTO EM FATIAS/UNIDADES (confeitaria): deriva custo e preço por fatia de UM cadastro
+  const rendFatias=Number(prato.rendFatias)||0;
+  const custoFatia=rendFatias>0?custoTotal/rendFatias:0;
+  const precoFatia=Number(prato.precoFatia)||0;
+  const cmvFatia=(rendFatias>0&&precoFatia>0)?custoFatia/precoFatia:0;
+  const margemFatiaRS=precoFatia-custoFatia;
+  return{...prato,comps,custoTotal,cmv,margem,margemRS,preco,semPreco,custoIncompleto,compsSemPreco,temRefQuebrada,
+    rendFatias,custoFatia,precoFatia,cmvFatia,margemFatiaRS,
+    _custoPorKg:custoTotal/((comps.reduce((s,c)=>s+(c.qtdKg||0),0))||1)};
 }
