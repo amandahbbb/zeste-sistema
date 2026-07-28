@@ -17,8 +17,8 @@ async function sbInsertIng(item,clienteId,t){try{const r=await fetch(`${SB_URL}/
 const uid=()=>Math.random().toString(36).slice(2,9);
 
 // ── FORNECEDORES (Jeito A: preço do fornecedor "atual" espelha no p do ingrediente) ──
-async function fornList(cli,t){try{const r=await fetch(`${SB_URL}/rest/v1/compras_fornecedores?cliente_id=eq.${cli}&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id})).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"")):[];}catch{return[];}}
-async function fornSave(f,cli,t){return fetch(`${SB_URL}/rest/v1/compras_fornecedores`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:f.id,cliente_id:cli,dados:f,updated_at:new Date().toISOString()})});}
+async function fornList(cli,t){try{const r=await fetch(`${SB_URL}/rest/v1/crm_fornecedores?cliente_id=eq.${cli}&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id})).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"")):[];}catch{return[];}}
+async function fornSave(f,cli,t){return fetch(`${SB_URL}/rest/v1/crm_fornecedores`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:f.id,cliente_id:cli,dados:f,updated_at:new Date().toISOString()})});}
 async function precosList(cli,ingId,t){try{const r=await fetch(`${SB_URL}/rest/v1/fornecedor_precos?cliente_id=eq.${cli}&ingrediente_id=eq.${ingId}&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d:[];}catch{return[];}}
 async function precoUpsert(row,t){return fetch(`${SB_URL}/rest/v1/fornecedor_precos`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(row)});}
 async function precoDel(id,t){return fetch(`${SB_URL}/rest/v1/fornecedor_precos?id=eq.${id}`,{method:"PATCH",headers:sbH(t),body:JSON.stringify({deleted_at:new Date().toISOString()})});}
@@ -398,7 +398,7 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
   };
   const criarForn=async()=>{
     if(!novoForn?.nome){alert("Nome do fornecedor.");return;}
-    const f={id:uid(),nome:novoForn.nome,telefone:novoForn.whatsapp||"",whatsapp:novoForn.whatsapp||"",categoria:novoForn.categoria||"",status:"Ativo",pagamento:"",prazoEntrega:"",contato:""};
+    const f={id:uid(),nome:novoForn.nome,telefone:novoForn.whatsapp||"",categoria:novoForn.categoria||"Outros",cnpj:"",contato:"",email:"",prazoEntrega:3,pagamento:"Pix à vista",status:"Ativo",obs:""};
     await fornSave(f,cli,token);
     setForns([...forns,f]);setNf(p=>({...p,fornId:f.id}));setNovoForn(null);
   };
@@ -443,8 +443,12 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
         </div>
       </>:<>
         <div style={{fontSize:12,fontWeight:700,marginBottom:6}}>Novo fornecedor</div>
-        <input placeholder="Nome do fornecedor" value={novoForn.nome||''} onChange={e=>setNovoForn(p=>({...p,nome:e.target.value}))} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'8px',fontSize:13,marginBottom:6}}/>
-        <input placeholder="WhatsApp (ex: 47999998888)" value={novoForn.whatsapp||''} onChange={e=>setNovoForn(p=>({...p,whatsapp:e.target.value}))} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'8px',fontSize:13,marginBottom:6}}/>
+        <input placeholder="Nome do fornecedor" value={novoForn.nome||''} onChange={e=>setNovoForn(p=>({...p,nome:e.target.value}))} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'10px',fontSize:14,marginBottom:6}}/>
+        <input placeholder="WhatsApp (ex: 47999998888)" value={novoForn.whatsapp||''} onChange={e=>setNovoForn(p=>({...p,whatsapp:e.target.value}))} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'10px',fontSize:14,marginBottom:6}}/>
+        <select value={novoForn.categoria||'Outros'} onChange={e=>setNovoForn(p=>({...p,categoria:e.target.value}))} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:7,padding:'10px',fontSize:14,marginBottom:6,background:'#fff',colorScheme:'light'}}>
+          {['Hortifruti','Proteínas','Laticínios','Mercearia','Bebidas','Embalagens','Limpeza','Descartáveis','Outros'].map(c=><option key={c}>{c}</option>)}
+        </select>
+        <div style={{fontSize:10.5,color:'var(--cinzaE)',marginBottom:6}}>Demais dados (CNPJ, pagamento, prazo) você completa em <b>Compras → Fornecedores</b>.</div>
         <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
           <button className="ft-btn ft-btn-g" style={{padding:'7px 12px',fontSize:12}} onClick={()=>setNovoForn(null)}>Cancelar</button>
           <button className="ft-btn ft-btn-p" style={{padding:'7px 12px',fontSize:12}} onClick={criarForn}>Criar</button>
