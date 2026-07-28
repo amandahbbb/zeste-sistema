@@ -57,7 +57,7 @@ function calcProducao(producao,pratosCalc,fichasCalc,ingredientes,meuCli){
   const addIng=(nomeRef,qtdLiq,nomePrato)=>{
     const pick=pickIngrediente(nomeRef,ingredientes,meuCli);if(!pick)return;
     const ing=pick.ref;
-    const at=agreg.get(nomeRef)||{nome:ing.nome,un:ing.un,qtdLiq:0,qtdBruta:0,fc:ing.fc||1,preco:pick.precoUsado||0,custo:0,estoque:+(ing.estoque)||0,usadoEm:[]};
+    const at=agreg.get(nomeRef)||{nome:ing.nome,ingId:ing.id,un:ing.un,qtdLiq:0,qtdBruta:0,fc:ing.fc||1,preco:pick.precoUsado||0,custo:0,estoque:+(ing.estoque)||0,usadoEm:[]};
     at.qtdLiq+=qtdLiq;at.qtdBruta=at.qtdLiq*at.fc;at.custo=at.qtdBruta*at.preco;
     at.faltaComprar=Math.max(0,at.qtdBruta-at.estoque);
     const u=at.usadoEm.find(u=>u.prato===nomePrato);
@@ -583,7 +583,7 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
 
 
 // ── PRODUÇÃO TAB ──────────────────────────────────────────────────
-function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli}){
+function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli,token,clienteAtivo}){
   const[linhas,setLinhas]=useState([]);
   const[resultado,setResultado]=useState(null);
   const[copiado,setCopiado]=useState(false);
@@ -593,7 +593,50 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli}){
   const setItem=(i,val)=>{const[tipo,...r]=val.split('|');updLinha(i,'tipo',tipo);setLinhas(p=>p.map((l,j)=>j===i?{...l,tipo,pratoNome:r.join('|')}:l));};
   const calcular=()=>{
     const res=calcProducao(linhas.filter(l=>l.qtd>0),pratosCalc,fichasCalc,ingredientes,meuCli);
-    setResultado(res);setCopiado(false);
+    setResultado(res);setCopiado(false);setPedidosGerados(null);
+  };
+  const [pedidosGerados,setPedidosGerados]=useState(null);
+  const [gerando,setGerando]=useState(false);
+  // Agrupa a lista de compras por fornecedor ATUAL de cada ingrediente e cria 1 pedido salvo por fornecedor
+  const gerarPedidos=async()=>{
+    if(!resultado)return;
+    const cli=clienteAtivo||meuCli||'zeste';
+    setGerando(true);
+    try{
+      const ids=resultado.lista.map(i=>i.ingId).filter(Boolean);
+      // busca os preços "atuais" (que carregam o fornecedor) desses ingredientes
+      const q=`cliente_id=eq.${cli}&atual=eq.true&deleted_at=is.null&ingrediente_id=in.(${ids.map(x=>`"${x}"`).join(',')})&select=ingrediente_id,fornecedor_id,preco,unidade`;
+      const precos=await fetch(`${SB_URL}/rest/v1/fornecedor_precos?${q}`,{headers:sbH(token)}).then(r=>r.json()).catch(()=>[]);
+      const forns=await fetch(`${SB_URL}/rest/v1/crm_fornecedores?cliente_id=eq.${cli}&deleted_at=is.null&select=id,dados`,{headers:sbH(token)}).then(r=>r.json()).catch(()=>[]);
+      const fornNome=id=>{const f=forns.find(x=>x.id===id);return f?.dados?.nome||"Sem fornecedor";};
+      const fornZap=id=>{const f=forns.find(x=>x.id===id);return f?.dados?.telefone||f?.dados?.whatsapp||"";};
+      const mapForn={};(Array.isArray(precos)?precos:[]).forEach(p=>{mapForn[p.ingrediente_id]=p.fornecedor_id;});
+      // agrupa itens por fornecedor
+      const grupos={};
+      for(const it of resultado.lista){
+        const fid=mapForn[it.ingId]||"__sem__";
+        (grupos[fid]=grupos[fid]||[]).push(it);
+      }
+      const hoje=new Date().toISOString().slice(0,10);
+      const novos=Object.entries(grupos).map(([fid,itens])=>{
+        const nome=fid==="__sem__"?"⚠ Sem fornecedor definido":fornNome(fid);
+        const linhasTxt=itens.map(it=>`${it.nome}: ${num(it.faltaComprar??it.qtdBruta,3)} ${it.un}`).join("\n");
+        const valor=itens.reduce((s,it)=>s+((it.faltaComprar??it.qtdBruta)*it.preco),0);
+        return {id:uid(),fornecedor:nome,fornecedorId:fid==="__sem__"?"":fid,whatsapp:fid==="__sem__"?"":fornZap(fid),itens:linhasTxt,valor:+valor.toFixed(2),data:hoje,status:"Rascunho",origem:"producao"};
+      });
+      // salva cada pedido
+      for(const p of novos){
+        await fetch(`${SB_URL}/rest/v1/compras_pedidos`,{method:"POST",headers:{...sbH(token),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:p.id,cliente_id:cli,dados:p,updated_at:new Date().toISOString()})});
+      }
+      setPedidosGerados(novos);
+    }catch(e){alert("Erro ao gerar pedidos. Tente de novo.");}
+    setGerando(false);
+  };
+  const abrirZap=(p)=>{
+    const num=(p.whatsapp||"").replace(/\D/g,"");
+    const txt=encodeURIComponent(`Olá! Pedido Zeste:\n\n${p.itens}\n\nPode confirmar disponibilidade e valor? Obrigada!`);
+    const url=num?`https://wa.me/55${num}?text=${txt}`:`https://wa.me/?text=${txt}`;
+    window.open(url,"_blank");
   };
   const copiarLista=()=>{
     if(!resultado)return;
@@ -632,7 +675,20 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli}){
           {resultado.custoFalta<resultado.totalCusto-0.005&&<div className="ft-kpi" style={{borderColor:'var(--azul)'}}><div className="ft-kpi-l" style={{color:'var(--azul)'}}>A comprar (− estoque)</div><div className="ft-kpi-v" style={{color:'var(--azul)'}}>{brl(resultado.custoFalta)}</div></div>}
           <div className="ft-kpi" style={{borderColor:'var(--lima)'}}><div className="ft-kpi-l" style={{color:'var(--lima)'}}>Itens</div><div className="ft-kpi-v" style={{color:'var(--lima)'}}>{resultado.lista.length}</div></div>
           <button onClick={copiarLista} className="ft-btn ft-btn-p" style={{padding:'10px 16px',fontSize:13,alignSelf:'center',background:copiado?'var(--verde)':undefined}}>{copiado?'✓ Copiada!':'📋 Copiar lista'}</button>
+          <button onClick={gerarPedidos} disabled={gerando} className="ft-btn" style={{padding:'10px 16px',fontSize:13,alignSelf:'center',background:'var(--azul)',color:'#fff',border:'none'}}>{gerando?'Gerando…':'🛒 Gerar pedidos de compra'}</button>
         </div>
+        {pedidosGerados&&<div style={{background:'#EAF2F8',border:'1px solid #B8D4E8',borderRadius:12,padding:'14px 16px',marginBottom:16}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:14,color:'var(--azul)',letterSpacing:'.04em',marginBottom:8}}>✓ {pedidosGerados.length} PEDIDO(S) GERADO(S) — salvos em Compras › Pedidos (status Rascunho)</div>
+          {pedidosGerados.map(p=>(<div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderTop:'1px solid #D4E4F0'}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:14,color:p.fornecedorId?'var(--preto)':'var(--coral)'}}>{p.fornecedor}</div>
+              <div style={{fontSize:11.5,color:'var(--cinzaE)',whiteSpace:'pre-line',marginTop:2}}>{p.itens}</div>
+              <div style={{fontSize:12,fontWeight:700,color:'var(--coral)',marginTop:3}}>{brl(p.valor)}</div>
+            </div>
+            {p.fornecedorId&&<button onClick={()=>abrirZap(p)} className="ft-btn" style={{padding:'8px 12px',fontSize:12,background:'#25D366',color:'#fff',border:'none',flexShrink:0}}>📲 WhatsApp</button>}
+          </div>))}
+          <div style={{fontSize:10.5,color:'var(--cinzaE)',marginTop:8}}>Ingredientes sem fornecedor definido entram como "⚠ Sem fornecedor" — defina o fornecedor atual no ingrediente para agrupar certo.</div>
+        </div>}
         <SH>Lista de Compras</SH>
         <div className="ft-card">
           <div style={{padding:'10px 14px',background:'var(--preto)',display:'grid',gridTemplateColumns:'minmax(0,2.2fr) 110px 190px 110px',gap:12,alignItems:'center',fontFamily:'var(--ff)',fontSize:11,color:'var(--lima)',letterSpacing:'.08em'}}>
@@ -1085,7 +1141,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
     {aba==='ingredientes'&&<><Dica id="ingredientes">Tudo começa aqui: cadastre cada ingrediente com <b>preço por kg/L e fator de correção</b> (quanto se perde na limpeza). É desse preço que nascem todos os custos do sistema — mantenha atualizado.</Dica><TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter} carregarLixeira={carregarLixeira} onRestaurar={restaurarIngrediente} token={token} ehAdmin={ehAdmin}/></>}
     {aba==='fichas'&&<><Dica id="fichas">Fichas são as <b>receitas base e pré-preparos</b> (um molho, uma polenta). Monte com os ingredientes e as quantidades — o custo por kg da receita pronta sai sozinho. Uma ficha pode entrar em vários pratos.</Dica><TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin}/></>}
     {aba==='pratos'&&<><Dica id="pratos">Pratos são o que vai <b>pro cardápio</b>: combine fichas e ingredientes com as gramaturas do empratamento. Preencha o <b>preço de venda</b> (vira CMV e matriz) e o <b>modo de preparo</b> (vira o caderno da cozinha — linhas começando com ⚠ viram alerta).</Dica><TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin}/></>}
-    {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes} meuCli={meuCli}/></>}
+    {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes} meuCli={meuCli} token={token} clienteAtivo={clienteFilter&&clienteFilter!=='zeste'?clienteFilter:meuCli}/></>}
     {aba==='estoque'&&<><Dica id="estoque">Controle de <b>estoque dos ingredientes</b>: registre entradas e saídas para saber o que tem e o que falta. O histórico das últimas movimentações fica guardado em cada item.</Dica><TabEstoque ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter}/></>}
     {aba==='documentos'&&ehAdmin&&<><Dica id="cadernos">"⚡ Gerar Caderno" monta <b>2 documentos</b> a partir dos pratos e fichas do cliente: o <b>Operacional</b> (cozinha, sem custos) e o <b>Gerencial</b> (custos e CMV, confidencial). Quem controla o que o cliente vê é o botão Publicar/Ocultar em <b>Clientes → Documentos</b>.</Dica><Documentos token={token} clientes={clientesList}/></>}
     {histItem&&<HistoricoModal item={histItem} onClose={()=>setHistItem(null)} onRevert={async(v)=>{
