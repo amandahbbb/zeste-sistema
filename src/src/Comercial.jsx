@@ -556,7 +556,7 @@ function CRMView({modo="pipeline"}){
       <button onClick={()=>setShowNew(true)} style={{padding:"8px 14px",background:C.yellow,color:"#0E0E0C",border:"none",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>+ Novo</button>
     </div>
     {modo==="rotas" ? (
-      <AgendaComercial token={token} contatos={contacts} onUpdateContato={saveContact} abrirNovaRef={agendaRef}/>
+      <AgendaComercial token={token} contatos={contacts} onUpdateContato={saveContact}/>
     ) : modo==="clientes" ? (
       <ClientesAtivos contacts={filtered.filter(c=>c.stage==="Cliente")} onOpen={setSelected} onSave={saveContact}/>
     ) : (
@@ -585,7 +585,6 @@ export default function ComercialZeste({onBack,token:tokenProp}){
   if(tokenProp&&typeof window!=="undefined")window.__supabaseToken=tokenProp;
   const[activeSection,setActiveSection]=useState("filosofia");
   const[view,setView]=useState("pipeline"); // pipeline | clientes | manual
-  const agendaRef=useRef(null); // permite o Pipeline abrir "nova visita" na Agenda
   const showCRM = view!=="manual";
 
   const current=MANUAL_SECTIONS.find(s=>s.id===activeSection);
@@ -695,7 +694,7 @@ function SheetModal({title,onClose,children,wide}){
   );
 }
 
-function AgendaComercial({token,contatos,onUpdateContato,abrirNovaRef}){
+function AgendaComercial({token,contatos,onUpdateContato}){
   const [visitas,setVisitas]=useState(null);
   const [vista,setVista]=useState("hoje"); // hoje | lista | mapa
   const [chipStage,setChipStage]=useState("");
@@ -705,8 +704,6 @@ function AgendaComercial({token,contatos,onUpdateContato,abrirNovaRef}){
   const [detalhe,setDetalhe]=useState(null);
 
   useEffect(()=>{visitasLoad(token).then(setVisitas);},[token]);
-  // permite o Pipeline abrir "nova visita" já com contato
-  useEffect(()=>{ if(abrirNovaRef) abrirNovaRef.current=(contato)=>setNovo({contato}); },[abrirNovaRef]);
 
   const salvar=async v=>{ setVisitas(p=>{const has=(p||[]).some(x=>x.id===v.id);return has?p.map(x=>x.id===v.id?v:x):[v,...(p||[])];}); if(detalhe?.id===v.id)setDetalhe(v); await visitaUpsert(v,token); };
   const excluir=async id=>{ await visitaDel(id,token); setVisitas(p=>p.filter(x=>x.id!==id)); setDetalhe(null); };
