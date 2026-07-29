@@ -59,6 +59,11 @@ select option { background: #181818; }
 .sidebar-logo { padding: 18px 16px; border-bottom: 1px solid #2A2A2A; display: flex; align-items: center; justify-content: space-between; }
 .sidebar.collapsed .sidebar-logo { justify-content: center; padding: 16px 0; }
 .sidebar-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+.nav-grupo { margin-bottom: 2px; }
+.nav-grupo-titulo { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: .14em; color: #6E6E64; text-transform: uppercase; padding: 12px 16px 5px; user-select: none; }
+.nav-grupo-divisor { height: 1px; background: #2A2A2A; margin: 8px 12px; }
+.drawer-grupo { margin-bottom: 4px; }
+.drawer-grupo-titulo { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: .14em; color: #6E6E64; text-transform: uppercase; padding: 14px 20px 6px; user-select: none; }
 .nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; padding: 12px 16px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; min-height: 44px; }
 .sidebar.collapsed .nav-btn { justify-content: center; gap: 0; padding: 12px 0; }
 .nav-btn.active { background: rgba(143,167,21,.12); border-left-color: #8FA715; }
@@ -183,6 +188,17 @@ const MODULOS = [
   { id: "studio",     icon: "✦", label: "Estúdio"     },
 ];
 
+// Territórios do menu (Lei de Hick — agrupa em 4 famílias para decisão em <1s).
+// "Início" fica solto no topo. Cada território tem um cabeçalho de seção.
+const TERRITORIOS = [
+  { titulo: null,          ids: ["dashboard"] },
+  { titulo: "GESTÃO",      ids: ["financeiro", "breakeven", "comercial"] },
+  { titulo: "OPERAÇÃO",    ids: ["fichas", "engenharia", "compras"] },
+  { titulo: "CLIENTES",    ids: ["portaladmin"] },
+  { titulo: "CRIATIVO",    ids: ["marketing", "studio"] },
+];
+const modById = id => MODULOS.find(m => m.id === id);
+
 // ── SIDEBAR DESKTOP ─────────────────────────────────────────────
 function Sidebar({ modulo, setModulo, user, onLogout, collapsed, setCollapsed }) {
   return (
@@ -194,11 +210,17 @@ function Sidebar({ modulo, setModulo, user, onLogout, collapsed, setCollapsed })
         </button>
       </div>
       <nav className="sidebar-nav">
-        {MODULOS.map(m => (
-          <button key={m.id} className={`nav-btn${modulo === m.id ? " active" : ""}`} onClick={() => setModulo(m.id)}>
-            {collapsed && <span style={{ fontSize: 16 }}>{m.icon}</span>}
-            {!collapsed && <span className="nav-btn-label">{m.label}</span>}
-          </button>
+        {TERRITORIOS.map((terr, ti) => (
+          <div key={ti} className="nav-grupo">
+            {terr.titulo && !collapsed && <div className="nav-grupo-titulo">{terr.titulo}</div>}
+            {terr.titulo && collapsed && ti > 0 && <div className="nav-grupo-divisor" />}
+            {terr.ids.map(id => { const m = modById(id); if(!m) return null; return (
+              <button key={m.id} className={`nav-btn${modulo === m.id ? " active" : ""}`} onClick={() => setModulo(m.id)}>
+                {collapsed && <span style={{ fontSize: 16 }}>{m.icon}</span>}
+                {!collapsed && <span className="nav-btn-label">{m.label}</span>}
+              </button>
+            );})}
+          </div>
         ))}
       </nav>
       <div className="sidebar-user">
@@ -242,12 +264,17 @@ function Drawer({ open, onClose, modulo, setModulo, user, onLogout }) {
           <Logo small />
           <div style={{ fontSize: 11, color: "#555", marginTop: 6 }}>{user?.email}</div>
         </div>
-        {MODULOS.map(m => (
-          <button key={m.id} className={`drawer-nav-btn${modulo === m.id ? " active" : ""}`}
-            onClick={() => { setModulo(m.id); onClose(); }}>
-            <span style={{ fontSize: 20 }}>{m.icon}</span>
-            <span className="drawer-nav-label">{m.label}</span>
-          </button>
+        {TERRITORIOS.map((terr, ti) => (
+          <div key={ti} className="drawer-grupo">
+            {terr.titulo && <div className="drawer-grupo-titulo">{terr.titulo}</div>}
+            {terr.ids.map(id => { const m = modById(id); if(!m) return null; return (
+              <button key={m.id} className={`drawer-nav-btn${modulo === m.id ? " active" : ""}`}
+                onClick={() => { setModulo(m.id); onClose(); }}>
+                <span style={{ fontSize: 20 }}>{m.icon}</span>
+                <span className="drawer-nav-label">{m.label}</span>
+              </button>
+            );})}
+          </div>
         ))}
         <button onClick={() => { onLogout(); onClose(); }}
           style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 20px", color: "#C4502B", fontSize: 14, fontWeight: 600, borderTop: "1px solid #2A2A2A", marginTop: 8 }}>
