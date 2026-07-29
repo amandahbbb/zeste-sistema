@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 
 // ─── PALETTE ────────────────────────────────────────────────────────────────
 const C = {
@@ -556,7 +556,7 @@ function CRMView({modo="pipeline"}){
       <button onClick={()=>setShowNew(true)} style={{padding:"8px 14px",background:C.yellow,color:"#0E0E0C",border:"none",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>+ Novo</button>
     </div>
     {modo==="rotas" ? (
-      <AgendaComercial token={token} contatos={contacts} onUpdateContato={saveContact}/>
+      <AgendaComercial token={token} contatos={contacts} onUpdateContato={saveContact} abrirNovaRef={agendaRef}/>
     ) : modo==="clientes" ? (
       <ClientesAtivos contacts={filtered.filter(c=>c.stage==="Cliente")} onOpen={setSelected} onSave={saveContact}/>
     ) : (
@@ -585,6 +585,7 @@ export default function ComercialZeste({onBack,token:tokenProp}){
   if(tokenProp&&typeof window!=="undefined")window.__supabaseToken=tokenProp;
   const[activeSection,setActiveSection]=useState("filosofia");
   const[view,setView]=useState("pipeline"); // pipeline | clientes | manual
+  const agendaRef=useRef(null); // permite o Pipeline abrir "nova visita" na Agenda
   const showCRM = view!=="manual";
 
   const current=MANUAL_SECTIONS.find(s=>s.id===activeSection);
@@ -603,7 +604,7 @@ export default function ComercialZeste({onBack,token:tokenProp}){
         <span style={{fontSize:11,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",flexShrink:0}}>COMERCIAL</span>
         <div style={{flex:1}}/>
         <div style={{display:"flex",gap:4,flexShrink:0}}>
-          {[["pipeline","Pipeline"],["clientes","Clientes"],["rotas","Agenda"],["manual","Diretrizes"]].map(([id,l])=>(
+          {[["pipeline","Pipeline"],["rotas","Agenda"],["clientes","Carteira"],["manual","Diretrizes"]].map(([id,l])=>(
             <button key={id} onClick={()=>setView(id)} style={{padding:"8px 14px",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12,letterSpacing:"0.05em",border:"none",background:view===id?C.yellow:"transparent",color:view===id?"#0E0E0C":C.muted}}>{l}</button>
           ))}
         </div>
@@ -657,384 +658,300 @@ async function rotasLoad(token){ try{ const r=await fetch(`${SB_URL}/rest/v1/crm
 async function rotaUpsert(rota,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,Prefer:"resolution=merge-duplicates",...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_rotas`,{method:"POST",headers:h,body:JSON.stringify({id:rota.id,dados:rota,updated_at:new Date().toISOString()})}); }
 async function rotaDel(id,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_rotas?id=eq.${id}`,{method:"PATCH",headers:h,body:JSON.stringify({deleted_at:new Date().toISOString()})}); }
 
-// ── MODAL (reutilizável no módulo) ──
-function Modal({title,onClose,children}){
-  return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"40px 16px",zIndex:1000,overflowY:"auto"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:16,padding:24,maxWidth:520,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:20,color:C.yellow,letterSpacing:".02em"}}>{title}</div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════
-// AGENDA COMERCIAL — field sales ancorado no Pipeline
-// Visita = entidade própria (crm_visitas) ligada a um lead (crm_contatos)
+// AGENDA COMERCIAL v2 — consome o Pipeline. Visita nasce de um lead.
 // ═══════════════════════════════════════════════════════════════════
 async function visitasLoad(token){ try{ const r=await fetch(`${SB_URL}/rest/v1/crm_visitas?deleted_at=is.null&order=updated_at.desc&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${token||SB_KEY}`}}); const d=await r.json(); return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id,contato_id:x.contato_id})):[]; }catch{ return []; } }
 async function visitaUpsert(v,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,Prefer:"resolution=merge-duplicates",...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_visitas`,{method:"POST",headers:h,body:JSON.stringify({id:v.id,contato_id:v.contato_id||null,dados:v,updated_at:new Date().toISOString()})}); }
 async function visitaDel(id,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_visitas?id=eq.${id}`,{method:"PATCH",headers:h,body:JSON.stringify({deleted_at:new Date().toISOString()})}); }
+const uidV=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
 
-const PRIORIDADES = { A:{cor:C.red,label:"A · Quente"}, B:{cor:C.orange,label:"B · Morno"}, C:{cor:C.blue,label:"C · Frio"}, D:{cor:C.faint,label:"D · Gelo"} };
-const STATUS_VISITA = {
-  agendada:{cor:C.blue,label:"Agendada",icon:"📅"},
-  realizada:{cor:C.green,label:"Realizada",icon:"✓"},
-  pendente:{cor:C.orange,label:"Pendente",icon:"⏳"},
-  reagendada:{cor:C.gold,label:"Reagendada",icon:"↻"},
-  cancelada:{cor:C.faint,label:"Cancelada",icon:"✕"},
-};
-const RESULTADOS = [
-  {id:"visitado",label:"Visitado, sem avanço",stage:null},
-  {id:"interessado",label:"Interessado",stage:"Leads"},
-  {id:"negociacao",label:"Em negociação",stage:"Negociação / Proposta"},
-  {id:"proposta",label:"Proposta enviada",stage:"Negociação / Proposta"},
-  {id:"fechado",label:"Fechado ✓",stage:"Cliente"},
-  {id:"perdido",label:"Perdido",stage:"Portas Fechadas"},
-  {id:"reagendar",label:"Reagendar",stage:null},
+const PRIOS={A:{c:"#D94040",l:"A"},B:{c:"#E8672A",l:"B"},C:{c:"#3A7BD5",l:"C"},D:{c:"#555550",l:"D"}};
+const STVIS={agendada:{c:"#3A7BD5",l:"Agendada"},realizada:{c:"#2E8B57",l:"Realizada"},reagendada:{c:"#F5D87A",l:"Reagendada"}};
+const RESULT=[
+  {id:"visitado",l:"Visitado, sem avanço",stage:null},
+  {id:"interessado",l:"Interessado",stage:"Leads"},
+  {id:"negociacao",l:"Em negociação",stage:"Negociação / Proposta"},
+  {id:"proposta",l:"Proposta enviada",stage:"Negociação / Proposta"},
+  {id:"fechado",l:"Fechado ✓",stage:"Cliente"},
+  {id:"perdido",l:"Perdido",stage:"Portas Fechadas"},
 ];
-const diasDesde=(iso)=>{ if(!iso)return null; const d=Math.floor((Date.now()-new Date(iso).getTime())/864e5); return d; };
+const diasSem=iso=>{if(!iso)return null;return Math.floor((Date.now()-new Date(iso).getTime())/864e5);};
+const ultInter=c=>{const h=c?.historico;return (h&&h.length)?h[h.length-1].data:null;};
 
-function AgendaComercial({token,contatos,onUpdateContato}){
+// Modal responsivo: full-screen no mobile, drawer lateral no desktop
+function SheetModal({title,onClose,children,wide}){
+  const mob = typeof window!=="undefined" && window.innerWidth<=760;
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:1000,display:"flex",justifyContent:mob?"center":"flex-end"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.bg,width:mob?"100%":(wide?560:460),maxWidth:"100%",height:"100%",display:"flex",flexDirection:"column",boxShadow:"-8px 0 40px rgba(0,0,0,.5)",borderLeft:mob?"none":`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 18px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:19,color:C.yellow}}>{title}</div>
+          <button onClick={onClose} style={{background:C.surface,border:"none",color:C.text,width:36,height:36,borderRadius:"50%",fontSize:20,cursor:"pointer"}}>×</button>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:18,WebkitOverflowScrolling:"touch"}}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function AgendaComercial({token,contatos,onUpdateContato,abrirNovaRef}){
   const [visitas,setVisitas]=useState(null);
-  const [vista,setVista]=useState("lista"); // lista | calendario | mapa
-  const [filtros,setFiltros]=useState({periodo:"todos",resp:"",prio:"",stage:"",semAtividade:false});
-  const [edit,setEdit]=useState(null);       // visita em criação/edição
-  const [resultado,setResultado]=useState(null); // visita em registro de resultado
+  const [vista,setVista]=useState("hoje"); // hoje | lista | mapa
+  const [chipStage,setChipStage]=useState("");
+  const [chipPrio,setChipPrio]=useState("");
+  const [novo,setNovo]=useState(null);       // {contato} pré-selecionado ou {} vazio
+  const [resultado,setResultado]=useState(null);
   const [detalhe,setDetalhe]=useState(null);
 
   useEffect(()=>{visitasLoad(token).then(setVisitas);},[token]);
+  // permite o Pipeline abrir "nova visita" já com contato
+  useEffect(()=>{ if(abrirNovaRef) abrirNovaRef.current=(contato)=>setNovo({contato}); },[abrirNovaRef]);
 
-  const salvar=async(v)=>{
-    setVisitas(p=>{const ex=(p||[]).some(x=>x.id===v.id);return ex?p.map(x=>x.id===v.id?v:x):[v,...(p||[])];});
-    if(detalhe?.id===v.id)setDetalhe(v);
-    await visitaUpsert(v,token);
-  };
-  const excluir=async(id)=>{ await visitaDel(id,token); setVisitas(p=>p.filter(x=>x.id!==id)); setDetalhe(null); };
+  const salvar=async v=>{ setVisitas(p=>{const has=(p||[]).some(x=>x.id===v.id);return has?p.map(x=>x.id===v.id?v:x):[v,...(p||[])];}); if(detalhe?.id===v.id)setDetalhe(v); await visitaUpsert(v,token); };
+  const excluir=async id=>{ await visitaDel(id,token); setVisitas(p=>p.filter(x=>x.id!==id)); setDetalhe(null); };
 
-  // registrar resultado → atualiza status, timeline e (se aplicável) o stage do lead no Pipeline
-  const registrarResultado=async(v,res,obs)=>{
-    const rDef=RESULTADOS.find(r=>r.id===res);
-    const agora=new Date().toISOString();
-    const nova={...v,status:res==="reagendar"?"reagendada":"realizada",resultado:res,checkInEm:v.checkInEm||agora,
-      timeline:[...(v.timeline||[]),{em:agora,tipo:"resultado",texto:`${rDef?.label||res}${obs?" — "+obs:""}`}]};
-    await salvar(nova);
-    // espelha no lead do Pipeline
-    if(v.contato_id&&rDef){
-      const ct=contatos.find(c=>c.id===v.contato_id);
-      if(ct){
-        const upd={...ct,
-          ...(rDef.stage?{stage:rDef.stage}:{}),
-          historico:[...(ct.historico||[]),{data:agora.slice(0,10),tipo:"Visita",texto:`Visita ${v.data}: ${rDef.label}${obs?" — "+obs:""}`}]};
-        onUpdateContato&&onUpdateContato(upd);
-      }
-    }
-    setResultado(null); setDetalhe(nova);
+  const registrar=async(v,res,obs)=>{
+    const rd=RESULT.find(r=>r.id===res); const agora=new Date().toISOString();
+    const nv={...v,status:"realizada",resultado:res,timeline:[...(v.timeline||[]),{em:agora,txt:`${rd?.l||res}${obs?" — "+obs:""}`}]};
+    await salvar(nv);
+    if(v.contato_id&&rd){const ct=contatos.find(c=>c.id===v.contato_id);if(ct){const upd={...ct,...(rd.stage?{stage:rd.stage}:{}),historico:[...(ct.historico||[]),{data:agora.slice(0,10),tipo:"Visita",texto:`${rd.l}${obs?" — "+obs:""}`,nota:`${rd.l}${obs?" — "+obs:""}`}]};onUpdateContato&&onUpdateContato(upd);}}
+    setResultado(null); setDetalhe(nv);
   };
 
   if(visitas===null) return <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>Carregando agenda…</div>;
 
-  // ── filtros aplicados ──
   const hoje=new Date().toISOString().slice(0,10);
-  const inicioSemana=(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());return d.toISOString().slice(0,10);})();
+  const iniSem=(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());return d.toISOString().slice(0,10);})();
+
+  // filtro por vista + chips
   let lista=visitas.filter(v=>{
-    if(filtros.periodo==="hoje"&&v.data!==hoje)return false;
-    if(filtros.periodo==="semana"&&(v.data<inicioSemana))return false;
-    if(filtros.resp&&v.responsavel!==filtros.resp)return false;
-    if(filtros.prio&&v.prioridade!==filtros.prio)return false;
-    if(filtros.stage&&v.stagePipeline!==filtros.stage)return false;
+    if(chipStage&&v.stagePipeline!==chipStage)return false;
+    if(chipPrio&&v.prioridade!==chipPrio)return false;
+    if(vista==="hoje"&&v.data!==hoje)return false;
     return true;
-  });
-  // ordena por data+hora
-  lista=[...lista].sort((a,b)=>((a.data||"")+ (a.hora||"")).localeCompare((b.data||"")+(b.hora||"")));
+  }).sort((a,b)=>((a.data||"")+(a.hora||"")).localeCompare((b.data||"")+(b.hora||"")));
 
-  const responsaveis=[...new Set(visitas.map(v=>v.responsavel).filter(Boolean))];
+  // sugestões do dia: leads sem visita agendada, priorizados por tempo sem contato + etapa
+  const leadsComVisita=new Set(visitas.filter(v=>v.status!=="realizada").map(v=>v.contato_id));
+  const pesoStage={"Negociação / Proposta":3,"Leads":2,"Prospects":1,"Cliente":1,"Portas Fechadas":0};
+  const sugestoes=(contatos||[]).filter(c=>c.stage!=="Portas Fechadas"&&!leadsComVisita.has(c.id))
+    .map(c=>({c,dias:diasSem(ultInter(c))??999,peso:pesoStage[c.stage]||0}))
+    .sort((a,b)=>(b.peso-a.peso)||(b.dias-a.dias)).slice(0,4);
 
-  // ── métricas do dia ──
+  // métricas
   const doDia=visitas.filter(v=>v.data===hoje);
-  const met={
-    programadas:doDia.length,
-    realizadas:doDia.filter(v=>v.status==="realizada").length,
-    pendentes:doDia.filter(v=>v.status==="agendada"||v.status==="pendente").length,
-    reagendadas:doDia.filter(v=>v.status==="reagendada").length,
-    propostas:doDia.filter(v=>v.resultado==="proposta").length,
-    fechados:doDia.filter(v=>v.resultado==="fechado").length,
-  };
+  const met=[["Hoje",doDia.length,"#3A7BD5"],["Feitas",doDia.filter(v=>v.status==="realizada").length,"#2E8B57"],["Pendentes",doDia.filter(v=>v.status!=="realizada").length,"#E8672A"],["Fechados",doDia.filter(v=>v.resultado==="fechado").length,"#C8F000"]];
 
   return (
-    <div>
-      {/* DASHBOARD DO DIA */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:18}}>
-        {[["Programadas",met.programadas,C.blue],["Realizadas",met.realizadas,C.green],["Pendentes",met.pendentes,C.orange],["Reagendadas",met.reagendadas,C.gold],["Propostas",met.propostas,C.purple],["Fechados",met.fechados,C.yellow]].map(([l,v,cor])=>(
-          <div key={l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px"}}>
-            <div style={{fontSize:26,fontWeight:800,color:cor,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{v}</div>
-            <div style={{fontSize:10.5,color:C.muted,marginTop:4,letterSpacing:".04em",textTransform:"uppercase"}}>{l}</div>
-          </div>
+    <div style={{paddingBottom:80}}>
+      {/* métricas compactas */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7,marginBottom:16}}>
+        {met.map(([l,n,c])=><div key={l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 8px",textAlign:"center"}}>
+          <div style={{fontSize:"clamp(19px,5.5vw,24px)",fontWeight:800,color:c,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{n}</div>
+          <div style={{fontSize:10,color:C.muted,marginTop:3,textTransform:"uppercase",letterSpacing:".03em"}}>{l}</div>
+        </div>)}
+      </div>
+
+      {/* vistas */}
+      <div style={{display:"flex",gap:3,background:C.surface,borderRadius:10,padding:3,border:`1px solid ${C.border}`,marginBottom:12}}>
+        {[["hoje","Hoje"],["lista","Todas"],["mapa","Mapa"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setVista(id)} style={{flex:1,padding:"9px 6px",borderRadius:7,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,background:vista===id?C.yellow:"transparent",color:vista===id?C.bg:C.muted}}>{l}</button>
         ))}
       </div>
 
-      {/* BARRA: vistas + nova visita */}
-      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
-        <div style={{display:"flex",gap:2,background:C.surface,borderRadius:9,padding:3,border:`1px solid ${C.border}`}}>
-          {[["lista","Lista"],["calendario","Calendário"],["mapa","Mapa"]].map(([id,l])=>(
-            <button key={id} onClick={()=>setVista(id)} style={{padding:"7px 14px",borderRadius:7,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,background:vista===id?C.yellow:"transparent",color:vista===id?C.bg:C.muted}}>{l}</button>
+      {/* chips de filtro */}
+      <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6,marginBottom:14,WebkitOverflowScrolling:"touch"}}>
+        {STAGES.filter(s=>s!=="Portas Fechadas").map(s=>(
+          <button key={s} onClick={()=>setChipStage(chipStage===s?"":s)} style={chip(chipStage===s)}>{s.replace(" / Proposta","")}</button>
+        ))}
+        {Object.entries(PRIOS).map(([k,v])=><button key={k} onClick={()=>setChipPrio(chipPrio===k?"":k)} style={chip(chipPrio===k,v.c)}>Prio {k}</button>)}
+      </div>
+
+      {/* SUGESTÕES DO DIA */}
+      {vista==="hoje"&&sugestoes.length>0&&<div style={{marginBottom:18}}>
+        <div style={{fontSize:11,fontWeight:800,color:C.gold,letterSpacing:".08em",marginBottom:8}}>⚡ SUGESTÕES DO DIA</div>
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          {sugestoes.map(({c,dias})=>(
+            <div key={c.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 13px",display:"flex",alignItems:"center",gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13.5,fontWeight:700,color:C.text}}>{c.company||c.name}</div>
+                <div style={{fontSize:11,color:C.muted}}>{c.stage} · {dias>=999?"nunca contactado":`${dias}d sem contato`}</div>
+              </div>
+              <button onClick={()=>setNovo({contato:c})} style={{padding:"7px 12px",borderRadius:7,border:`1px solid ${C.yellowDim}`,background:"transparent",color:C.yellow,fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>Agendar</button>
+            </div>
           ))}
         </div>
-        <div style={{flex:1}}/>
-        <button onClick={()=>setEdit(makeVisita(contatos))} style={{padding:"9px 18px",borderRadius:8,border:"none",background:C.yellow,color:C.bg,fontWeight:800,fontSize:13,cursor:"pointer"}}>+ Nova visita</button>
-      </div>
-
-      {/* FILTROS */}
-      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-        <select value={filtros.periodo} onChange={e=>setFiltros(f=>({...f,periodo:e.target.value}))} style={selStyle}><option value="todos">Todo período</option><option value="hoje">Hoje</option><option value="semana">Esta semana</option></select>
-        <select value={filtros.resp} onChange={e=>setFiltros(f=>({...f,resp:e.target.value}))} style={selStyle}><option value="">Todos responsáveis</option>{responsaveis.map(r=><option key={r} value={r}>{r}</option>)}</select>
-        <select value={filtros.prio} onChange={e=>setFiltros(f=>({...f,prio:e.target.value}))} style={selStyle}><option value="">Toda prioridade</option>{Object.entries(PRIORIDADES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select>
-        <select value={filtros.stage} onChange={e=>setFiltros(f=>({...f,stage:e.target.value}))} style={selStyle}><option value="">Toda etapa</option>{STAGES.map(s=><option key={s} value={s}>{s}</option>)}</select>
-      </div>
-
-      {vista==="lista" && <VisitasLista lista={lista} onOpen={setDetalhe} onResultado={setResultado}/>}
-      {vista==="calendario" && <VisitasCalendario lista={lista} onOpen={setDetalhe}/>}
-      {vista==="mapa" && <VisitasMapa lista={lista} onOpen={setDetalhe}/>}
-
-      {edit && <VisitaForm visita={edit} contatos={contatos} onClose={()=>setEdit(null)} onSave={async v=>{await salvar(v);setEdit(null);}}/>}
-      {resultado && <ResultadoForm visita={resultado} onClose={()=>setResultado(null)} onSave={registrarResultado}/>}
-      {detalhe && <VisitaDetalhe visita={detalhe} contato={contatos.find(c=>c.id===detalhe.contato_id)} onClose={()=>setDetalhe(null)} onEdit={()=>{setEdit(detalhe);setDetalhe(null);}} onResultado={()=>{setResultado(detalhe);setDetalhe(null);}} onDel={()=>excluir(detalhe.id)}/>}
-    </div>
-  );
-}
-
-const selStyle={padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:C.text,fontSize:12.5,cursor:"pointer"};
-
-function makeVisita(contatos){
-  return {id:uidFP(),contato_id:"",contatoNome:"",contatoEmpresa:"",contatoFone:"",endereco:"",
-    data:new Date().toISOString().slice(0,10),hora:"",responsavel:"",objetivo:"",prioridade:"B",
-    stagePipeline:"",valorPotencial:"",status:"agendada",timeline:[]};
-}
-
-// ── LISTA ──
-function VisitasLista({lista,onOpen,onResultado}){
-  if(lista.length===0) return <div style={{textAlign:"center",color:C.faint,fontSize:13,padding:"46px 0",border:`1.5px dashed ${C.border}`,borderRadius:12}}>Nenhuma visita no filtro atual. Toque em <b style={{color:C.yellow}}>+ Nova visita</b> para agendar a partir de um lead do Pipeline.</div>;
-  // agrupa por data
-  const grupos={};
-  lista.forEach(v=>{(grupos[v.data]=grupos[v.data]||[]).push(v);});
-  const hoje=new Date().toISOString().slice(0,10);
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:20}}>
-      {Object.entries(grupos).map(([data,vs])=>(
-        <div key={data}>
-          <div style={{fontSize:12,fontWeight:700,color:data===hoje?C.yellow:C.muted,marginBottom:8,letterSpacing:".04em"}}>{fmtDataLonga(data)}{data===hoje?" · HOJE":""} <span style={{color:C.faint,fontWeight:400}}>· {vs.length} visita{vs.length>1?"s":""}</span></div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {vs.map(v=><VisitaCard key={v.id} v={v} onOpen={onOpen} onResultado={onResultado}/>)}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function VisitaCard({v,onOpen,onResultado}){
-  const prio=PRIORIDADES[v.prioridade]||PRIORIDADES.B;
-  const st=STATUS_VISITA[v.status]||STATUS_VISITA.agendada;
-  const dd=diasDesde(v.ultimoContato);
-  const fone=(v.contatoFone||"").replace(/\D/g,"");
-  const stop=e=>e.stopPropagation();
-  return (
-    <div onClick={()=>onOpen(v)} style={{background:C.card,border:`1px solid ${C.border}`,borderLeft:`4px solid ${prio.cor}`,borderRadius:10,padding:"13px 15px",cursor:"pointer",transition:"border-color .12s"}} onMouseEnter={e=>e.currentTarget.style.borderColor=C.yellowDim} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-      <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-        <div style={{textAlign:"center",minWidth:44}}>
-          <div style={{fontSize:17,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{v.hora||"--:--"}</div>
-          <div style={{fontSize:9,color:st.cor,fontWeight:700,marginTop:2}}>{st.icon} {st.label}</div>
-        </div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:14.5,fontWeight:700,color:C.text}}>{v.contatoEmpresa||v.contatoNome||"Visita avulsa"}</div>
-          <div style={{fontSize:12,color:C.muted,marginTop:2}}>{v.objetivo||"—"}{v.stagePipeline?` · ${v.stagePipeline}`:""}</div>
-          <div style={{display:"flex",gap:10,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
-            {v.valorPotencial>0&&<span style={{fontSize:11,color:C.green,fontWeight:700}}>R$ {(+v.valorPotencial).toLocaleString("pt-BR")}</span>}
-            <span style={{fontSize:10,color:prio.cor,fontWeight:700}}>{prio.label}</span>
-            {v.responsavel&&<span style={{fontSize:10,color:C.faint}}>{v.responsavel}</span>}
-            {dd!=null&&<span style={{fontSize:10,color:dd>30?C.orange:C.faint}}>{dd}d s/ contato</span>}
-          </div>
-        </div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}} onClick={stop}>
-          {fone&&<a href={`https://wa.me/55${fone}`} target="_blank" rel="noreferrer" title="WhatsApp" style={acaoBtn(C.green)}>📲</a>}
-          {fone&&<a href={`tel:${fone}`} title="Ligar" style={acaoBtn(C.blue)}>📞</a>}
-          {v.endereco&&<a href={`https://maps.google.com/?q=${encodeURIComponent(v.endereco)}`} target="_blank" rel="noreferrer" title="Maps" style={acaoBtn(C.orange)}>📍</a>}
-          {v.status!=="realizada"&&<button onClick={()=>onResultado(v)} title="Registrar resultado" style={{...acaoBtn(C.yellow),background:C.yellow,color:C.bg,border:"none",fontWeight:800}}>✓</button>}
-        </div>
-      </div>
-    </div>
-  );
-}
-const acaoBtn=(cor)=>({display:"inline-flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:cor,fontSize:14,cursor:"pointer",textDecoration:"none"});
-
-// ── CALENDÁRIO (semana atual, simples) ──
-function VisitasCalendario({lista,onOpen}){
-  const hoje=new Date();
-  const dias=[...Array(14)].map((_,i)=>{const d=new Date(hoje);d.setDate(hoje.getDate()+i-2);return d.toISOString().slice(0,10);});
-  const porDia=d=>lista.filter(v=>v.data===d);
-  return (
-    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
-      {dias.map(d=>{const vs=porDia(d);const isHoje=d===hoje.toISOString().slice(0,10);return(
-        <div key={d} style={{background:C.card,border:`1px solid ${isHoje?C.yellow:C.border}`,borderRadius:8,padding:8,minHeight:90}}>
-          <div style={{fontSize:10,color:isHoje?C.yellow:C.muted,fontWeight:700,marginBottom:6}}>{fmtDiaCurto(d)}</div>
-          <div style={{display:"flex",flexDirection:"column",gap:4}}>
-            {vs.map(v=>{const p=PRIORIDADES[v.prioridade]||PRIORIDADES.B;return(
-              <div key={v.id} onClick={()=>onOpen(v)} style={{background:C.surface,borderLeft:`3px solid ${p.cor}`,borderRadius:4,padding:"4px 6px",cursor:"pointer"}}>
-                <div style={{fontSize:10,color:C.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.hora} {v.contatoEmpresa||v.contatoNome||"Visita"}</div>
-              </div>
-            );})}
-          </div>
-        </div>
-      );})}
-    </div>
-  );
-}
-
-// ── MAPA (lista com links; sem API key, usa Google Maps por endereço) ──
-function VisitasMapa({lista,onOpen}){
-  const comEnd=lista.filter(v=>v.endereco);
-  const rota=comEnd.map(v=>encodeURIComponent(v.endereco)).join("/");
-  return (
-    <div>
-      {comEnd.length>1&&<a href={`https://www.google.com/maps/dir/${rota}`} target="_blank" rel="noreferrer" style={{display:"inline-block",marginBottom:14,padding:"10px 18px",borderRadius:8,background:C.orange,color:"#fff",fontWeight:700,fontSize:13,textDecoration:"none"}}>🗺 Abrir rota completa no Google Maps ({comEnd.length} paradas)</a>}
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {comEnd.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:13,padding:"40px 0",border:`1.5px dashed ${C.border}`,borderRadius:12}}>Nenhuma visita com endereço. Adicione o endereço nas visitas para ver a rota no mapa.</div>}
-        {comEnd.map((v,i)=>{const p=PRIORIDADES[v.prioridade]||PRIORIDADES.B;return(
-          <div key={v.id} onClick={()=>onOpen(v)} style={{background:C.card,border:`1px solid ${C.border}`,borderLeft:`4px solid ${p.cor}`,borderRadius:10,padding:"12px 15px",cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:26,height:26,borderRadius:"50%",background:C.orange,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{i+1}</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:14,fontWeight:700,color:C.text}}>{v.contatoEmpresa||v.contatoNome||"Visita"}</div>
-              <div style={{fontSize:11.5,color:C.muted}}>{v.endereco}</div>
-            </div>
-            <a href={`https://maps.google.com/?q=${encodeURIComponent(v.endereco)}`} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={acaoBtn(C.orange)}>📍</a>
-          </div>
-        );})}
-      </div>
-    </div>
-  );
-}
-
-// ── FORM: nova/editar visita (seleciona lead do Pipeline) ──
-function VisitaForm({visita,contatos,onClose,onSave}){
-  const [v,setV]=useState({...visita});
-  const S=(k,val)=>setV(p=>({...p,[k]:val}));
-  const selecionarLead=(id)=>{
-    const c=contatos.find(x=>x.id===id);
-    if(c){setV(p=>({...p,contato_id:id,contatoNome:c.name||"",contatoEmpresa:c.company||"",contatoFone:c.phone||"",endereco:c.endereco||"",stagePipeline:c.stage||"",valorPotencial:c.valor||p.valorPotencial,ultimoContato:(c.historico&&c.historico.length)?c.historico[c.historico.length-1].data:null}));}
-    else setV(p=>({...p,contato_id:""}));
-  };
-  return (
-    <Modal title={visita.contato_id||visita.contatoNome?"Editar visita":"Nova visita"} onClose={onClose}>
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <div>
-          <label style={lblAg}>Lead do Pipeline</label>
-          <select value={v.contato_id} onChange={e=>selecionarLead(e.target.value)} style={{...inpAg,width:"100%"}}>
-            <option value="">— Selecione um lead cadastrado —</option>
-            {contatos.map(c=><option key={c.id} value={c.id}>{c.company||c.name} {c.stage?`(${c.stage})`:""}</option>)}
-          </select>
-          <div style={{fontSize:11,color:C.faint,marginTop:5}}>A visita é sempre de um lead que já existe no Pipeline. Não cadastre estabelecimento aqui — cadastre no Pipeline primeiro.</div>
-        </div>
-        {v.contato_id&&<div style={{background:C.surface,borderRadius:8,padding:"10px 12px",fontSize:12,color:C.muted}}>
-          📍 {v.endereco||"sem endereço"} · 📞 {v.contatoFone||"sem telefone"} · etapa: {v.stagePipeline||"—"}
-        </div>}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div><label style={lblAg}>Data</label><input type="date" value={v.data} onChange={e=>S("data",e.target.value)} style={{...inpAg,width:"100%"}}/></div>
-          <div><label style={lblAg}>Hora</label><input type="time" value={v.hora} onChange={e=>S("hora",e.target.value)} style={{...inpAg,width:"100%"}}/></div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div><label style={lblAg}>Responsável</label><input value={v.responsavel} onChange={e=>S("responsavel",e.target.value)} placeholder="quem visita" style={{...inpAg,width:"100%"}}/></div>
-          <div><label style={lblAg}>Prioridade</label><select value={v.prioridade} onChange={e=>S("prioridade",e.target.value)} style={{...inpAg,width:"100%"}}>{Object.entries(PRIORIDADES).map(([k,x])=><option key={k} value={k}>{x.label}</option>)}</select></div>
-        </div>
-        <div><label style={lblAg}>Objetivo da visita</label><input value={v.objetivo} onChange={e=>S("objetivo",e.target.value)} placeholder="ex: apresentar proposta, diagnóstico inicial" style={{...inpAg,width:"100%"}}/></div>
-        <div><label style={lblAg}>Valor potencial (R$)</label><input type="number" value={v.valorPotencial} onChange={e=>S("valorPotencial",e.target.value)} placeholder="opcional" style={{...inpAg,width:"100%"}}/></div>
-        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:6}}>
-          <button onClick={onClose} style={btnGhost}>Cancelar</button>
-          <button onClick={()=>{if(!v.contato_id&&!v.contatoNome){alert("Selecione um lead do Pipeline.");return;}onSave(v);}} style={btnPri}>Salvar visita</button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// ── FORM: registrar resultado ──
-function ResultadoForm({visita,onClose,onSave}){
-  const [res,setRes]=useState("");
-  const [obs,setObs]=useState("");
-  return (
-    <Modal title="Resultado da visita" onClose={onClose}>
-      <div style={{fontSize:13,color:C.muted,marginBottom:14}}>{visita.contatoEmpresa||visita.contatoNome} · {fmtDataLonga(visita.data)}</div>
-      <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:14}}>
-        {RESULTADOS.map(r=>(
-          <button key={r.id} onClick={()=>setRes(r.id)} style={{textAlign:"left",padding:"12px 14px",borderRadius:9,border:`1.5px solid ${res===r.id?C.yellow:C.border}`,background:res===r.id?"rgba(200,240,0,.08)":C.surface,color:C.text,cursor:"pointer",fontSize:13.5,fontWeight:600}}>
-            {r.label}{r.stage&&<span style={{fontSize:11,color:C.faint,fontWeight:400}}> → move para "{r.stage}" no Pipeline</span>}
-          </button>
-        ))}
-      </div>
-      <label style={lblAg}>Observações (viram timeline do lead)</label>
-      <textarea value={obs} onChange={e=>setObs(e.target.value)} rows={3} placeholder="o que rolou, próximos passos…" style={{...inpAg,width:"100%",resize:"vertical"}}/>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
-        <button onClick={onClose} style={btnGhost}>Cancelar</button>
-        <button onClick={()=>{if(!res){alert("Escolha um resultado.");return;}onSave(visita,res,obs);}} style={btnPri}>Registrar</button>
-      </div>
-    </Modal>
-  );
-}
-
-// ── DETALHE da visita (com timeline) ──
-function VisitaDetalhe({visita,contato,onClose,onEdit,onResultado,onDel}){
-  const prio=PRIORIDADES[visita.prioridade]||PRIORIDADES.B;
-  const st=STATUS_VISITA[visita.status]||STATUS_VISITA.agendada;
-  const fone=(visita.contatoFone||"").replace(/\D/g,"");
-  return (
-    <Modal title={visita.contatoEmpresa||visita.contatoNome||"Visita"} onClose={onClose}>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
-        <span style={{fontSize:11,fontWeight:700,color:st.cor,background:C.surface,padding:"4px 10px",borderRadius:20}}>{st.icon} {st.label}</span>
-        <span style={{fontSize:11,fontWeight:700,color:prio.cor,background:C.surface,padding:"4px 10px",borderRadius:20}}>{prio.label}</span>
-        {visita.stagePipeline&&<span style={{fontSize:11,color:C.muted,background:C.surface,padding:"4px 10px",borderRadius:20}}>{visita.stagePipeline}</span>}
-      </div>
-      <div style={{background:C.card,borderRadius:10,padding:14,marginBottom:14,fontSize:13,color:C.text,lineHeight:1.8}}>
-        <div>📅 {fmtDataLonga(visita.data)} {visita.hora&&`· ${visita.hora}`}</div>
-        {visita.objetivo&&<div>🎯 {visita.objetivo}</div>}
-        {visita.responsavel&&<div>👤 {visita.responsavel}</div>}
-        {visita.valorPotencial>0&&<div>💰 R$ {(+visita.valorPotencial).toLocaleString("pt-BR")}</div>}
-        {visita.endereco&&<div>📍 {visita.endereco}</div>}
-      </div>
-      <div style={{display:"flex",gap:8,marginBottom:16}}>
-        {fone&&<a href={`https://wa.me/55${fone}`} target="_blank" rel="noreferrer" style={{...acaoBtn(C.green),flex:1,height:38}}>📲 WhatsApp</a>}
-        {fone&&<a href={`tel:${fone}`} style={{...acaoBtn(C.blue),flex:1,height:38}}>📞 Ligar</a>}
-        {visita.endereco&&<a href={`https://maps.google.com/?q=${encodeURIComponent(visita.endereco)}`} target="_blank" rel="noreferrer" style={{...acaoBtn(C.orange),flex:1,height:38}}>📍 Maps</a>}
-      </div>
-      {(visita.timeline&&visita.timeline.length>0)&&<div style={{marginBottom:16}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:".08em",marginBottom:8}}>TIMELINE</div>
-        {visita.timeline.slice().reverse().map((t,i)=>(
-          <div key={i} style={{display:"flex",gap:10,paddingBottom:10}}>
-            <div style={{width:8,height:8,borderRadius:"50%",background:C.yellow,marginTop:5,flexShrink:0}}/>
-            <div><div style={{fontSize:12.5,color:C.text}}>{t.texto}</div><div style={{fontSize:10,color:C.faint}}>{new Date(t.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div></div>
-          </div>
-        ))}
       </div>}
-      <div style={{display:"flex",gap:8,justifyContent:"space-between",borderTop:`1px solid ${C.border}`,paddingTop:14}}>
-        <button onClick={onDel} style={{...btnGhost,color:C.red,borderColor:"#7A2E1E"}}>Excluir</button>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={onEdit} style={btnGhost}>Editar</button>
-          {visita.status!=="realizada"&&<button onClick={onResultado} style={btnPri}>✓ Registrar resultado</button>}
-        </div>
-      </div>
-    </Modal>
+
+      {/* conteúdo */}
+      {vista==="mapa" ? <MapaVisitas lista={lista} onOpen={setDetalhe}/> : <ListaVisitas lista={lista} onOpen={setDetalhe} onResult={setResultado} vazio={vista==="hoje"?"Nenhuma visita hoje. Use as sugestões acima ou toque em + para agendar.":"Nenhuma visita. Toque em + para agendar a partir de um lead."}/>}
+
+      {/* FAB */}
+      <button onClick={()=>setNovo({})} title="Nova visita" style={{position:"fixed",right:"max(18px,env(safe-area-inset-right))",bottom:"max(18px,env(safe-area-inset-bottom))",width:56,height:56,borderRadius:"50%",background:C.yellow,color:C.bg,border:"none",fontSize:28,fontWeight:800,cursor:"pointer",boxShadow:"0 6px 24px rgba(200,240,0,.4)",zIndex:90}}>+</button>
+
+      {novo&&<NovaVisita contatoPre={novo.contato} contatos={contatos} onClose={()=>setNovo(null)} onSave={async v=>{await salvar(v);setNovo(null);}}/>}
+      {resultado&&<RegistrarResultado visita={resultado} onClose={()=>setResultado(null)} onSave={registrar}/>}
+      {detalhe&&<DetalheVisita visita={detalhe} onClose={()=>setDetalhe(null)} onResult={()=>{setResultado(detalhe);setDetalhe(null);}} onDel={()=>excluir(detalhe.id)}/>}
+    </div>
   );
 }
+const chip=(ativo,cor)=>({padding:"7px 13px",borderRadius:20,border:`1px solid ${ativo?(cor||C.yellow):C.border}`,background:ativo?(cor?cor+"22":"rgba(200,240,0,.12)"):C.surface,color:ativo?(cor||C.yellow):C.muted,fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0});
 
-const lblAg={display:"block",fontSize:11,fontWeight:700,color:C.muted,letterSpacing:".06em",textTransform:"uppercase",marginBottom:5};
-const inpAg={padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:C.text,fontSize:13.5,fontFamily:"inherit"};
-const btnGhost={padding:"9px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.text,cursor:"pointer",fontSize:13};
-const btnPri={padding:"9px 18px",borderRadius:8,border:"none",background:C.yellow,color:C.bg,fontWeight:800,cursor:"pointer",fontSize:13};
+function ListaVisitas({lista,onOpen,onResult,vazio}){
+  if(lista.length===0)return <div style={{textAlign:"center",color:C.faint,fontSize:13,padding:"44px 20px",border:`1.5px dashed ${C.border}`,borderRadius:12,lineHeight:1.6}}>{vazio}</div>;
+  const grupos={}; lista.forEach(v=>{(grupos[v.data]=grupos[v.data]||[]).push(v);});
+  const hoje=new Date().toISOString().slice(0,10);
+  return <div style={{display:"flex",flexDirection:"column",gap:18}}>
+    {Object.entries(grupos).map(([data,vs])=><div key={data}>
+      <div style={{fontSize:12,fontWeight:700,color:data===hoje?C.yellow:C.muted,marginBottom:8}}>{fmtData(data)}{data===hoje?" · HOJE":""}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>{vs.map(v=><CardVisita key={v.id} v={v} onOpen={onOpen} onResult={onResult}/>)}</div>
+    </div>)}
+  </div>;
+}
 
-function fmtDataLonga(iso){if(!iso)return"—";const [a,m,d]=iso.split("-");const meses=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];const dt=new Date(iso+"T12:00");const dow=["dom","seg","ter","qua","qui","sex","sáb"][dt.getDay()];return `${dow} · ${d}/${meses[+m-1]}`;}
-function fmtDiaCurto(iso){const dt=new Date(iso+"T12:00");const dow=["D","S","T","Q","Q","S","S"][dt.getDay()];const [,,d]=iso.split("-");return `${dow} ${d}`;}
+function CardVisita({v,onOpen,onResult}){
+  const p=PRIOS[v.prioridade]||PRIOS.B; const st=STVIS[v.status]||STVIS.agendada;
+  const fone=(v.contatoFone||"").replace(/\D/g,"");
+  return <div onClick={()=>onOpen(v)} style={{background:C.card,border:`1px solid ${C.border}`,borderLeft:`4px solid ${p.c}`,borderRadius:10,padding:"12px 14px",cursor:"pointer"}}>
+    <div style={{display:"flex",alignItems:"flex-start",gap:11}}>
+      <div style={{textAlign:"center",minWidth:40,flexShrink:0}}>
+        <div style={{fontSize:16,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{v.hora||"--:--"}</div>
+        <div style={{fontSize:9,color:st.c,fontWeight:700,marginTop:2}}>{st.l}</div>
+      </div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.contatoEmpresa||v.contatoNome||"Visita"}</div>
+        <div style={{fontSize:11.5,color:C.muted,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.objetivo||"—"}{v.stagePipeline?` · ${v.stagePipeline.replace(" / Proposta","")}`:""}</div>
+      </div>
+      <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
+        {fone&&<a href={`https://wa.me/55${fone}`} target="_blank" rel="noreferrer" style={ab("#2E8B57")}>📲</a>}
+        {v.endereco&&<a href={`https://maps.google.com/?q=${encodeURIComponent(v.endereco)}`} target="_blank" rel="noreferrer" style={ab("#E8672A")}>📍</a>}
+        {v.status!=="realizada"&&<button onClick={()=>onResult(v)} style={{...ab(C.bg),background:C.yellow,border:"none",fontWeight:800}}>✓</button>}
+      </div>
+    </div>
+  </div>;
+}
+const ab=cor=>({display:"inline-flex",alignItems:"center",justifyContent:"center",width:34,height:34,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:cor,fontSize:15,cursor:"pointer",textDecoration:"none"});
+
+function MapaVisitas({lista,onOpen}){
+  const cE=lista.filter(v=>v.endereco);
+  if(cE.length===0)return <div style={{textAlign:"center",color:C.faint,fontSize:13,padding:"44px 20px",border:`1.5px dashed ${C.border}`,borderRadius:12}}>Nenhuma visita com endereço.</div>;
+  const rota=cE.map(v=>encodeURIComponent(v.endereco)).join("/");
+  return <div>
+    {cE.length>1&&<a href={`https://www.google.com/maps/dir/${rota}`} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",marginBottom:12,padding:"11px",borderRadius:9,background:"#E8672A",color:"#fff",fontWeight:700,fontSize:13,textDecoration:"none"}}>🗺 Abrir rota no Maps ({cE.length} paradas)</a>}
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {cE.map((v,i)=><div key={v.id} onClick={()=>onOpen(v)} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 13px",cursor:"pointer",display:"flex",alignItems:"center",gap:11}}>
+        <div style={{width:26,height:26,borderRadius:"50%",background:"#E8672A",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{i+1}</div>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:700,color:C.text}}>{v.contatoEmpresa||v.contatoNome||"Visita"}</div><div style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.endereco}</div></div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+// NOVA VISITA — seleciona lead do Pipeline com busca e lista agrupada
+function NovaVisita({contatoPre,contatos,onClose,onSave}){
+  const [busca,setBusca]=useState("");
+  const [sel,setSel]=useState(contatoPre||null);
+  const [v,setV]=useState({data:new Date().toISOString().slice(0,10),hora:"",responsavel:"",objetivo:"",prioridade:"B",valorPotencial:""});
+  const S=(k,val)=>setV(p=>({...p,[k]:val}));
+  const filtrados=(contatos||[]).filter(c=>{const q=busca.toLowerCase();return !q||(c.name||"").toLowerCase().includes(q)||(c.company||"").toLowerCase().includes(q);});
+  const porEtapa={}; STAGES.forEach(s=>{const g=filtrados.filter(c=>c.stage===s);if(g.length)porEtapa[s]=g;});
+
+  const confirmar=()=>{
+    if(!sel){alert("Escolha um contato do Pipeline.");return;}
+    const visita={id:uidV(),contato_id:sel.id,contatoNome:sel.name||"",contatoEmpresa:sel.company||"",contatoFone:sel.phone||"",endereco:sel.endereco||"",stagePipeline:sel.stage||"",ultimoContato:ultInter(sel),
+      ...v,valorPotencial:v.valorPotencial||sel.valor||"",status:"agendada",timeline:[{em:new Date().toISOString(),txt:"Visita agendada"}]};
+    onSave(visita);
+  };
+
+  return <SheetModal title={sel?"Agendar visita":"Nova visita — escolher contato"} onClose={onClose} wide>
+    {!sel ? <>
+      <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="🔍 Buscar contato do Pipeline…" style={{width:"100%",padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,fontSize:14,marginBottom:14,boxSizing:"border-box"}} autoFocus/>
+      {Object.keys(porEtapa).length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:13,padding:"30px 0"}}>Nenhum contato encontrado. Cadastre no Pipeline primeiro.</div>}
+      {Object.entries(porEtapa).map(([etapa,cs])=><div key={etapa} style={{marginBottom:16}}>
+        <div style={{fontSize:11,fontWeight:800,color:C.muted,letterSpacing:".06em",marginBottom:7}}>{etapa.toUpperCase()} · {cs.length}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {cs.map(c=><button key={c.id} onClick={()=>setSel(c)} style={{textAlign:"left",padding:"12px 14px",borderRadius:9,border:`1px solid ${C.border}`,background:C.surface,color:C.text,cursor:"pointer"}}>
+            <div style={{fontSize:14,fontWeight:700}}>{c.company||c.name}</div>
+            <div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{c.name&&c.company?c.name:""}{c.phone?` · ${c.phone}`:""}{c.valor?` · R$ ${(+c.valor).toLocaleString("pt-BR")}`:""}</div>
+          </button>)}
+        </div>
+      </div>)}
+    </> : <>
+      <div style={{background:C.card,borderRadius:10,padding:"13px 15px",marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+        <div style={{flex:1}}><div style={{fontSize:15,fontWeight:700,color:C.text}}>{sel.company||sel.name}</div><div style={{fontSize:12,color:C.muted}}>{sel.stage}{sel.endereco?` · ${sel.endereco}`:""}</div></div>
+        <button onClick={()=>setSel(null)} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"6px 11px",fontSize:12,cursor:"pointer"}}>Trocar</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+        <F label="Data"><input type="date" value={v.data} onChange={e=>S("data",e.target.value)} style={inField}/></F>
+        <F label="Hora"><input type="time" value={v.hora} onChange={e=>S("hora",e.target.value)} style={inField}/></F>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+        <F label="Responsável"><input value={v.responsavel} onChange={e=>S("responsavel",e.target.value)} placeholder="quem visita" style={inField}/></F>
+        <F label="Prioridade"><select value={v.prioridade} onChange={e=>S("prioridade",e.target.value)} style={inField}>{Object.keys(PRIOS).map(k=><option key={k} value={k}>{k}</option>)}</select></F>
+      </div>
+      <F label="Objetivo"><input value={v.objetivo} onChange={e=>S("objetivo",e.target.value)} placeholder="ex: apresentar proposta" style={inField}/></F>
+      <div style={{height:14}}/>
+      <F label="Valor potencial (R$)"><input type="number" value={v.valorPotencial} onChange={e=>S("valorPotencial",e.target.value)} placeholder={sel.valor?String(sel.valor):"opcional"} style={inField}/></F>
+      <div style={{display:"flex",gap:8,marginTop:20}}>
+        <button onClick={onClose} style={{flex:1,padding:"13px",borderRadius:9,border:`1px solid ${C.border}`,background:"transparent",color:C.text,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+        <button onClick={confirmar} style={{flex:2,padding:"13px",borderRadius:9,border:"none",background:C.yellow,color:C.bg,fontWeight:800,fontSize:14,cursor:"pointer"}}>Agendar visita</button>
+      </div>
+    </>}
+  </SheetModal>;
+}
+function F({label,children}){return <div><div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:".05em",marginBottom:5}}>{label}</div>{children}</div>;}
+const inField={width:"100%",padding:"11px 12px",borderRadius:9,border:`1px solid ${C.border}`,background:C.surface,color:C.text,fontSize:14,fontFamily:"inherit",boxSizing:"border-box"};
+
+function RegistrarResultado({visita,onClose,onSave}){
+  const [res,setRes]=useState(""); const [obs,setObs]=useState("");
+  return <SheetModal title="Resultado da visita" onClose={onClose}>
+    <div style={{fontSize:13,color:C.muted,marginBottom:16}}>{visita.contatoEmpresa||visita.contatoNome} · {fmtData(visita.data)}</div>
+    <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:16}}>
+      {RESULT.map(r=><button key={r.id} onClick={()=>setRes(r.id)} style={{textAlign:"left",padding:"13px 15px",borderRadius:10,border:`1.5px solid ${res===r.id?C.yellow:C.border}`,background:res===r.id?"rgba(200,240,0,.08)":C.surface,color:C.text,cursor:"pointer",fontSize:14,fontWeight:600}}>{r.l}{r.stage&&<span style={{fontSize:11,color:C.faint,fontWeight:400}}> → {r.stage.replace(" / Proposta","")}</span>}</button>)}
+    </div>
+    <F label="Observações (vão para a timeline do lead)"><textarea value={obs} onChange={e=>setObs(e.target.value)} rows={3} placeholder="o que rolou, próximos passos…" style={{...inField,resize:"vertical"}}/></F>
+    <button onClick={()=>{if(!res){alert("Escolha um resultado.");return;}onSave(visita,res,obs);}} style={{width:"100%",padding:"13px",borderRadius:9,border:"none",background:C.yellow,color:C.bg,fontWeight:800,fontSize:14,cursor:"pointer",marginTop:16}}>Registrar resultado</button>
+  </SheetModal>;
+}
+
+function DetalheVisita({visita,onClose,onResult,onDel}){
+  const p=PRIOS[visita.prioridade]||PRIOS.B; const st=STVIS[visita.status]||STVIS.agendada;
+  const fone=(visita.contatoFone||"").replace(/\D/g,"");
+  return <SheetModal title={visita.contatoEmpresa||visita.contatoNome||"Visita"} onClose={onClose}>
+    <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:16}}>
+      <span style={{fontSize:11,fontWeight:700,color:st.c,background:C.surface,padding:"5px 11px",borderRadius:20}}>{st.l}</span>
+      <span style={{fontSize:11,fontWeight:700,color:p.c,background:C.surface,padding:"5px 11px",borderRadius:20}}>Prioridade {visita.prioridade}</span>
+      {visita.stagePipeline&&<span style={{fontSize:11,color:C.muted,background:C.surface,padding:"5px 11px",borderRadius:20}}>{visita.stagePipeline.replace(" / Proposta","")}</span>}
+    </div>
+    <div style={{background:C.card,borderRadius:10,padding:14,marginBottom:14,fontSize:13.5,color:C.text,lineHeight:1.9}}>
+      <div>📅 {fmtData(visita.data)} {visita.hora&&`· ${visita.hora}`}</div>
+      {visita.objetivo&&<div>🎯 {visita.objetivo}</div>}
+      {visita.responsavel&&<div>👤 {visita.responsavel}</div>}
+      {visita.valorPotencial>0&&<div>💰 R$ {(+visita.valorPotencial).toLocaleString("pt-BR")}</div>}
+      {visita.endereco&&<div>📍 {visita.endereco}</div>}
+    </div>
+    <div style={{display:"flex",gap:8,marginBottom:16}}>
+      {fone&&<a href={`https://wa.me/55${fone}`} target="_blank" rel="noreferrer" style={{...ab("#2E8B57"),flex:1,height:42,textDecoration:"none",fontSize:13,fontWeight:700}}>📲 WhatsApp</a>}
+      {fone&&<a href={`tel:${fone}`} style={{...ab("#3A7BD5"),flex:1,height:42,textDecoration:"none",fontSize:13,fontWeight:700}}>📞 Ligar</a>}
+      {visita.endereco&&<a href={`https://maps.google.com/?q=${encodeURIComponent(visita.endereco)}`} target="_blank" rel="noreferrer" style={{...ab("#E8672A"),flex:1,height:42,textDecoration:"none",fontSize:13,fontWeight:700}}>📍 Maps</a>}
+    </div>
+    {visita.timeline?.length>0&&<div style={{marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:800,color:C.muted,letterSpacing:".08em",marginBottom:8}}>TIMELINE</div>
+      {visita.timeline.slice().reverse().map((t,i)=><div key={i} style={{display:"flex",gap:10,paddingBottom:9}}>
+        <div style={{width:7,height:7,borderRadius:"50%",background:C.yellow,marginTop:5,flexShrink:0}}/>
+        <div><div style={{fontSize:12.5,color:C.text}}>{t.txt}</div><div style={{fontSize:10,color:C.faint}}>{new Date(t.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div></div>
+      </div>)}
+    </div>}
+    <div style={{display:"flex",gap:8,borderTop:`1px solid ${C.border}`,paddingTop:16}}>
+      <button onClick={onDel} style={{padding:"11px 16px",borderRadius:9,border:"1px solid #7A2E1E",background:"transparent",color:"#E8614B",cursor:"pointer",fontSize:13}}>Excluir</button>
+      <div style={{flex:1}}/>
+      {visita.status!=="realizada"&&<button onClick={onResult} style={{padding:"11px 18px",borderRadius:9,border:"none",background:C.yellow,color:C.bg,fontWeight:800,cursor:"pointer",fontSize:13}}>✓ Registrar resultado</button>}
+    </div>
+  </SheetModal>;
+}
+
+function fmtData(iso){if(!iso)return"—";const dt=new Date(iso+"T12:00");const dow=["dom","seg","ter","qua","qui","sex","sáb"][dt.getDay()];const mes=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][dt.getMonth()];return `${dow} · ${dt.getDate()}/${mes}`;}
 
 // ── CLIENTES ATIVOS — carteira e pós-venda ───────────────────────
 const FASES_POSVENDA=["Enxergar","Estruturar","Evoluir","Escalar","Elevar"];
