@@ -556,7 +556,7 @@ function CRMView({modo="pipeline"}){
       <button onClick={()=>setShowNew(true)} style={{padding:"8px 14px",background:C.yellow,color:"#0E0E0C",border:"none",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>+ Novo</button>
     </div>
     {modo==="rotas" ? (
-      <RotasView token={token} onCriarContato={addContact}/>
+      <AgendaComercial token={token} contatos={contacts} onUpdateContato={saveContact}/>
     ) : modo==="clientes" ? (
       <ClientesAtivos contacts={filtered.filter(c=>c.stage==="Cliente")} onOpen={setSelected} onSave={saveContact}/>
     ) : (
@@ -603,7 +603,7 @@ export default function ComercialZeste({onBack,token:tokenProp}){
         <span style={{fontSize:11,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",flexShrink:0}}>COMERCIAL</span>
         <div style={{flex:1}}/>
         <div style={{display:"flex",gap:4,flexShrink:0}}>
-          {[["pipeline","Pipeline"],["clientes","Clientes"],["rotas","Rotas"],["manual","Diretrizes"]].map(([id,l])=>(
+          {[["pipeline","Pipeline"],["clientes","Clientes"],["rotas","Agenda"],["manual","Diretrizes"]].map(([id,l])=>(
             <button key={id} onClick={()=>setView(id)} style={{padding:"8px 14px",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12,letterSpacing:"0.05em",border:"none",background:view===id?C.yellow:"transparent",color:view===id?"#0E0E0C":C.muted}}>{l}</button>
           ))}
         </div>
@@ -657,272 +657,384 @@ async function rotasLoad(token){ try{ const r=await fetch(`${SB_URL}/rest/v1/crm
 async function rotaUpsert(rota,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,Prefer:"resolution=merge-duplicates",...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_rotas`,{method:"POST",headers:h,body:JSON.stringify({id:rota.id,dados:rota,updated_at:new Date().toISOString()})}); }
 async function rotaDel(id,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_rotas?id=eq.${id}`,{method:"PATCH",headers:h,body:JSON.stringify({deleted_at:new Date().toISOString()})}); }
 
-function RotasView({token,onCriarContato}){
-  const[rotas,setRotas]=useState(null);
-  const[sel,setSel]=useState(null);
-  const[novaRota,setNovaRota]=useState(null);
-  const[novaParada,setNovaParada]=useState("");
-  const[resultado,setResultado]=useState(null); // parada em edição de resultado
-  useEffect(()=>{rotasLoad(token).then(setRotas);},[token]);
-  const salvar=async r=>{setRotas(p=>p.map(x=>x.id===r.id?r:x));if(sel?.id===r.id)setSel(r);await rotaUpsert(r,token);};
-  const criar=async()=>{
-    if(!novaRota?.nome){alert("Dá um nome pra rota (ex: Centro — quinta de manhã).");return;}
-    const r={id:uidFP(),nome:novaRota.nome,regiao:novaRota.regiao||"",data:novaRota.data||new Date().toISOString().slice(0,10),responsavel:novaRota.responsavel||"Apoio comercial",paradas:[]};
-    setRotas(p=>[r,...(p||[])]);setNovaRota(null);setSel(r);await rotaUpsert(r,token);
-  };
-  const addParada=async()=>{
-    if(!novaParada.trim())return;
-    const r={...sel,paradas:[...(sel.paradas||[]),{id:uidFP(),estabelecimento:novaParada.trim(),status:"pendente"}]};
-    setNovaParada("");await salvar(r);
-  };
-  const salvarResultado=async()=>{
-    const r={...sel,paradas:sel.paradas.map(p=>p.id===resultado.id?{...resultado,status:"visitado"}:p)};
-    setResultado(null);await salvar(r);
-  };
-  const converterParada=async p=>{
-    if(!window.confirm(`Criar contato no CRM a partir de "${p.estabelecimento}"?`))return;
-    await onCriarContato({id:uidFP(),name:p.respNome||"Responsável a confirmar",company:p.estabelecimento,phone:p.contato||"",segmento:"",stage:p.classificacao==="quente"?"Leads":"Prospects",temperatura:p.classificacao,origem:"Rota comercial",bairro:sel.regiao||"",endereco:"",proximosPassos:{},notas:[{data:new Date().toISOString().slice(0,10),nota:`Origem: rota "${sel.nome}" (${new Date(sel.data+"T12:00:00").toLocaleDateString("pt-BR")}). ${p.quemRecebeu?`Recebeu: ${p.quemRecebeu}. `:""}${p.melhorHorario?`Melhor horário: ${p.melhorHorario}. `:""}${p.obs||""}`}]});
-    const r={...sel,paradas:sel.paradas.map(x=>x.id===p.id?{...x,convertida:true}:x)};
-    await salvar(r);
-  };
-  const copiarRelatorio=()=>{
-    const vis=sel.paradas.filter(p=>p.status==="visitado");
-    const linhas=vis.map(p=>{const c=ROTA_CLASS[p.classificacao]?.l||"—";return `• ${p.estabelecimento} — ${c}${p.respNome?` · resp.: ${p.respNome}`:""}${p.contato?` · ${p.contato}`:""}${p.melhorHorario?` · melhor horário: ${p.melhorHorario}`:""}${p.obs?`\n  ${p.obs}`:""}`;}).join("\n");
-    const txt=`📋 RELATÓRIO DE ROTA — ${sel.nome}\n${new Date(sel.data+"T12:00:00").toLocaleDateString("pt-BR")} · ${sel.responsavel}${sel.regiao?` · ${sel.regiao}`:""}\n\nVisitados: ${vis.length}/${sel.paradas.length}\n🔥 Quentes: ${vis.filter(p=>p.classificacao==="quente").length} · 🌤 Mornos: ${vis.filter(p=>p.classificacao==="morno").length}\n\n${linhas}`;
-    try{navigator.clipboard.writeText(txt);alert("Relatório copiado!");}catch{alert(txt);}
-  };
-  const inp={width:"100%",background:"#222",border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"9px 11px",fontSize:13,outline:"none",colorScheme:"dark"};
-  const lbl={fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".06em",display:"block",marginBottom:3};
-
-  if(rotas===null)return <div style={{color:C.muted,fontSize:13,padding:"30px 0",textAlign:"center"}}>Carregando rotas…</div>;
-
-  // ── detalhe de uma rota ──
-  if(sel){
-    const vis=sel.paradas.filter(p=>p.status==="visitado").length;
-    return <div>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
-        <button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.yellow,fontWeight:800,fontSize:14,cursor:"pointer",padding:0}}>‹ Rotas</button>
-        <div style={{flex:1,minWidth:160}}>
-          <div style={{fontWeight:800,fontSize:16,color:C.text}}>{sel.nome}</div>
-          <div style={{fontSize:11,color:C.muted}}>{new Date(sel.data+"T12:00:00").toLocaleDateString("pt-BR")} · {sel.responsavel}{sel.regiao?` · ${sel.regiao}`:""} · {vis}/{sel.paradas.length} visitadas</div>
+// ── MODAL (reutilizável no módulo) ──
+function Modal({title,onClose,children}){
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"40px 16px",zIndex:1000,overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:16,padding:24,maxWidth:520,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:20,color:C.yellow,letterSpacing:".02em"}}>{title}</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
         </div>
-        <button onClick={copiarRelatorio} style={{padding:"8px 13px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",color:C.text,cursor:"pointer",fontSize:12,fontWeight:700}}>📋 Relatório do dia</button>
-        <button onClick={async()=>{if(window.confirm(`Excluir a rota "${sel.nome}"?`)){await rotaDel(sel.id,token);setRotas(p=>p.filter(x=>x.id!==sel.id));setSel(null);}}} style={{padding:"8px 13px",borderRadius:7,border:"1px solid #7A2E1E",background:"transparent",color:"#E8614B",cursor:"pointer",fontSize:12}}>Excluir</button>
-      </div>
-
-      <div style={{display:"flex",gap:8,marginBottom:14}}>
-        <input value={novaParada} onChange={e=>setNovaParada(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addParada()} placeholder="+ Adicionar estabelecimento à rota…" style={{...inp,flex:1}}/>
-        <button onClick={addParada} style={{padding:"9px 16px",borderRadius:7,border:"none",background:C.yellow,color:"#0E0E0C",cursor:"pointer",fontWeight:800,fontSize:13,flexShrink:0}}>Adicionar</button>
-      </div>
-
-      <div style={{display:"grid",gap:8}}>
-        {sel.paradas.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:12,padding:"26px 0",border:`1.5px dashed ${C.border}`,borderRadius:10}}>Nenhuma parada ainda. Adicione os estabelecimentos da rota acima — a ordem da lista é a ordem da visita.</div>}
-        {sel.paradas.map((p,i)=>{const cls=ROTA_CLASS[p.classificacao];return(
-          <div key={p.id} style={{background:C.card,border:`1px solid ${C.border}`,borderLeft:`4px solid ${p.status==="visitado"?(cls?.cor||C.green):C.border}`,borderRadius:10,padding:"11px 13px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:C.faint,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
-              <div style={{flex:1,minWidth:140}}>
-                <div style={{fontWeight:700,fontSize:14,color:C.text}}>{p.estabelecimento}</div>
-                {p.status==="visitado"&&<div style={{fontSize:11,color:C.muted,marginTop:2}}>{cls?.l||"—"}{p.respNome?` · resp.: ${p.respNome}`:""}{p.contato?` · ${p.contato}`:""}{p.convertida?" · ✓ no CRM":""}</div>}
-              </div>
-              {p.status!=="visitado"
-                ? <button onClick={()=>setResultado({...p})} style={{padding:"7px 12px",borderRadius:7,border:"none",background:C.green,color:"#0E0E0C",cursor:"pointer",fontSize:12,fontWeight:800,flexShrink:0}}>Registrar visita</button>
-                : <div style={{display:"flex",gap:6,flexShrink:0}}>
-                    {(p.classificacao==="quente"||p.classificacao==="morno")&&!p.convertida&&<button onClick={()=>converterParada(p)} style={{padding:"7px 12px",borderRadius:7,border:"none",background:C.yellow,color:"#0E0E0C",cursor:"pointer",fontSize:12,fontWeight:800}}>→ CRM</button>}
-                    <button onClick={()=>setResultado({...p})} style={{padding:"7px 10px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:12}}>Editar</button>
-                  </div>}
-            </div>
-          </div>);})}
-      </div>
-
-      {resultado&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:60,display:"flex",alignItems:"center",justifyContent:"center",padding:14}} onClick={e=>{if(e.target===e.currentTarget)setResultado(null);}}>
-        <div style={{background:"#161614",border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:440,maxHeight:"92vh",overflowY:"auto",padding:18}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:800,color:C.text,marginBottom:12}}>{resultado.estabelecimento}</div>
-          <div style={{display:"grid",gap:10}}>
-            <div><label style={lbl}>CLASSIFICAÇÃO DA VISITA</label>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                {Object.entries(ROTA_CLASS).map(([k,v])=>(
-                  <button key={k} onClick={()=>setResultado(r=>({...r,classificacao:k}))} style={{padding:"9px 6px",borderRadius:7,cursor:"pointer",fontSize:12,fontWeight:700,border:`2px solid ${resultado.classificacao===k?v.cor:C.border}`,background:resultado.classificacao===k?`${v.cor}22`:"transparent",color:resultado.classificacao===k?v.cor:C.muted}}>{v.l}</button>
-                ))}
-              </div>
-            </div>
-            <div><label style={lbl}>QUEM RECEBEU O MATERIAL</label><input style={inp} value={resultado.quemRecebeu||""} onChange={e=>setResultado(r=>({...r,quemRecebeu:e.target.value}))}/></div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div><label style={lbl}>RESPONSÁVEL / DECISOR</label><input style={inp} value={resultado.respNome||""} onChange={e=>setResultado(r=>({...r,respNome:e.target.value}))}/></div>
-              <div><label style={lbl}>CONTATO (WHATS/IG)</label><input style={inp} value={resultado.contato||""} onChange={e=>setResultado(r=>({...r,contato:e.target.value}))}/></div>
-            </div>
-            <div><label style={lbl}>MELHOR DIA/HORÁRIO DE CONTATO</label><input style={inp} value={resultado.melhorHorario||""} onChange={e=>setResultado(r=>({...r,melhorHorario:e.target.value}))}/></div>
-            <div><label style={lbl}>OBSERVAÇÕES (reação, comentários)</label><textarea rows={2} style={{...inp,resize:"vertical"}} value={resultado.obs||""} onChange={e=>setResultado(r=>({...r,obs:e.target.value}))}/></div>
-          </div>
-          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
-            <button onClick={()=>setResultado(null)} style={{padding:"9px 14px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:13}}>Cancelar</button>
-            <button onClick={salvarResultado} disabled={!resultado.classificacao} style={{padding:"9px 18px",borderRadius:7,border:"none",background:resultado.classificacao?C.green:"#2A2A2A",color:resultado.classificacao?"#0E0E0C":"#666",cursor:resultado.classificacao?"pointer":"default",fontSize:13,fontWeight:800}}>Salvar visita</button>
-          </div>
-          {resultado.classificacao==="quente"&&<div style={{marginTop:10,fontSize:11,color:"#E8614B",fontWeight:700}}>🔥 Contato quente: avise a Bruna na hora, assim que sair do estabelecimento (Anexo A).</div>}
-        </div>
-      </div>}
-    </div>;
-  }
-
-  // ── lista de rotas ──
-  return <div>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-      <div style={{fontSize:12,color:C.muted,maxWidth:520,lineHeight:1.5}}>Rotas de prospecção presencial (Anexo A): monte a rota, o apoio registra cada visita em campo, e as paradas quentes viram contatos no CRM com um toque.</div>
-      <button onClick={()=>setNovaRota({data:new Date().toISOString().slice(0,10)})} style={{padding:"9px 16px",borderRadius:7,border:"none",background:C.yellow,color:"#0E0E0C",cursor:"pointer",fontWeight:800,fontSize:13}}>+ Nova rota</button>
-    </div>
-    {rotas.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:12,padding:"30px 0",border:`1.5px dashed ${C.border}`,borderRadius:10}}>Nenhuma rota ainda. Crie a primeira — ex.: "Centro BC — quinta de manhã".</div>}
-    <div style={{display:"grid",gap:8}}>
-      {rotas.map(r=>{const vis=(r.paradas||[]).filter(p=>p.status==="visitado");const quentes=vis.filter(p=>p.classificacao==="quente").length;return(
-        <div key={r.id} onClick={()=>setSel(r)} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 15px",cursor:"pointer"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-            <div style={{flex:1,minWidth:160}}>
-              <div style={{fontWeight:800,fontSize:15,color:C.text}}>{r.nome}</div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{new Date(r.data+"T12:00:00").toLocaleDateString("pt-BR")} · {r.responsavel}{r.regiao?` · ${r.regiao}`:""}</div>
-            </div>
-            <div style={{fontSize:12,color:C.muted,fontWeight:700}}>{vis.length}/{(r.paradas||[]).length} visitadas{quentes>0?<span style={{color:"#E8614B"}}> · 🔥 {quentes}</span>:null}</div>
-          </div>
-        </div>);})}
-    </div>
-    {novaRota&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:60,display:"flex",alignItems:"center",justifyContent:"center",padding:14}} onClick={e=>{if(e.target===e.currentTarget)setNovaRota(null);}}>
-      <div style={{background:"#161614",border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:420,padding:18}}>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:800,color:C.text,marginBottom:12}}>Nova rota</div>
-        <div style={{display:"grid",gap:10}}>
-          <div><label style={lbl}>NOME DA ROTA</label><input style={inp} placeholder="Centro BC — quinta de manhã" value={novaRota.nome||""} onChange={e=>setNovaRota(p=>({...p,nome:e.target.value}))}/></div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div><label style={lbl}>REGIÃO / BAIRRO</label><input style={inp} value={novaRota.regiao||""} onChange={e=>setNovaRota(p=>({...p,regiao:e.target.value}))}/></div>
-            <div><label style={lbl}>DATA</label><input type="date" style={inp} value={novaRota.data||""} onChange={e=>setNovaRota(p=>({...p,data:e.target.value}))}/></div>
-          </div>
-          <div><label style={lbl}>RESPONSÁVEL</label><input style={inp} placeholder="Apoio comercial" value={novaRota.responsavel||""} onChange={e=>setNovaRota(p=>({...p,responsavel:e.target.value}))}/></div>
-        </div>
-        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
-          <button onClick={()=>setNovaRota(null)} style={{padding:"9px 14px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontSize:13}}>Cancelar</button>
-          <button onClick={criar} style={{padding:"9px 18px",borderRadius:7,border:"none",background:C.yellow,color:"#0E0E0C",cursor:"pointer",fontSize:13,fontWeight:800}}>Criar rota</button>
-        </div>
-      </div>
-    </div>}
-  </div>;
-}
-
-// ── FECHAMENTO → KICK-OFF: cria cliente do portal + login + financeiro + etapa ──
-const slugify=t=>(t||"").toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,30)||"cliente";
-const uidFP=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36);
-async function executarFechamento(d,token){
-  const h={"Content-Type":"application/json",apikey:SB_KEY,...(token&&{Authorization:`Bearer ${token}`})};
-  const passos=[];
-  // 1) Login (Supabase Auth)
-  try{
-    const r=await fetch(`${SB_URL}/auth/v1/signup`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_KEY},body:JSON.stringify({email:d.email,password:d.senha,data:{role:"cliente"}})});
-    const j=await r.json();
-    if(r.ok&&j?.id||j?.user){passos.push({p:"Login do cliente (Auth)",ok:true,msg:j?.session?"criado e ativo":"criado — se o login não funcionar de primeira, confirme o e-mail em Supabase → Auth → Users"});}
-    else if((j?.msg||j?.message||"").toLowerCase().includes("already")){passos.push({p:"Login do cliente (Auth)",ok:true,msg:"e-mail já tinha usuário — mantido"});}
-    else passos.push({p:"Login do cliente (Auth)",ok:false,msg:j?.msg||j?.message||"falhou — crie manualmente em Supabase → Auth"});
-  }catch{passos.push({p:"Login do cliente (Auth)",ok:false,msg:"sem conexão"});}
-  // 2) Acesso ao portal (fin_portal_clientes)
-  try{
-    const g=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes?email=eq.${encodeURIComponent(d.email)}&select=cliente_id`,{headers:h}).then(r=>r.json());
-    if(Array.isArray(g)&&g.length>0){passos.push({p:"Acesso ao portal",ok:true,msg:`já existia (${g[0].cliente_id}) — mantido`});d.clienteId=g[0].cliente_id;}
-    else{
-      // senha_hash é legado (login real é via Supabase Auth), mas a coluna é NOT NULL
-      const corpo={id:`${d.clienteId}-portal`,cliente_id:d.clienteId,nome_display:d.nomeDisplay,email:d.email,ativo:true,senha_hash:"auth-supabase"};
-      let r=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes`,{method:"POST",headers:h,body:JSON.stringify(corpo)});
-      if(!r.ok){ // fallback: id em texto (coluna pode não ser uuid)
-        r=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes`,{method:"POST",headers:h,body:JSON.stringify({...corpo,id:(crypto?.randomUUID?crypto.randomUUID():uidFP())})});
-      }
-      passos.push({p:"Acesso ao portal",ok:r.ok,msg:r.ok?`cliente_id "${d.clienteId}"`:`falhou (${(await r.text().catch(()=>""))||"erro"}) — crie via SQL`});
-    }
-  }catch{passos.push({p:"Acesso ao portal",ok:false,msg:"sem conexão"});}
-  // 3) Cliente no Financeiro (fin_clientes)
-  try{
-    const g=await fetch(`${SB_URL}/rest/v1/fin_clientes?deleted_at=is.null&select=id,dados`,{headers:h}).then(r=>r.json());
-    const jaTem=Array.isArray(g)&&g.some(x=>((x.dados?.estabelecimento||x.dados?.cliente||"").toLowerCase()===d.nomeDisplay.toLowerCase()));
-    if(jaTem)passos.push({p:"Cliente no Financeiro",ok:true,msg:"já existia — mantido"});
-    else{
-      const item={id:uidFP(),cliente:d.contatoNome||d.nomeDisplay,estabelecimento:d.nomeDisplay,projeto:d.projeto,statusProjeto:"EM ANDAMENTO",inicio:new Date().toISOString().slice(0,10),vlrContratado:d.valor||"",vlrRecebido:"",forma:"PIX",obs:"Criado pelo fechamento no Comercial",tipoCobranca:"unico",parcelas:1,diaPagamento:5,duracaoMeses:1,servicoTipo:"Consultoria",recebimento:"antecipado",taxaModo:"auto"};
-      const r=await fetch(`${SB_URL}/rest/v1/fin_clientes`,{method:"POST",headers:{...h,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,dados:item,updated_at:new Date().toISOString()})});
-      passos.push({p:"Cliente no Financeiro",ok:r.ok,msg:r.ok?"criado (complete forma de pgto e parcelas lá)":"falhou"});
-    }
-  }catch{passos.push({p:"Cliente no Financeiro",ok:false,msg:"sem conexão"});}
-  // 4) Etapa de kick-off no projeto (portal_etapas) — id fixo = idempotente
-  try{
-    const eid=`kick-${d.clienteId}`;
-    const dados={id:eid,titulo:"Reunião de kick-off",data:d.dataKickoff,tipo:"reuniao",escopo:d.projeto?`Início do projeto: ${d.projeto}`:"Apresentação e alinhamento do projeto",preparar:"Sua presença (ou de alguém com poder de decisão)",done:false};
-    const r=await fetch(`${SB_URL}/rest/v1/portal_etapas`,{method:"POST",headers:{...h,Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:eid,cliente_id:d.clienteId,dados})});
-    passos.push({p:"Kick-off na agenda do projeto",ok:r.ok,msg:r.ok?new Date(d.dataKickoff+"T12:00:00").toLocaleDateString("pt-BR"):"falhou"});
-  }catch{passos.push({p:"Kick-off na agenda do projeto",ok:false,msg:"sem conexão"});}
-  passos.push({p:"Papel do usuário (role + cliente_id)",ok:null,msg:"exige 1 comando no Supabase — veja abaixo"});
-  return passos;
-}
-
-function FecharProjetoModal({contato,onClose,onSave}){
-  const kd=new Date();kd.setDate(kd.getDate()+7);
-  const[d,setD]=useState({nomeDisplay:contato.company||contato.name||"",clienteId:slugify(contato.company||contato.name),email:contato.email||"",senha:"Zeste@"+Math.floor(1000+Math.random()*9000),projeto:"",valor:contato.value||"",dataKickoff:kd.toISOString().slice(0,10),contatoNome:contato.name||""});
-  const[rodando,setRodando]=useState(false);
-  const[resultado,setResultado]=useState(null);
-  const token=typeof window!=="undefined"?(window.__supabaseToken||null):null;
-  const set=(k,v)=>setD(p=>({...p,[k]:v}));
-  const executar=async()=>{
-    if(!d.email||!d.nomeDisplay){alert("Preencha estabelecimento e e-mail do cliente.");return;}
-    setRodando(true);
-    const passos=await executarFechamento({...d},token);
-    if(passos.filter(x=>x.ok!==null).every(x=>x.ok))onSave({...contato,stage:"Cliente",faseAtual:contato.faseAtual||1});
-    setResultado(passos);setRodando(false);
-  };
-  const sqlFinal=d=>`update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data,'{}'::jsonb) || '{"role":"cliente","cliente_id":"${d.clienteId}"}'::jsonb where email = '${d.email}';`;
-  const copiarSQL=()=>{try{navigator.clipboard.writeText(sqlFinal(d));alert("SQL copiado! Cole no Supabase → SQL Editor e clique em Run.");}catch{alert(sqlFinal(d));}};
-  const copiarBoasVindas=()=>{
-    const txt=`Olá, ${d.contatoNome||""}! 🌿\nSeu acesso à Área do Cliente Zeste está pronto:\n\n🔗 zeste-sistema.netlify.app\n📧 ${d.email}\n🔑 ${d.senha}\n\nLá você acompanha o projeto, a agenda e recebe todos os documentos. Qualquer dúvida, é só chamar!`;
-    try{navigator.clipboard.writeText(txt);alert("Mensagem de boas-vindas copiada!");}catch{alert(txt);}
-  };
-  const inp={width:"100%",background:"#222",border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"9px 11px",fontSize:13,outline:"none"};
-  const lbl={fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".06em",display:"block",marginBottom:3};
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.72)",zIndex:60,display:"flex",alignItems:"center",justifyContent:"center",padding:14}} onClick={e=>{if(e.target===e.currentTarget&&!rodando)onClose();}}>
-      <div style={{background:"#161614",border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto",padding:20}}>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:800,color:C.green,marginBottom:2}}>🚀 Fechar projeto</div>
-        <div style={{fontSize:12,color:C.muted,marginBottom:14}}>Cria num passo só: login do cliente, acesso ao portal, registro no Financeiro e o kick-off na agenda.</div>
-        {!resultado?<>
-          <div style={{display:"grid",gap:10}}>
-            <div><label style={lbl}>ESTABELECIMENTO (nome no portal)</label><input style={inp} value={d.nomeDisplay} onChange={e=>{set("nomeDisplay",e.target.value);set("clienteId",slugify(e.target.value));}}/></div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div><label style={lbl}>ID DO CLIENTE (interno)</label><input style={inp} value={d.clienteId} onChange={e=>set("clienteId",slugify(e.target.value))}/></div>
-              <div><label style={lbl}>VALOR CONTRATADO (R$)</label><input style={inp} inputMode="decimal" value={d.valor} onChange={e=>set("valor",e.target.value)}/></div>
-            </div>
-            <div><label style={lbl}>E-MAIL DO CLIENTE (login)</label><input style={inp} type="email" value={d.email} onChange={e=>set("email",e.target.value.trim())}/></div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div><label style={lbl}>SENHA PROVISÓRIA</label><input style={inp} value={d.senha} onChange={e=>set("senha",e.target.value)}/></div>
-              <div><label style={lbl}>DATA DO KICK-OFF</label><input style={inp} type="date" value={d.dataKickoff} onChange={e=>set("dataKickoff",e.target.value)}/></div>
-            </div>
-            <div><label style={lbl}>PROJETO / ESCOPO</label><input style={inp} value={d.projeto} onChange={e=>set("projeto",e.target.value)} placeholder="Ex: Cardápio + fichas técnicas — Etapa 1"/></div>
-          </div>
-          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
-            <button onClick={onClose} disabled={rodando} style={{padding:"9px 16px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontSize:13,color:C.muted}}>Cancelar</button>
-            <button onClick={executar} disabled={rodando} style={{padding:"9px 18px",borderRadius:7,border:"none",background:C.green,color:"#0E0E0C",cursor:"pointer",fontSize:13,fontWeight:800}}>{rodando?"Criando…":"Criar tudo"}</button>
-          </div>
-        </>:<>
-          <div style={{display:"grid",gap:8,marginBottom:14}}>
-            {resultado.map((r,i)=>(<div key={i} style={{display:"flex",gap:8,alignItems:"baseline",fontSize:13,color:C.text}}>
-              <span style={{color:r.ok===null?"#E8B04B":r.ok?C.green:"#E8614B",fontWeight:800}}>{r.ok===null?"⚠":r.ok?"✓":"✗"}</span>
-              <span style={{fontWeight:700}}>{r.p}</span><span style={{color:C.muted,fontSize:12}}>— {r.msg}</span>
-            </div>))}
-          </div>
-          <div style={{background:"#2A2013",border:"1px solid #6B5320",borderLeft:"4px solid #E8B04B",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
-            <div style={{fontSize:11,color:"#E8B04B",fontWeight:800,letterSpacing:".06em",marginBottom:5}}>⚠ FALTA 1 PASSO MANUAL (30 s)</div>
-            <div style={{fontSize:12.5,color:C.text,lineHeight:1.5,marginBottom:9}}>Por segurança, o Supabase não deixa o sistema definir o papel do usuário — sem isso o cliente <b>não consegue entrar</b>. Copie o comando abaixo e rode em <b>Supabase → SQL Editor → Run</b>.</div>
-            <button onClick={copiarSQL} style={{padding:"8px 14px",borderRadius:7,border:"none",background:"#E8B04B",color:"#0E0E0C",cursor:"pointer",fontSize:12.5,fontWeight:800}}>📋 Copiar comando SQL</button>
-          </div>
-          <div style={{background:"#1D1D1A",border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:14}}>
-            <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:".06em",marginBottom:6}}>ACESSO DO CLIENTE</div>
-            <div>🔗 zeste-sistema.netlify.app</div><div>📧 {d.email}</div><div>🔑 {d.senha}</div>
-          </div>
-          <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-            <button onClick={copiarBoasVindas} style={{padding:"9px 14px",borderRadius:7,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontSize:13,color:C.text}}>📋 Copiar boas-vindas</button>
-            <button onClick={onClose} style={{padding:"9px 18px",borderRadius:7,border:"none",background:C.green,color:"#0E0E0C",cursor:"pointer",fontSize:13,fontWeight:800}}>Concluir</button>
-          </div>
-        </>}
+        {children}
       </div>
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// AGENDA COMERCIAL — field sales ancorado no Pipeline
+// Visita = entidade própria (crm_visitas) ligada a um lead (crm_contatos)
+// ═══════════════════════════════════════════════════════════════════
+async function visitasLoad(token){ try{ const r=await fetch(`${SB_URL}/rest/v1/crm_visitas?deleted_at=is.null&order=updated_at.desc&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${token||SB_KEY}`}}); const d=await r.json(); return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id,contato_id:x.contato_id})):[]; }catch{ return []; } }
+async function visitaUpsert(v,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,Prefer:"resolution=merge-duplicates",...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_visitas`,{method:"POST",headers:h,body:JSON.stringify({id:v.id,contato_id:v.contato_id||null,dados:v,updated_at:new Date().toISOString()})}); }
+async function visitaDel(id,token){ const h={"Content-Type":"application/json",apikey:SB_KEY,...(token&&{Authorization:`Bearer ${token}`})}; return fetch(`${SB_URL}/rest/v1/crm_visitas?id=eq.${id}`,{method:"PATCH",headers:h,body:JSON.stringify({deleted_at:new Date().toISOString()})}); }
+
+const PRIORIDADES = { A:{cor:C.red,label:"A · Quente"}, B:{cor:C.orange,label:"B · Morno"}, C:{cor:C.blue,label:"C · Frio"}, D:{cor:C.faint,label:"D · Gelo"} };
+const STATUS_VISITA = {
+  agendada:{cor:C.blue,label:"Agendada",icon:"📅"},
+  realizada:{cor:C.green,label:"Realizada",icon:"✓"},
+  pendente:{cor:C.orange,label:"Pendente",icon:"⏳"},
+  reagendada:{cor:C.gold,label:"Reagendada",icon:"↻"},
+  cancelada:{cor:C.faint,label:"Cancelada",icon:"✕"},
+};
+const RESULTADOS = [
+  {id:"visitado",label:"Visitado, sem avanço",stage:null},
+  {id:"interessado",label:"Interessado",stage:"Leads"},
+  {id:"negociacao",label:"Em negociação",stage:"Negociação / Proposta"},
+  {id:"proposta",label:"Proposta enviada",stage:"Negociação / Proposta"},
+  {id:"fechado",label:"Fechado ✓",stage:"Cliente"},
+  {id:"perdido",label:"Perdido",stage:"Portas Fechadas"},
+  {id:"reagendar",label:"Reagendar",stage:null},
+];
+const diasDesde=(iso)=>{ if(!iso)return null; const d=Math.floor((Date.now()-new Date(iso).getTime())/864e5); return d; };
+
+function AgendaComercial({token,contatos,onUpdateContato}){
+  const [visitas,setVisitas]=useState(null);
+  const [vista,setVista]=useState("lista"); // lista | calendario | mapa
+  const [filtros,setFiltros]=useState({periodo:"todos",resp:"",prio:"",stage:"",semAtividade:false});
+  const [edit,setEdit]=useState(null);       // visita em criação/edição
+  const [resultado,setResultado]=useState(null); // visita em registro de resultado
+  const [detalhe,setDetalhe]=useState(null);
+
+  useEffect(()=>{visitasLoad(token).then(setVisitas);},[token]);
+
+  const salvar=async(v)=>{
+    setVisitas(p=>{const ex=(p||[]).some(x=>x.id===v.id);return ex?p.map(x=>x.id===v.id?v:x):[v,...(p||[])];});
+    if(detalhe?.id===v.id)setDetalhe(v);
+    await visitaUpsert(v,token);
+  };
+  const excluir=async(id)=>{ await visitaDel(id,token); setVisitas(p=>p.filter(x=>x.id!==id)); setDetalhe(null); };
+
+  // registrar resultado → atualiza status, timeline e (se aplicável) o stage do lead no Pipeline
+  const registrarResultado=async(v,res,obs)=>{
+    const rDef=RESULTADOS.find(r=>r.id===res);
+    const agora=new Date().toISOString();
+    const nova={...v,status:res==="reagendar"?"reagendada":"realizada",resultado:res,checkInEm:v.checkInEm||agora,
+      timeline:[...(v.timeline||[]),{em:agora,tipo:"resultado",texto:`${rDef?.label||res}${obs?" — "+obs:""}`}]};
+    await salvar(nova);
+    // espelha no lead do Pipeline
+    if(v.contato_id&&rDef){
+      const ct=contatos.find(c=>c.id===v.contato_id);
+      if(ct){
+        const upd={...ct,
+          ...(rDef.stage?{stage:rDef.stage}:{}),
+          historico:[...(ct.historico||[]),{data:agora.slice(0,10),tipo:"Visita",texto:`Visita ${v.data}: ${rDef.label}${obs?" — "+obs:""}`}]};
+        onUpdateContato&&onUpdateContato(upd);
+      }
+    }
+    setResultado(null); setDetalhe(nova);
+  };
+
+  if(visitas===null) return <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>Carregando agenda…</div>;
+
+  // ── filtros aplicados ──
+  const hoje=new Date().toISOString().slice(0,10);
+  const inicioSemana=(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());return d.toISOString().slice(0,10);})();
+  let lista=visitas.filter(v=>{
+    if(filtros.periodo==="hoje"&&v.data!==hoje)return false;
+    if(filtros.periodo==="semana"&&(v.data<inicioSemana))return false;
+    if(filtros.resp&&v.responsavel!==filtros.resp)return false;
+    if(filtros.prio&&v.prioridade!==filtros.prio)return false;
+    if(filtros.stage&&v.stagePipeline!==filtros.stage)return false;
+    return true;
+  });
+  // ordena por data+hora
+  lista=[...lista].sort((a,b)=>((a.data||"")+ (a.hora||"")).localeCompare((b.data||"")+(b.hora||"")));
+
+  const responsaveis=[...new Set(visitas.map(v=>v.responsavel).filter(Boolean))];
+
+  // ── métricas do dia ──
+  const doDia=visitas.filter(v=>v.data===hoje);
+  const met={
+    programadas:doDia.length,
+    realizadas:doDia.filter(v=>v.status==="realizada").length,
+    pendentes:doDia.filter(v=>v.status==="agendada"||v.status==="pendente").length,
+    reagendadas:doDia.filter(v=>v.status==="reagendada").length,
+    propostas:doDia.filter(v=>v.resultado==="proposta").length,
+    fechados:doDia.filter(v=>v.resultado==="fechado").length,
+  };
+
+  return (
+    <div>
+      {/* DASHBOARD DO DIA */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:18}}>
+        {[["Programadas",met.programadas,C.blue],["Realizadas",met.realizadas,C.green],["Pendentes",met.pendentes,C.orange],["Reagendadas",met.reagendadas,C.gold],["Propostas",met.propostas,C.purple],["Fechados",met.fechados,C.yellow]].map(([l,v,cor])=>(
+          <div key={l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px"}}>
+            <div style={{fontSize:26,fontWeight:800,color:cor,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{v}</div>
+            <div style={{fontSize:10.5,color:C.muted,marginTop:4,letterSpacing:".04em",textTransform:"uppercase"}}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* BARRA: vistas + nova visita */}
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:2,background:C.surface,borderRadius:9,padding:3,border:`1px solid ${C.border}`}}>
+          {[["lista","Lista"],["calendario","Calendário"],["mapa","Mapa"]].map(([id,l])=>(
+            <button key={id} onClick={()=>setVista(id)} style={{padding:"7px 14px",borderRadius:7,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,background:vista===id?C.yellow:"transparent",color:vista===id?C.bg:C.muted}}>{l}</button>
+          ))}
+        </div>
+        <div style={{flex:1}}/>
+        <button onClick={()=>setEdit(makeVisita(contatos))} style={{padding:"9px 18px",borderRadius:8,border:"none",background:C.yellow,color:C.bg,fontWeight:800,fontSize:13,cursor:"pointer"}}>+ Nova visita</button>
+      </div>
+
+      {/* FILTROS */}
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        <select value={filtros.periodo} onChange={e=>setFiltros(f=>({...f,periodo:e.target.value}))} style={selStyle}><option value="todos">Todo período</option><option value="hoje">Hoje</option><option value="semana">Esta semana</option></select>
+        <select value={filtros.resp} onChange={e=>setFiltros(f=>({...f,resp:e.target.value}))} style={selStyle}><option value="">Todos responsáveis</option>{responsaveis.map(r=><option key={r} value={r}>{r}</option>)}</select>
+        <select value={filtros.prio} onChange={e=>setFiltros(f=>({...f,prio:e.target.value}))} style={selStyle}><option value="">Toda prioridade</option>{Object.entries(PRIORIDADES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select>
+        <select value={filtros.stage} onChange={e=>setFiltros(f=>({...f,stage:e.target.value}))} style={selStyle}><option value="">Toda etapa</option>{STAGES.map(s=><option key={s} value={s}>{s}</option>)}</select>
+      </div>
+
+      {vista==="lista" && <VisitasLista lista={lista} onOpen={setDetalhe} onResultado={setResultado}/>}
+      {vista==="calendario" && <VisitasCalendario lista={lista} onOpen={setDetalhe}/>}
+      {vista==="mapa" && <VisitasMapa lista={lista} onOpen={setDetalhe}/>}
+
+      {edit && <VisitaForm visita={edit} contatos={contatos} onClose={()=>setEdit(null)} onSave={async v=>{await salvar(v);setEdit(null);}}/>}
+      {resultado && <ResultadoForm visita={resultado} onClose={()=>setResultado(null)} onSave={registrarResultado}/>}
+      {detalhe && <VisitaDetalhe visita={detalhe} contato={contatos.find(c=>c.id===detalhe.contato_id)} onClose={()=>setDetalhe(null)} onEdit={()=>{setEdit(detalhe);setDetalhe(null);}} onResultado={()=>{setResultado(detalhe);setDetalhe(null);}} onDel={()=>excluir(detalhe.id)}/>}
+    </div>
+  );
+}
+
+const selStyle={padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:C.text,fontSize:12.5,cursor:"pointer"};
+
+function makeVisita(contatos){
+  return {id:uidFP(),contato_id:"",contatoNome:"",contatoEmpresa:"",contatoFone:"",endereco:"",
+    data:new Date().toISOString().slice(0,10),hora:"",responsavel:"",objetivo:"",prioridade:"B",
+    stagePipeline:"",valorPotencial:"",status:"agendada",timeline:[]};
+}
+
+// ── LISTA ──
+function VisitasLista({lista,onOpen,onResultado}){
+  if(lista.length===0) return <div style={{textAlign:"center",color:C.faint,fontSize:13,padding:"46px 0",border:`1.5px dashed ${C.border}`,borderRadius:12}}>Nenhuma visita no filtro atual. Toque em <b style={{color:C.yellow}}>+ Nova visita</b> para agendar a partir de um lead do Pipeline.</div>;
+  // agrupa por data
+  const grupos={};
+  lista.forEach(v=>{(grupos[v.data]=grupos[v.data]||[]).push(v);});
+  const hoje=new Date().toISOString().slice(0,10);
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+      {Object.entries(grupos).map(([data,vs])=>(
+        <div key={data}>
+          <div style={{fontSize:12,fontWeight:700,color:data===hoje?C.yellow:C.muted,marginBottom:8,letterSpacing:".04em"}}>{fmtDataLonga(data)}{data===hoje?" · HOJE":""} <span style={{color:C.faint,fontWeight:400}}>· {vs.length} visita{vs.length>1?"s":""}</span></div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {vs.map(v=><VisitaCard key={v.id} v={v} onOpen={onOpen} onResultado={onResultado}/>)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VisitaCard({v,onOpen,onResultado}){
+  const prio=PRIORIDADES[v.prioridade]||PRIORIDADES.B;
+  const st=STATUS_VISITA[v.status]||STATUS_VISITA.agendada;
+  const dd=diasDesde(v.ultimoContato);
+  const fone=(v.contatoFone||"").replace(/\D/g,"");
+  const stop=e=>e.stopPropagation();
+  return (
+    <div onClick={()=>onOpen(v)} style={{background:C.card,border:`1px solid ${C.border}`,borderLeft:`4px solid ${prio.cor}`,borderRadius:10,padding:"13px 15px",cursor:"pointer",transition:"border-color .12s"}} onMouseEnter={e=>e.currentTarget.style.borderColor=C.yellowDim} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+      <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+        <div style={{textAlign:"center",minWidth:44}}>
+          <div style={{fontSize:17,fontWeight:800,color:C.text,fontFamily:"'Barlow Condensed',sans-serif"}}>{v.hora||"--:--"}</div>
+          <div style={{fontSize:9,color:st.cor,fontWeight:700,marginTop:2}}>{st.icon} {st.label}</div>
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:14.5,fontWeight:700,color:C.text}}>{v.contatoEmpresa||v.contatoNome||"Visita avulsa"}</div>
+          <div style={{fontSize:12,color:C.muted,marginTop:2}}>{v.objetivo||"—"}{v.stagePipeline?` · ${v.stagePipeline}`:""}</div>
+          <div style={{display:"flex",gap:10,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
+            {v.valorPotencial>0&&<span style={{fontSize:11,color:C.green,fontWeight:700}}>R$ {(+v.valorPotencial).toLocaleString("pt-BR")}</span>}
+            <span style={{fontSize:10,color:prio.cor,fontWeight:700}}>{prio.label}</span>
+            {v.responsavel&&<span style={{fontSize:10,color:C.faint}}>{v.responsavel}</span>}
+            {dd!=null&&<span style={{fontSize:10,color:dd>30?C.orange:C.faint}}>{dd}d s/ contato</span>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6,alignItems:"center"}} onClick={stop}>
+          {fone&&<a href={`https://wa.me/55${fone}`} target="_blank" rel="noreferrer" title="WhatsApp" style={acaoBtn(C.green)}>📲</a>}
+          {fone&&<a href={`tel:${fone}`} title="Ligar" style={acaoBtn(C.blue)}>📞</a>}
+          {v.endereco&&<a href={`https://maps.google.com/?q=${encodeURIComponent(v.endereco)}`} target="_blank" rel="noreferrer" title="Maps" style={acaoBtn(C.orange)}>📍</a>}
+          {v.status!=="realizada"&&<button onClick={()=>onResultado(v)} title="Registrar resultado" style={{...acaoBtn(C.yellow),background:C.yellow,color:C.bg,border:"none",fontWeight:800}}>✓</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+const acaoBtn=(cor)=>({display:"inline-flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:cor,fontSize:14,cursor:"pointer",textDecoration:"none"});
+
+// ── CALENDÁRIO (semana atual, simples) ──
+function VisitasCalendario({lista,onOpen}){
+  const hoje=new Date();
+  const dias=[...Array(14)].map((_,i)=>{const d=new Date(hoje);d.setDate(hoje.getDate()+i-2);return d.toISOString().slice(0,10);});
+  const porDia=d=>lista.filter(v=>v.data===d);
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
+      {dias.map(d=>{const vs=porDia(d);const isHoje=d===hoje.toISOString().slice(0,10);return(
+        <div key={d} style={{background:C.card,border:`1px solid ${isHoje?C.yellow:C.border}`,borderRadius:8,padding:8,minHeight:90}}>
+          <div style={{fontSize:10,color:isHoje?C.yellow:C.muted,fontWeight:700,marginBottom:6}}>{fmtDiaCurto(d)}</div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {vs.map(v=>{const p=PRIORIDADES[v.prioridade]||PRIORIDADES.B;return(
+              <div key={v.id} onClick={()=>onOpen(v)} style={{background:C.surface,borderLeft:`3px solid ${p.cor}`,borderRadius:4,padding:"4px 6px",cursor:"pointer"}}>
+                <div style={{fontSize:10,color:C.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.hora} {v.contatoEmpresa||v.contatoNome||"Visita"}</div>
+              </div>
+            );})}
+          </div>
+        </div>
+      );})}
+    </div>
+  );
+}
+
+// ── MAPA (lista com links; sem API key, usa Google Maps por endereço) ──
+function VisitasMapa({lista,onOpen}){
+  const comEnd=lista.filter(v=>v.endereco);
+  const rota=comEnd.map(v=>encodeURIComponent(v.endereco)).join("/");
+  return (
+    <div>
+      {comEnd.length>1&&<a href={`https://www.google.com/maps/dir/${rota}`} target="_blank" rel="noreferrer" style={{display:"inline-block",marginBottom:14,padding:"10px 18px",borderRadius:8,background:C.orange,color:"#fff",fontWeight:700,fontSize:13,textDecoration:"none"}}>🗺 Abrir rota completa no Google Maps ({comEnd.length} paradas)</a>}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {comEnd.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:13,padding:"40px 0",border:`1.5px dashed ${C.border}`,borderRadius:12}}>Nenhuma visita com endereço. Adicione o endereço nas visitas para ver a rota no mapa.</div>}
+        {comEnd.map((v,i)=>{const p=PRIORIDADES[v.prioridade]||PRIORIDADES.B;return(
+          <div key={v.id} onClick={()=>onOpen(v)} style={{background:C.card,border:`1px solid ${C.border}`,borderLeft:`4px solid ${p.cor}`,borderRadius:10,padding:"12px 15px",cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:26,height:26,borderRadius:"50%",background:C.orange,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{i+1}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700,color:C.text}}>{v.contatoEmpresa||v.contatoNome||"Visita"}</div>
+              <div style={{fontSize:11.5,color:C.muted}}>{v.endereco}</div>
+            </div>
+            <a href={`https://maps.google.com/?q=${encodeURIComponent(v.endereco)}`} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={acaoBtn(C.orange)}>📍</a>
+          </div>
+        );})}
+      </div>
+    </div>
+  );
+}
+
+// ── FORM: nova/editar visita (seleciona lead do Pipeline) ──
+function VisitaForm({visita,contatos,onClose,onSave}){
+  const [v,setV]=useState({...visita});
+  const S=(k,val)=>setV(p=>({...p,[k]:val}));
+  const selecionarLead=(id)=>{
+    const c=contatos.find(x=>x.id===id);
+    if(c){setV(p=>({...p,contato_id:id,contatoNome:c.name||"",contatoEmpresa:c.company||"",contatoFone:c.phone||"",endereco:c.endereco||"",stagePipeline:c.stage||"",valorPotencial:c.valor||p.valorPotencial,ultimoContato:(c.historico&&c.historico.length)?c.historico[c.historico.length-1].data:null}));}
+    else setV(p=>({...p,contato_id:""}));
+  };
+  return (
+    <Modal title={visita.contato_id||visita.contatoNome?"Editar visita":"Nova visita"} onClose={onClose}>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div>
+          <label style={lblAg}>Lead do Pipeline</label>
+          <select value={v.contato_id} onChange={e=>selecionarLead(e.target.value)} style={{...inpAg,width:"100%"}}>
+            <option value="">— Selecione um lead cadastrado —</option>
+            {contatos.map(c=><option key={c.id} value={c.id}>{c.company||c.name} {c.stage?`(${c.stage})`:""}</option>)}
+          </select>
+          <div style={{fontSize:11,color:C.faint,marginTop:5}}>A visita é sempre de um lead que já existe no Pipeline. Não cadastre estabelecimento aqui — cadastre no Pipeline primeiro.</div>
+        </div>
+        {v.contato_id&&<div style={{background:C.surface,borderRadius:8,padding:"10px 12px",fontSize:12,color:C.muted}}>
+          📍 {v.endereco||"sem endereço"} · 📞 {v.contatoFone||"sem telefone"} · etapa: {v.stagePipeline||"—"}
+        </div>}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={lblAg}>Data</label><input type="date" value={v.data} onChange={e=>S("data",e.target.value)} style={{...inpAg,width:"100%"}}/></div>
+          <div><label style={lblAg}>Hora</label><input type="time" value={v.hora} onChange={e=>S("hora",e.target.value)} style={{...inpAg,width:"100%"}}/></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={lblAg}>Responsável</label><input value={v.responsavel} onChange={e=>S("responsavel",e.target.value)} placeholder="quem visita" style={{...inpAg,width:"100%"}}/></div>
+          <div><label style={lblAg}>Prioridade</label><select value={v.prioridade} onChange={e=>S("prioridade",e.target.value)} style={{...inpAg,width:"100%"}}>{Object.entries(PRIORIDADES).map(([k,x])=><option key={k} value={k}>{x.label}</option>)}</select></div>
+        </div>
+        <div><label style={lblAg}>Objetivo da visita</label><input value={v.objetivo} onChange={e=>S("objetivo",e.target.value)} placeholder="ex: apresentar proposta, diagnóstico inicial" style={{...inpAg,width:"100%"}}/></div>
+        <div><label style={lblAg}>Valor potencial (R$)</label><input type="number" value={v.valorPotencial} onChange={e=>S("valorPotencial",e.target.value)} placeholder="opcional" style={{...inpAg,width:"100%"}}/></div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:6}}>
+          <button onClick={onClose} style={btnGhost}>Cancelar</button>
+          <button onClick={()=>{if(!v.contato_id&&!v.contatoNome){alert("Selecione um lead do Pipeline.");return;}onSave(v);}} style={btnPri}>Salvar visita</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── FORM: registrar resultado ──
+function ResultadoForm({visita,onClose,onSave}){
+  const [res,setRes]=useState("");
+  const [obs,setObs]=useState("");
+  return (
+    <Modal title="Resultado da visita" onClose={onClose}>
+      <div style={{fontSize:13,color:C.muted,marginBottom:14}}>{visita.contatoEmpresa||visita.contatoNome} · {fmtDataLonga(visita.data)}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:14}}>
+        {RESULTADOS.map(r=>(
+          <button key={r.id} onClick={()=>setRes(r.id)} style={{textAlign:"left",padding:"12px 14px",borderRadius:9,border:`1.5px solid ${res===r.id?C.yellow:C.border}`,background:res===r.id?"rgba(200,240,0,.08)":C.surface,color:C.text,cursor:"pointer",fontSize:13.5,fontWeight:600}}>
+            {r.label}{r.stage&&<span style={{fontSize:11,color:C.faint,fontWeight:400}}> → move para "{r.stage}" no Pipeline</span>}
+          </button>
+        ))}
+      </div>
+      <label style={lblAg}>Observações (viram timeline do lead)</label>
+      <textarea value={obs} onChange={e=>setObs(e.target.value)} rows={3} placeholder="o que rolou, próximos passos…" style={{...inpAg,width:"100%",resize:"vertical"}}/>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
+        <button onClick={onClose} style={btnGhost}>Cancelar</button>
+        <button onClick={()=>{if(!res){alert("Escolha um resultado.");return;}onSave(visita,res,obs);}} style={btnPri}>Registrar</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ── DETALHE da visita (com timeline) ──
+function VisitaDetalhe({visita,contato,onClose,onEdit,onResultado,onDel}){
+  const prio=PRIORIDADES[visita.prioridade]||PRIORIDADES.B;
+  const st=STATUS_VISITA[visita.status]||STATUS_VISITA.agendada;
+  const fone=(visita.contatoFone||"").replace(/\D/g,"");
+  return (
+    <Modal title={visita.contatoEmpresa||visita.contatoNome||"Visita"} onClose={onClose}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+        <span style={{fontSize:11,fontWeight:700,color:st.cor,background:C.surface,padding:"4px 10px",borderRadius:20}}>{st.icon} {st.label}</span>
+        <span style={{fontSize:11,fontWeight:700,color:prio.cor,background:C.surface,padding:"4px 10px",borderRadius:20}}>{prio.label}</span>
+        {visita.stagePipeline&&<span style={{fontSize:11,color:C.muted,background:C.surface,padding:"4px 10px",borderRadius:20}}>{visita.stagePipeline}</span>}
+      </div>
+      <div style={{background:C.card,borderRadius:10,padding:14,marginBottom:14,fontSize:13,color:C.text,lineHeight:1.8}}>
+        <div>📅 {fmtDataLonga(visita.data)} {visita.hora&&`· ${visita.hora}`}</div>
+        {visita.objetivo&&<div>🎯 {visita.objetivo}</div>}
+        {visita.responsavel&&<div>👤 {visita.responsavel}</div>}
+        {visita.valorPotencial>0&&<div>💰 R$ {(+visita.valorPotencial).toLocaleString("pt-BR")}</div>}
+        {visita.endereco&&<div>📍 {visita.endereco}</div>}
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {fone&&<a href={`https://wa.me/55${fone}`} target="_blank" rel="noreferrer" style={{...acaoBtn(C.green),flex:1,height:38}}>📲 WhatsApp</a>}
+        {fone&&<a href={`tel:${fone}`} style={{...acaoBtn(C.blue),flex:1,height:38}}>📞 Ligar</a>}
+        {visita.endereco&&<a href={`https://maps.google.com/?q=${encodeURIComponent(visita.endereco)}`} target="_blank" rel="noreferrer" style={{...acaoBtn(C.orange),flex:1,height:38}}>📍 Maps</a>}
+      </div>
+      {(visita.timeline&&visita.timeline.length>0)&&<div style={{marginBottom:16}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:".08em",marginBottom:8}}>TIMELINE</div>
+        {visita.timeline.slice().reverse().map((t,i)=>(
+          <div key={i} style={{display:"flex",gap:10,paddingBottom:10}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:C.yellow,marginTop:5,flexShrink:0}}/>
+            <div><div style={{fontSize:12.5,color:C.text}}>{t.texto}</div><div style={{fontSize:10,color:C.faint}}>{new Date(t.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div></div>
+          </div>
+        ))}
+      </div>}
+      <div style={{display:"flex",gap:8,justifyContent:"space-between",borderTop:`1px solid ${C.border}`,paddingTop:14}}>
+        <button onClick={onDel} style={{...btnGhost,color:C.red,borderColor:"#7A2E1E"}}>Excluir</button>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onEdit} style={btnGhost}>Editar</button>
+          {visita.status!=="realizada"&&<button onClick={onResultado} style={btnPri}>✓ Registrar resultado</button>}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+const lblAg={display:"block",fontSize:11,fontWeight:700,color:C.muted,letterSpacing:".06em",textTransform:"uppercase",marginBottom:5};
+const inpAg={padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:C.text,fontSize:13.5,fontFamily:"inherit"};
+const btnGhost={padding:"9px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.text,cursor:"pointer",fontSize:13};
+const btnPri={padding:"9px 18px",borderRadius:8,border:"none",background:C.yellow,color:C.bg,fontWeight:800,cursor:"pointer",fontSize:13};
+
+function fmtDataLonga(iso){if(!iso)return"—";const [a,m,d]=iso.split("-");const meses=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];const dt=new Date(iso+"T12:00");const dow=["dom","seg","ter","qua","qui","sex","sáb"][dt.getDay()];return `${dow} · ${d}/${meses[+m-1]}`;}
+function fmtDiaCurto(iso){const dt=new Date(iso+"T12:00");const dow=["D","S","T","Q","Q","S","S"][dt.getDay()];const [,,d]=iso.split("-");return `${dow} ${d}`;}
 
 // ── CLIENTES ATIVOS — carteira e pós-venda ───────────────────────
 const FASES_POSVENDA=["Enxergar","Estruturar","Evoluir","Escalar","Elevar"];
