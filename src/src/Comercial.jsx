@@ -304,6 +304,7 @@ const FICHA_FIELDS = [
   {key:"obs",label:"Observações Gerais",big:true},
 ];
 function makeEmpty(){return{id:Date.now(),name:"",company:"",stage:"Prospects",email:"",phone:"",segmento:"",endereco:"",bairro:"",regiao:"",proximaReuniao:"",tipoReuniao:"Reunião",horarioReuniao:"",diagChecklist:{},diagNotes:{},proximosPassos:{},ficha:{},historico:[]};}
+const setaKanban=(lado)=>({position:"absolute",top:"50%",[lado]:-6,transform:"translateY(-50%)",zIndex:20,width:44,height:64,borderRadius:12,border:"none",background:"rgba(200,240,0,0.92)",color:"#0E0E0C",fontSize:30,fontWeight:800,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1});
 function getTotals(dc){const total=DIAG_BLOCKS.reduce((s,b)=>s+b.items.length,0);const done=DIAG_BLOCKS.reduce((s,b)=>s+b.items.filter(i=>dc?.[i.id]).length,0);return{total,done,pct:total===0?0:Math.round((done/total)*100)};}
 
 // ─── SHARED STYLES ────────────────────────────────────────────────────────────
@@ -368,10 +369,11 @@ function DiagItem({item,idx,done,note,blockAccent,blockColor,onToggle,onNoteChan
   return <div style={{borderTop:idx>0?"1px solid #1E1E1C":"none"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:done?`${blockColor}22`:"transparent"}}>
       <div onClick={onToggle} style={{width:24,height:24,borderRadius:6,flexShrink:0,cursor:"pointer",background:done?blockAccent:"#2A2A28",display:"flex",alignItems:"center",justifyContent:"center",fontSize:done?11:10,color:done?"#fff":C.faint,fontWeight:700}}>{done?"✓":idx+1}</div>
-      <div style={{flex:1,cursor:"pointer"}} onClick={()=>setExpanded(v=>!v)}>
+      <div style={{flex:1,cursor:"pointer"}} onClick={onToggle}>
         <div style={{fontSize:12,fontWeight:600,color:done?C.faint:C.text,textDecoration:done?"line-through":"none"}}>{item.label}</div>
         <div style={{fontSize:11,color:C.faint,marginTop:1}}>{item.desc}</div>
       </div>
+      <button onClick={()=>setExpanded(v=>!v)} style={{background:"none",border:"none",color:C.faint,cursor:"pointer",fontSize:12,padding:"4px 8px",flexShrink:0}} title="Anotação">{expanded?"▲":"✎"}</button>
       <div onClick={()=>setExpanded(v=>!v)} style={{width:26,height:26,borderRadius:6,cursor:"pointer",background:expanded?`${blockAccent}22`:"#2A2A28",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,border:`1px solid ${expanded?blockAccent:"transparent"}`}}>✏️</div>
     </div>
     {expanded&&<div style={{padding:"0 14px 12px 48px",background:"#161614"}}><textarea value={note||""} onChange={e=>onNoteChange(e.target.value)} placeholder={`Anotações...`} rows={2} autoFocus style={{...inp,resize:"vertical",lineHeight:1.6}}/></div>}
@@ -395,7 +397,7 @@ function CRMModal({contact,onClose,onSave,onDelete,onFechar}){
   const setNote=(id,v)=>setC(p=>({...p,diagNotes:{...p.diagNotes,[id]:v}}));
   const toggleProx=(id)=>setC(p=>({...p,proximosPassos:{...p.proximosPassos,[id]:!p.proximosPassos?.[id]}}));
   const addNota=()=>{if(!newNota.nota.trim())return;setC(p=>({...p,historico:[{data:today,tipo:newNota.tipo,nota:newNota.nota},...(p.historico||[])]}));setNewNota(p=>({...p,nota:""}));};
-  const TABS=[{id:"diagnostico",icon:"🩺",label:"Diag.",badge:`${pct}%`},{id:"proximos",icon:"➡️",label:"Passos",badge:ppCount>0?String(ppCount):null},{id:"ficha",icon:"📋",label:"Ficha",badge:null},{id:"historico",icon:"🗂",label:"Hist.",badge:c.historico?.length>0?String(c.historico.length):null}];
+  const TABS=[{id:"diagnostico",icon:"🩺",label:"Briefing",badge:`${pct}%`},{id:"proximos",icon:"➡️",label:"Passos",badge:ppCount>0?String(ppCount):null},{id:"ficha",icon:"📋",label:"Ficha",badge:null},{id:"historico",icon:"🗂",label:"Hist.",badge:c.historico?.length>0?String(c.historico.length):null}];
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:12}}>
     <div style={{background:C.surface,borderRadius:16,width:"100%",maxWidth:720,maxHeight:"94vh",display:"flex",flexDirection:"column",boxShadow:"0 40px 100px rgba(0,0,0,0.6)",overflow:"hidden",border:`1px solid ${C.border}`}}>
       <div style={{background:meta.accent,padding:"16px 20px 12px",flexShrink:0}}>
@@ -431,7 +433,7 @@ function CRMModal({contact,onClose,onSave,onDelete,onFechar}){
         {tab==="diagnostico"&&<div>
           <div style={{background:C.card,borderRadius:12,padding:"12px 16px",marginBottom:14,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:14}}>
             <div style={{position:"relative",width:50,height:50,flexShrink:0}}><Ring pct={pct} accent={meta.accent} size={50} stroke={5}/><div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:meta.accent}}>{pct}%</div></div>
-            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:C.text}}>Diagnóstico Operacional</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{done}/{total} pontos levantados</div><div style={{marginTop:6,height:3,background:"#2A2A28",borderRadius:10}}><div style={{width:`${pct}%`,height:"100%",background:meta.accent,borderRadius:10,transition:"width 0.4s"}}/></div></div>
+            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:C.text}}>Briefing Técnico</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{done}/{total} pontos levantados</div><div style={{marginTop:6,height:3,background:"#2A2A28",borderRadius:10}}><div style={{width:`${pct}%`,height:"100%",background:meta.accent,borderRadius:10,transition:"width 0.4s"}}/></div></div>
           </div>
           {DIAG_BLOCKS.map(block=>{const bd=block.items.filter(i=>c.diagChecklist?.[i.id]).length,bt=block.items.length,isOpen=openBlock===block.id;return <div key={block.id} style={{marginBottom:7,borderRadius:10,overflow:"hidden",border:`1.5px solid ${isOpen?block.accent:C.border}`}}>
             <div onClick={()=>setOpenBlock(isOpen?null:block.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",background:isOpen?`${block.color}11`:C.card}}>
@@ -560,7 +562,10 @@ function CRMView({modo="pipeline"}){
     ) : modo==="clientes" ? (
       <ClientesAtivos contacts={filtered.filter(c=>c.stage==="Cliente")} onOpen={setSelected} onSave={saveContact}/>
     ) : (
-    <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:8,alignItems:"flex-start",scrollSnapType:"x proximity",WebkitOverflowScrolling:"touch"}}>
+    <div style={{position:"relative"}}>
+      <button onClick={()=>{const el=document.getElementById("kanbanScroll");if(el)el.scrollBy({left:-240,behavior:"smooth"});}} aria-label="Etapa anterior" style={setaKanban("left")}>‹</button>
+      <button onClick={()=>{const el=document.getElementById("kanbanScroll");if(el)el.scrollBy({left:240,behavior:"smooth"});}} aria-label="Próxima etapa" style={setaKanban("right")}>›</button>
+      <div id="kanbanScroll" style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:8,alignItems:"flex-start",scrollSnapType:"x mandatory",WebkitOverflowScrolling:"touch",scrollPaddingLeft:8}}>
       {STAGES.filter(s=>modo==="pipeline"?s!=="Cliente":true).map(stage=>{const meta=STAGE_META[stage],stageC=filtered.filter(c=>c.stage===stage);return <div key={stage} style={{minWidth:220,flex:"0 0 220px",display:"flex",flexDirection:"column",maxHeight:"calc(100vh - 215px)",scrollSnapAlign:"start"}}>
         <div style={{marginBottom:8,padding:"9px 12px",background:C.card,borderRadius:8,border:`1px solid ${C.border}`,borderTop:`3px solid ${meta.accent}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div><div style={{fontWeight:700,fontSize:11,color:C.text}}>{stage}</div><div style={{fontSize:10,color:C.muted,marginTop:1}}>{stageC.length} contato{stageC.length!==1?"s":""}</div></div>
@@ -571,6 +576,7 @@ function CRMView({modo="pipeline"}){
           {stageC.length===0&&<div style={{textAlign:"center",color:C.faint,fontSize:11,padding:"16px 0",borderRadius:8,border:`1.5px dashed ${C.border}`,marginTop:4}}>Nenhum contato</div>}
         </div>
       </div>;})}
+      </div>
     </div>
     )}
     {selected&&<CRMModal contact={selected} onClose={()=>setSelected(null)} onSave={saveContact} onDelete={deleteContact} onFechar={c=>{setSelected(null);setFechando(c);}}/>}
@@ -675,7 +681,7 @@ const RESULT=[
   {id:"fechado",l:"Fechado ✓",stage:"Cliente"},
   {id:"perdido",l:"Perdido",stage:"Portas Fechadas"},
 ];
-const diasSem=iso=>{if(!iso)return null;return Math.floor((Date.now()-new Date(iso).getTime())/864e5);};
+const diasSem=iso=>{if(!iso)return null;const t=new Date(iso).getTime();if(isNaN(t))return null;return Math.floor((Date.now()-t)/864e5);};
 const ultInter=c=>{const h=c?.historico;return (h&&h.length)?h[h.length-1].data:null;};
 
 // Modal responsivo: full-screen no mobile, drawer lateral no desktop
@@ -733,12 +739,13 @@ function AgendaComercial({token,contatos,onUpdateContato}){
   const leadsComVisita=new Set(visitas.filter(v=>v.status!=="realizada").map(v=>v.contato_id));
   const pesoStage={"Negociação / Proposta":3,"Leads":2,"Prospects":1,"Cliente":1,"Portas Fechadas":0};
   const sugestoes=(contatos||[]).filter(c=>c.stage!=="Portas Fechadas"&&!leadsComVisita.has(c.id))
-    .map(c=>({c,dias:diasSem(ultInter(c))??999,peso:pesoStage[c.stage]||0}))
+    .map(c=>{const d=diasSem(ultInter(c));return {c,dias:(d==null||isNaN(d))?999:d,peso:pesoStage[c.stage]||0};})
     .sort((a,b)=>(b.peso-a.peso)||(b.dias-a.dias)).slice(0,4);
 
   // métricas
   const doDia=visitas.filter(v=>v.data===hoje);
-  const met=[["Hoje",doDia.length,"#3A7BD5"],["Feitas",doDia.filter(v=>v.status==="realizada").length,"#2E8B57"],["Pendentes",doDia.filter(v=>v.status!=="realizada").length,"#E8672A"],["Fechados",doDia.filter(v=>v.resultado==="fechado").length,"#C8F000"]];
+  const pendentesTodas=visitas.filter(v=>v.status!=="realizada");
+  const met=[["Hoje",doDia.length,"#3A7BD5"],["Pendentes",pendentesTodas.length,"#E8672A"],["Feitas",visitas.filter(v=>v.status==="realizada").length,"#2E8B57"],["Fechados",visitas.filter(v=>v.resultado==="fechado").length,"#C8F000"]];
 
   return (
     <div style={{paddingBottom:80}}>
@@ -752,7 +759,7 @@ function AgendaComercial({token,contatos,onUpdateContato}){
 
       {/* vistas */}
       <div style={{display:"flex",gap:3,background:C.surface,borderRadius:10,padding:3,border:`1px solid ${C.border}`,marginBottom:12}}>
-        {[["hoje","Hoje"],["lista","Todas"],["mapa","Mapa"]].map(([id,l])=>(
+        {[["hoje","Hoje"],["timeline","Timeline"],["lista","Todas"],["mapa","Mapa"]].map(([id,l])=>(
           <button key={id} onClick={()=>setVista(id)} style={{flex:1,padding:"9px 6px",borderRadius:7,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,background:vista===id?C.yellow:"transparent",color:vista===id?C.bg:C.muted}}>{l}</button>
         ))}
       </div>
@@ -782,7 +789,7 @@ function AgendaComercial({token,contatos,onUpdateContato}){
       </div>}
 
       {/* conteúdo */}
-      {vista==="mapa" ? <MapaVisitas lista={lista} onOpen={setDetalhe}/> : <ListaVisitas lista={lista} onOpen={setDetalhe} onResult={setResultado} vazio={vista==="hoje"?"Nenhuma visita hoje. Use as sugestões acima ou toque em + para agendar.":"Nenhuma visita. Toque em + para agendar a partir de um lead."}/>}
+      {vista==="timeline" ? <TimelineVisitas visitas={visitas} onOpen={setDetalhe}/> : vista==="mapa" ? <MapaVisitas lista={lista} onOpen={setDetalhe}/> : <ListaVisitas lista={lista} onOpen={setDetalhe} onResult={setResultado} vazio={vista==="hoje"?"Nenhuma visita hoje. Use as sugestões acima ou toque em + para agendar.":"Nenhuma visita. Toque em + para agendar a partir de um lead."}/>}
 
       {/* FAB */}
       <button onClick={()=>setNovo({})} title="Nova visita" style={{position:"fixed",right:"max(18px,env(safe-area-inset-right))",bottom:"max(18px,env(safe-area-inset-bottom))",width:56,height:56,borderRadius:"50%",background:C.yellow,color:C.bg,border:"none",fontSize:28,fontWeight:800,cursor:"pointer",boxShadow:"0 6px 24px rgba(200,240,0,.4)",zIndex:90}}>+</button>
@@ -842,6 +849,38 @@ function MapaVisitas({lista,onOpen}){
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:700,color:C.text}}>{v.contatoEmpresa||v.contatoNome||"Visita"}</div><div style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.endereco}</div></div>
       </div>)}
     </div>
+  </div>;
+}
+
+
+// TIMELINE — visão Hoje / Esta semana / Próximas
+function TimelineVisitas({visitas,onOpen}){
+  const hoje=new Date().toISOString().slice(0,10);
+  const d=new Date(); d.setDate(d.getDate()+(7-d.getDay())); const fimSemana=d.toISOString().slice(0,10);
+  const pend=visitas.filter(v=>v.status!=="realizada").sort((a,b)=>((a.data||"")+(a.hora||"")).localeCompare((b.data||"")+(b.hora||"")));
+  const grupos=[
+    {t:"HOJE",cor:C.yellow,vs:pend.filter(v=>v.data===hoje)},
+    {t:"ESTA SEMANA",cor:"#3A7BD5",vs:pend.filter(v=>v.data>hoje&&v.data<=fimSemana)},
+    {t:"PRÓXIMAS",cor:C.muted,vs:pend.filter(v=>v.data>fimSemana)},
+  ];
+  const semData=pend.filter(v=>!v.data);
+  if(pend.length===0)return <div style={{textAlign:"center",color:C.faint,fontSize:13,padding:"44px 20px",border:`1.5px dashed ${C.border}`,borderRadius:12}}>Nenhuma visita pendente. Tudo em dia! 🎉</div>;
+  return <div style={{display:"flex",flexDirection:"column",gap:22}}>
+    {grupos.map(g=>g.vs.length>0&&<div key={g.t}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+        <div style={{width:9,height:9,borderRadius:"50%",background:g.cor}}/>
+        <div style={{fontSize:12,fontWeight:800,color:g.cor,letterSpacing:".08em"}}>{g.t}</div>
+        <div style={{flex:1,height:1,background:C.border}}/>
+        <div style={{fontSize:11,color:C.faint}}>{g.vs.length}</div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:8,paddingLeft:4,borderLeft:`2px solid ${g.cor}33`,marginLeft:4}}>
+        {g.vs.map(v=><div key={v.id} style={{paddingLeft:12}}><CardVisita v={v} onOpen={onOpen} onResult={()=>{}}/></div>)}
+      </div>
+    </div>)}
+    {semData.length>0&&<div>
+      <div style={{fontSize:12,fontWeight:800,color:C.faint,letterSpacing:".08em",marginBottom:10}}>SEM DATA</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>{semData.map(v=><CardVisita key={v.id} v={v} onOpen={onOpen} onResult={()=>{}}/>)}</div>
+    </div>}
   </div>;
 }
 
