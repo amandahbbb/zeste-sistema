@@ -644,6 +644,13 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
 
 // ── PRODUÇÃO TAB ──────────────────────────────────────────────────
 function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli,token,clienteAtivo}){
+  // SEGURANÇA (defesa em profundidade): cliente só vê os próprios itens + base zeste.
+  // Mesmo que o RLS falhe, nada de outro cliente aparece aqui.
+  const _cli=clienteAtivo||meuCli;
+  if(_cli&&_cli!=='zeste'){
+    pratosCalc=pratosCalc.filter(p=>p._cliente===_cli);
+    fichasCalc=fichasCalc.filter(f=>f._cliente===_cli);
+  }
   const[linhas,setLinhas]=useState([]);
   const[resultado,setResultado]=useState(null);
   const[copiado,setCopiado]=useState(false);
