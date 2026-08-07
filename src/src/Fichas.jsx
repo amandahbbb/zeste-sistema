@@ -206,7 +206,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
     const qtdLiq=Number(it.qtdLiquida)||0;
     const custo=qtdLiq*fc*precoKg;
     const pesoFinal=qtdLiq*fk;
-    return{...it,precoKg,fc,fk,custo,pesoFinal};
+    return{...it,precoKg,fc,fk,custo,pesoFinal,fornecedorNome:ref?.fornecedorNome};
   });
   const custoSomado=calcItems.reduce((s,i)=>s+i.custo,0);
   const pesoFinalPrev=calcItems.reduce((s,i)=>s+(i.pesoFinal||0),0);
@@ -233,7 +233,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
     </div>
     {calcItems.map((it,i)=>(<div key={i} style={{background:'var(--cinzaF)',borderRadius:10,padding:'12px 14px',marginBottom:8,border:'1px solid var(--cinzaM)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-        <div><div style={{fontSize:14,fontWeight:700}}>{it.nomeRef}{it.ehVersaoCliente&&<span style={{marginLeft:6,fontSize:9,fontWeight:700,color:'#92400E',background:'#FEF3C7',padding:'1px 6px',borderRadius:6}}>SEU PREÇO</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(it.precoKg)}/kg{it.ehVersaoCliente?` · base: ${brl(it.precoBase)}`:''}{it.fc>1?` · FC ${num(it.fc)}`:''}</div></div>
+        <div><div style={{fontSize:14,fontWeight:700}}>{it.nomeRef}{it.ehVersaoCliente&&<span style={{marginLeft:6,fontSize:9,fontWeight:700,color:'#92400E',background:'#FEF3C7',padding:'1px 6px',borderRadius:6}}>SEU PREÇO</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(it.precoKg)}/kg{it.ehVersaoCliente?` · base: ${brl(it.precoBase)}`:''}{it.fc>1?` · FC ${num(it.fc)}`:''}{it.fornecedorNome?` · 🏪 ${it.fornecedorNome}`:''}</div></div>
         <button onClick={()=>remItem(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
       {it.tipo!=='ficha'&&ingredientes.filter(g=>g.nome===it.nomeRef).length>1&&<div style={{marginBottom:8}}>
@@ -431,7 +431,7 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLix
         <div className="ft-fld h"><label className="ft-flbl">Fator Correção</label><NumInput step="0.01" value={edit.fc} onChange={v=>setEdit(f=>({...f,fc:v}))}/></div>
         <div className="ft-fld h"><label className="ft-flbl">Fator Cocção</label><NumInput step="0.01" value={edit.fk} onChange={v=>setEdit(f=>({...f,fk:v}))}/></div>
       </div>
-      {edit.nome&&edit.id&&(edit._cliente&&edit._cliente!=='zeste'||clienteFilterAtivo)&&<SecaoFornecedores ing={edit} cli={edit._cliente&&edit._cliente!=='zeste'?edit._cliente:(clienteFilterAtivo||'zeste')} token={tokenIng} onPrecoAtual={p=>setEdit(f=>({...f,p}))}/>}
+      {edit.nome&&edit.id&&(edit._cliente&&edit._cliente!=='zeste'||clienteFilterAtivo)&&<SecaoFornecedores ing={edit} cli={edit._cliente&&edit._cliente!=='zeste'?edit._cliente:(clienteFilterAtivo||'zeste')} token={tokenIng} onPrecoAtual={(p,nome)=>setEdit(f=>({...f,p,...(nome&&nome!=='—'?{fornecedorNome:nome}:{})}))}/>}
       <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}>
         {edit.nome&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(edit.id);setEdit(null);}}>🗑</button>}
         <button className="ft-btn ft-btn-g" onClick={()=>setEdit(null)}>Cancelar</button>
@@ -461,14 +461,14 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
     for(const p of precos){if(p.atual&&p.id!==row.id)await precoUpsert({...p,atual:false,atualizado_em:new Date().toISOString()},token);}
     await precoUpsert({...row,atual:true,atualizado_em:new Date().toISOString()},token);
     setPrecos(precos.map(p=>({...p,atual:p.id===row.id})));
-    onPrecoAtual(+row.preco); // sobe o preço pro form do ingrediente (vira o p)
+    onPrecoAtual(+row.preco,nomeForn(row.fornecedor_id)); // sobe o preço pro form do ingrediente (vira o p)
   };
   const addPreco=async()=>{
     const precoNum=parseFloat(String(nf.preco).replace(',','.'))||0;
     if(!nf.fornId||!(precoNum>0)){alert("Escolha o fornecedor e informe o preço.");return;}
     const row={id:uid(),cliente_id:cli,ingrediente_id:ing.id,fornecedor_id:nf.fornId,preco:precoNum,unidade:nf.unidade,atual:precos.length===0,atualizado_em:new Date().toISOString()};
     await precoUpsert(row,token);
-    if(row.atual)onPrecoAtual(precoNum);
+    if(row.atual)onPrecoAtual(precoNum,nomeForn(nf.fornId));
     setPrecos([...precos,row]);setNf({fornId:"",preco:"",unidade:ing.un||"KG"});setAddNovo(false);
   };
   const removerPreco=async(row)=>{
@@ -495,7 +495,7 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
         <input type="text" inputMode="decimal" value={editPreco} onChange={e=>setEditPreco(e.target.value.replace(/[^0-9.,]/g,''))} placeholder="ex: 18,90" style={{display:'block',width:'100%',boxSizing:'border-box',border:'2px solid var(--lima)',borderRadius:8,padding:'13px 14px',fontSize:17,fontWeight:700,background:'#fff',marginBottom:8}}/>
         <div style={{display:'flex',gap:8}}>
           <button className="ft-btn ft-btn-g" style={{flex:1,padding:'11px',fontSize:14}} onClick={()=>setEditId(null)}>Cancelar</button>
-          <button className="ft-btn ft-btn-p" style={{flex:1,padding:'11px',fontSize:14}} onClick={async()=>{const pv=parseFloat(String(editPreco).replace(',','.'))||0;const nr={...row,preco:pv,atualizado_em:new Date().toISOString()};await precoUpsert(nr,token);setPrecos(precos.map(p=>p.id===row.id?nr:p));if(nr.atual)onPrecoAtual(pv);setEditId(null);}}>Salvar preço</button>
+          <button className="ft-btn ft-btn-p" style={{flex:1,padding:'11px',fontSize:14}} onClick={async()=>{const pv=parseFloat(String(editPreco).replace(',','.'))||0;const nr={...row,preco:pv,atualizado_em:new Date().toISOString()};await precoUpsert(nr,token);setPrecos(precos.map(p=>p.id===row.id?nr:p));if(nr.atual)onPrecoAtual(pv,nomeForn(row.fornecedor_id));setEditId(null);}}>Salvar preço</button>
         </div>
       </div>
     ):(<div key={row.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:8,marginBottom:6,background:row.atual?'#F4F7E8':'var(--cinzaF)',border:row.atual?'1.5px solid var(--lima)':'1px solid transparent'}}>
