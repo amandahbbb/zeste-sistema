@@ -7,7 +7,7 @@ import { calcAllFichas, calcPrato, pickIngrediente } from "./cmv.js";
 const SB_URL="https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
 function sbH(t){return{"apikey":SB_KEY,"Authorization":`Bearer ${t||SB_KEY}`,"Content-Type":"application/json","Prefer":"return=representation"};}
-async function sbLoad(table,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?deleted_at=is.null&order=created_at.desc`,{headers:sbH(t)});if(!r.ok)return null;const d=await r.json();return Array.isArray(d)?d.map(r=>({...r.dados,_id:r.id,_cliente:r.cliente_id})):null;}catch{return null;}}
+async function sbLoad(table,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?deleted_at=is.null&order=created_at.desc`,{headers:sbH(t)});if(!r.ok)return null;const d=await r.json();return Array.isArray(d)?d.map(r=>({...r.dados,_id:r.id,_cliente:r.cliente_id,_criadoEm:r.created_at})):null;}catch{return null;}}
 async function sbLoadAll(table,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?order=created_at.desc`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(r=>r.dados||r):[];}catch{return[];}}
 async function sbUpsert(table,item,clienteId,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:item.id,cliente_id:clienteId||'zeste',dados:item,updated_at:new Date().toISOString()})});if(!r.ok){toast("Erro ao salvar — tente de novo","erro");return false;}toast("✓ Salvo");return true;}catch{toast("Sem conexão — não foi salvo","erro");return false;}}
 async function sbDel(table,id,t){try{const r=await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`,{method:"PATCH",headers:sbH(t),body:JSON.stringify({deleted_at:new Date().toISOString()})});if(!r.ok){toast("Erro ao excluir","erro");return false;}toast("✓ Excluído");return true;}catch{toast("Sem conexão — não foi excluído","erro");return false;}}
@@ -408,7 +408,7 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLix
     <div className="ft-pc"><div className="ft-card">
       {filtered.length===0&&<div style={{padding:32,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhum ingrediente encontrado. Limpe a busca ou toque em “+ Novo” para cadastrar.</div>}
       {filtered.map(i=>(<div key={i.id} className="ft-row" onClick={()=>setEdit({...i})}>
-        <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{i.nome}</div><div style={{fontSize:11,color:'var(--cinzaE)',marginTop:2}}>{i.un} · FC {num(i.fc)} · FK {num(i.fk)}</div></div>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{i.nome}</div><div style={{fontSize:11,color:'var(--cinzaE)',marginTop:2}}>{i.un} · FC {num(i.fc)} · FK {num(i.fk)}{i._cliente?` · ${({zeste:'Zeste','440':'440 Restaurante','440-conf':'440 Confeitaria','mimo-baby':'Mimo Baby'}[i._cliente]||i._cliente)}`:''}{i._criadoEm?` · ${new Date(i._criadoEm).toLocaleDateString('pt-BR')}`:''}</div></div>
         <div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)',flexShrink:0}}>{brl(i.p)}</div>
       </div>))}
     </div></div>
@@ -433,7 +433,7 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLix
       </div>
       {edit.nome&&edit.id&&(edit._cliente&&edit._cliente!=='zeste'||clienteFilterAtivo)&&<SecaoFornecedores ing={edit} cli={edit._cliente&&edit._cliente!=='zeste'?edit._cliente:(clienteFilterAtivo||'zeste')} token={tokenIng} onPrecoAtual={(p,nome)=>setEdit(f=>({...f,p,...(nome&&nome!=='—'?{fornecedorNome:nome}:{})}))}/>}
       <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}>
-        {edit.nome&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(edit.id);setEdit(null);}}>🗑</button>}
+        {edit.nome&&edit._cliente&&edit._cliente!=='zeste'&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(edit.id);setEdit(null);}}>🗑</button>}
         <button className="ft-btn ft-btn-g" onClick={()=>setEdit(null)}>Cancelar</button>
         <button className="ft-btn ft-btn-p" onClick={()=>{onSave(edit);setEdit(null);}}>Salvar</button>
       </div>
