@@ -172,7 +172,7 @@ function ItemPicker({open,onClose,ingredientes,fichasCalc,allowFicha=true,onPick
       <button onClick={()=>setTab('fic')} style={{flex:1,padding:'9px 12px',borderRadius:8,border:`1.5px solid ${tab==='fic'?'var(--azul)':'var(--cinzaM)'}`,background:tab==='fic'?'var(--azul)':'transparent',color:tab==='fic'?'var(--branco)':'var(--cinzaE)',fontWeight:700,fontSize:13}}>📋 Sub-fichas</button>
     </div>}
     <div style={{maxHeight:300,overflowY:'auto'}}>
-      {tab==='ing'&&filtIng.map(i=>(<div key={i.id} className="ft-row" style={{borderBottom:'1px solid var(--cinzaF)'}} onClick={()=>{onPick({tipo:'ing',nomeRef:i.nome});onClose();}}>
+      {tab==='ing'&&filtIng.map(i=>(<div key={i.id} className="ft-row" style={{borderBottom:'1px solid var(--cinzaF)'}} onClick={()=>{onPick({tipo:'ing',nomeRef:i.nome,ingId:i.id});onClose();}}>
         <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{i.nome}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{i.un} · {brl(i.p)}/kg · FC {num(i.fc)}</div></div>
       </div>))}
       {tab==='fic'&&filtFic.map(f=>(<div key={f.id} className="ft-row" style={{borderBottom:'1px solid var(--cinzaF)'}} onClick={()=>{onPick({tipo:'ficha',nomeRef:f.nome});onClose();}}>
@@ -199,7 +199,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
   })}));
   // Calcular custos em tempo real
   const calcItems=f.itens.map(it=>{
-    const ref=it.tipo==='ficha'?fichasCalc.find(fc=>fc.nome===it.nomeRef):ingredientes.find(ig=>ig.nome===it.nomeRef);
+    const ref=it.tipo==='ficha'?fichasCalc.find(fc=>fc.nome===it.nomeRef):(ingredientes.find(ig=>ig.id===it.ingId)||ingredientes.find(ig=>ig.nome===it.nomeRef));
     const precoKg=it.tipo==='ficha'?(ref?._custoPorKg||0):(ref?.p||0);
     const fc=it.tipo==='ficha'?1:(it.fc!=null&&it.fc!==''?+it.fc:(ref?.fc||1));
     const fk=it.tipo==='ficha'?1:(it.fk!=null&&it.fk!==''?+it.fk:(ref?.fk||1));
@@ -236,6 +236,13 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         <div><div style={{fontSize:14,fontWeight:700}}>{it.nomeRef}{it.ehVersaoCliente&&<span style={{marginLeft:6,fontSize:9,fontWeight:700,color:'#92400E',background:'#FEF3C7',padding:'1px 6px',borderRadius:6}}>SEU PREÇO</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(it.precoKg)}/kg{it.ehVersaoCliente?` · base: ${brl(it.precoBase)}`:''}{it.fc>1?` · FC ${num(it.fc)}`:''}</div></div>
         <button onClick={()=>remItem(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
+      {it.tipo!=='ficha'&&ingredientes.filter(g=>g.nome===it.nomeRef).length>1&&<div style={{marginBottom:8}}>
+        <label className="ft-flbl">FORNECEDOR / VERSÃO</label>
+        <select value={it.ingId||''} onChange={e=>updItem(i,'ingId',e.target.value)} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 8px',fontSize:13,background:'#fff',colorScheme:'light'}}>
+          <option value="">Automático (base)</option>
+          {ingredientes.filter(g=>g.nome===it.nomeRef).map(g=><option key={g.id} value={g.id}>{g.un} · {brl(g.p)}/kg{g.fornecedor?` · ${g.fornecedor}`:''}</option>)}
+        </select>
+      </div>}
       <div style={{display:'flex',gap:12,alignItems:'flex-end'}}>
         <div style={{flex:1}}>
           {it.porUn?(<div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
