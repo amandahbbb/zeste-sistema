@@ -236,26 +236,24 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         <div><div style={{fontSize:14,fontWeight:700}}>{it.nomeRef}{it.ehVersaoCliente&&<span style={{marginLeft:6,fontSize:9,fontWeight:700,color:'#92400E',background:'#FEF3C7',padding:'1px 6px',borderRadius:6}}>SEU PREÇO</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(it.precoKg)}/kg{it.ehVersaoCliente?` · base: ${brl(it.precoBase)}`:''}{it.fc>1?` · FC ${num(it.fc)}`:''}</div></div>
         <button onClick={()=>remItem(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
-      <div style={{display:'flex',gap:12,alignItems:'center'}}>
-        <div style={{flex:1}}><label className="ft-flbl">QTD LÍQUIDA (KG)</label><NumInput step="0.001" min="0" value={it.qtdLiquida} onChange={v=>updItem(i,'qtdLiquida',v)}/></div>
+      <div style={{display:'flex',gap:12,alignItems:'flex-end'}}>
+        <div style={{flex:1}}>
+          {it.porUn?(<div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+            <div style={{width:84}}><label className="ft-flbl">UNIDADES</label><NumInput step="1" min="0" value={it.qtdUn??''} onChange={v=>setUnConv(i,{qtdUn:v})}/></div>
+            <div style={{flex:1}}><label className="ft-flbl">TAMANHO</label>
+              <select value={it.gUn||55} onChange={e=>setUnConv(i,{gUn:+e.target.value})} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 8px',fontSize:13,background:'#fff',colorScheme:'light'}}>
+                <option value={45}>Ovo P — 45 g</option>
+                <option value={55}>Ovo M — 55 g</option>
+                <option value={60}>Ovo G — 60 g</option>
+              </select>
+            </div>
+          </div>):(<div><label className="ft-flbl">QTD LÍQUIDA (KG)</label><NumInput step="0.001" min="0" value={it.qtdLiquida} onChange={v=>updItem(i,'qtdLiquida',v)}/></div>)}
+        </div>
         <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(it.custo)}</div></div>
       </div>
-      {it.tipo!=='ficha'&&<div style={{marginTop:8,borderTop:'1px dashed var(--cinzaM)',paddingTop:8}}>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'var(--cinzaE)',cursor:'pointer'}}>
-          <input type="checkbox" checked={!!it.porUn} onChange={e=>setUnConv(i,{porUn:e.target.checked,gUn:it.gUn||55,qtdUn:it.qtdUn||1})}/>
-          Comprado por unidade — converter pro peso automaticamente
-        </label>
-        {it.porUn&&<div style={{display:'flex',gap:8,alignItems:'flex-end',marginTop:8}}>
-          <div style={{width:88}}><label className="ft-flbl">UNIDADES</label><NumInput step="1" min="0" value={it.qtdUn??''} onChange={v=>setUnConv(i,{qtdUn:v})}/></div>
-          <div style={{width:160}}><label className="ft-flbl">TAMANHO</label>
-            <select value={it.gUn||55} onChange={e=>setUnConv(i,{gUn:+e.target.value})} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 8px',fontSize:13,background:'#fff',colorScheme:'light'}}>
-              <option value={45}>Ovo P — 45 g</option>
-              <option value={55}>Ovo M — 55 g</option>
-              <option value={60}>Ovo G — 60 g</option>
-            </select>
-          </div>
-          <div style={{fontSize:12,color:'var(--verde)',fontWeight:700,paddingBottom:9}}>= {num(it.qtdLiquida)} kg</div>
-        </div>}
+      {it.tipo!=='ficha'&&<div style={{marginTop:10,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+        <button type="button" onClick={()=>setUnConv(i,{porUn:!it.porUn,gUn:it.gUn||55,qtdUn:it.qtdUn||1})} style={{fontSize:11.5,fontWeight:700,padding:'6px 12px',borderRadius:20,border:'1.5px solid '+(it.porUn?'var(--verde)':'var(--cinzaM)'),background:it.porUn?'var(--verde)':'#fff',color:it.porUn?'#fff':'var(--cinzaE)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:5}}>{it.porUn?'✓ Por unidade':'⚖ Inserir por unidade'}</button>
+        {it.porUn&&<span style={{fontSize:12,color:'var(--cinzaE)'}}>{it.qtdUn||0} un × {it.gUn||55} g = <b style={{color:'var(--verde)'}}>{num(it.qtdLiquida)} kg</b></span>}
       </div>}
     </div>))}
     {f.itens.length===0&&<div style={{textAlign:'center',padding:20,color:'var(--cinzaE)',fontStyle:'italic'}}>Clique "+ Adicionar" para incluir insumos</div>}
