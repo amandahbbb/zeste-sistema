@@ -26,9 +26,13 @@ export function calcFicha(ficha,ingredientes,fichas,meuCli){
       if(!ref)return{...it,custo:0,pesoFinal:0,erro:true};
       precoKg=ref._custoPorKg||0;precoBase=precoKg;
     }else{
-      const pick=pickIngrediente(it.nomeRef,ingredientes,meuCli);
-      if(!pick)return{...it,custo:0,pesoFinal:0,erro:true};
-      ref=pick.ref;precoKg=pick.precoUsado||0;precoBase=pick.precoBase||0;ehVersaoCliente=pick.ehVersaoCliente;
+      const exato=it.ingId?ingredientes.find(g=>g.id===it.ingId):null;
+      if(exato){ref=exato;precoKg=exato.p||0;precoBase=exato.p||0;}
+      else{
+        const pick=pickIngrediente(it.nomeRef,ingredientes,meuCli);
+        if(!pick)return{...it,custo:0,pesoFinal:0,erro:true};
+        ref=pick.ref;precoKg=pick.precoUsado||0;precoBase=pick.precoBase||0;ehVersaoCliente=pick.ehVersaoCliente;
+      }
     }
     // FC/FK: o valor definido NO ITEM da ficha (vindo da planilha/metodologia) tem prioridade;
     // sem override, usa o do cadastro do ingrediente. Fichas-componente não têm fator.
