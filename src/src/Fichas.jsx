@@ -190,6 +190,13 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
   const addItem=(item)=>setF(p=>({...p,itens:[...p.itens,{...item,qtdLiquida:0.1}]}));
   const updItem=(i,k,v)=>setF(p=>({...p,itens:p.itens.map((it,j)=>j===i?{...it,[k]:v}:it)}));
   const remItem=(i)=>setF(p=>({...p,itens:p.itens.filter((_,j)=>j!==i)}));
+  const setUnConv=(i,patch)=>setF(p=>({...p,itens:p.itens.map((it,j)=>{
+    if(j!==i)return it;
+    const nx={...it,...patch};
+    const n=Number(nx.qtdUn)||0,g=Number(nx.gUn)||0;
+    if(nx.porUn&&n>0&&g>0)nx.qtdLiquida=+(n*g/1000).toFixed(4);
+    return nx;
+  })}));
   // Calcular custos em tempo real
   const calcItems=f.itens.map(it=>{
     const ref=it.tipo==='ficha'?fichasCalc.find(fc=>fc.nome===it.nomeRef):ingredientes.find(ig=>ig.nome===it.nomeRef);
@@ -233,6 +240,23 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         <div style={{flex:1}}><label className="ft-flbl">QTD LÍQUIDA (KG)</label><NumInput step="0.001" min="0" value={it.qtdLiquida} onChange={v=>updItem(i,'qtdLiquida',v)}/></div>
         <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(it.custo)}</div></div>
       </div>
+      {it.tipo!=='ficha'&&<div style={{marginTop:8,borderTop:'1px dashed var(--cinzaM)',paddingTop:8}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'var(--cinzaE)',cursor:'pointer'}}>
+          <input type="checkbox" checked={!!it.porUn} onChange={e=>setUnConv(i,{porUn:e.target.checked,gUn:it.gUn||55,qtdUn:it.qtdUn||1})}/>
+          Comprado por unidade — converter pro peso automaticamente
+        </label>
+        {it.porUn&&<div style={{display:'flex',gap:8,alignItems:'flex-end',marginTop:8}}>
+          <div style={{width:88}}><label className="ft-flbl">UNIDADES</label><NumInput step="1" min="0" value={it.qtdUn??''} onChange={v=>setUnConv(i,{qtdUn:v})}/></div>
+          <div style={{width:160}}><label className="ft-flbl">TAMANHO</label>
+            <select value={it.gUn||55} onChange={e=>setUnConv(i,{gUn:+e.target.value})} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 8px',fontSize:13,background:'#fff',colorScheme:'light'}}>
+              <option value={45}>Ovo P — 45 g</option>
+              <option value={55}>Ovo M — 55 g</option>
+              <option value={60}>Ovo G — 60 g</option>
+            </select>
+          </div>
+          <div style={{fontSize:12,color:'var(--verde)',fontWeight:700,paddingBottom:9}}>= {num(it.qtdLiquida)} kg</div>
+        </div>}
+      </div>}
     </div>))}
     {f.itens.length===0&&<div style={{textAlign:'center',padding:20,color:'var(--cinzaE)',fontStyle:'italic'}}>Clique "+ Adicionar" para incluir insumos</div>}
     <div className="ft-fld" style={{marginTop:12}}><label className="ft-flbl">Modo de preparo (opcional)</label><textarea rows={3} value={f.modoPreparo||''} onChange={e=>setF(p=>({...p,modoPreparo:e.target.value}))} style={{resize:'vertical',minHeight:60}} placeholder="Descreva o passo a passo…"/></div>
