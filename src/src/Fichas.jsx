@@ -300,17 +300,19 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
 }
 
 // ── PRATO FORM (criar/editar prato) ───────────────────────────────
-function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,souCli,ehAdmin}){
+function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,souCli,ehAdmin,token}){
   const[p,setP]=useState(()=>prato?{...prato}:{id:uid(),nome:'',categoria:'Clássicos Zeste',porcao:1,precoVenda:0,componentes:[],modoPreparo:'',_cliente:souCli||'zeste'});
   const[picker,setPicker]=useState(false);
   const[vista,setVista]=useState('fatia'); // qual visão mostrar quando é bolo inteiro
+  const[fornMap,setFornMap]=useState({});
+  useEffect(()=>{if(!open)return;let vivo=true;(async()=>{const cli=p._cliente||'zeste';const clis=cli==='zeste'?'zeste':cli+',zeste';const[fs,ps]=await Promise.all([fornListAll(clis,token),precosListAll(clis,token)]);if(!vivo)return;const nm=id=>fs.find(x=>x.id===id)?.nome||'';const m={};for(const r of ps){if(!(+r.preco>0))continue;(m[r.ingrediente_id]=m[r.ingrediente_id]||[]).push({fornId:r.fornecedor_id,nome:nm(r.fornecedor_id),preco:+r.preco,atual:!!r.atual});}setFornMap(m);})();return()=>{vivo=false;};},[open,p._cliente,token]);
   if(!open)return null;
   const addComp=(item)=>setP(pr=>({...pr,componentes:[...pr.componentes,{...item,qtdGramas:100}]}));
   const updComp=(i,k,v)=>setP(pr=>({...pr,componentes:pr.componentes.map((c,j)=>j===i?{...c,[k]:v}:c)}));
   const remComp=(i)=>setP(pr=>({...pr,componentes:pr.componentes.filter((_,j)=>j!==i)}));
   const calcComps=p.componentes.map(c=>{
-    const ref=c.tipo==='ficha'?fichasCalc.find(f=>f.nome===c.nomeRef):ingredientes.find(ig=>ig.nome===c.nomeRef);
-    const custoPorKg=c.tipo==='ficha'?(ref?._custoPorKg||0):(ref?.p||0);
+    const ref=c.tipo==='ficha'?fichasCalc.find(f=>f.nome===c.nomeRef):(ingredientes.find(ig=>ig.id===c.ingId)||ingredientes.find(ig=>ig.nome===c.nomeRef));
+    const custoPorKg=c.tipo==='ficha'?(ref?._custoPorKg||0):((c.precoFornecedor!=null&&c.precoFornecedor!=='')?+c.precoFornecedor:(ref?.p||0));
     const fc=c.tipo==='ficha'?1:(ref?.fc||1);
     const qtdKg=(Number(c.qtdGramas)||0)/1000;
     const custo=qtdKg*fc*custoPorKg;
@@ -360,6 +362,13 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         <div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:14,fontWeight:700}}>{c.nomeRef}</span>{c.tipo==='ficha'&&<span className="ft-tag" style={{background:'#FFFBEB',color:'#92400E',fontSize:9}}>FICHA</span>}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{brl(c.custoPorKg)}/kg{c.ehVersaoCliente?` · base: ${brl(c.precoBase)}`:''}{c.fc>1?` · FC ${num(c.fc)}`:''}</div></div>
         <button onClick={()=>remComp(i)} style={{fontSize:18,color:'var(--coral)',minWidth:32,minHeight:32,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
+      {(()=>{const _ig=c.ingId||(ingredientes.find(g=>g.nome===c.nomeRef)||{}).id;const _fs=fornMap[_ig]||[];return c.tipo!=='ficha'&&_fs.length>0?<div style={{marginBottom:8}}>
+        <label className="ft-flbl">FORNECEDOR</label>
+        <select value={c.fornId||''} onChange={e=>{const fid=e.target.value;const sel=_fs.find(x=>x.fornId===fid);setP(pr=>({...pr,componentes:pr.componentes.map((x,j)=>j===i?{...x,fornId:fid,precoFornecedor:sel?sel.preco:null,fornNome:sel?sel.nome:null}:x)}));}} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 8px',fontSize:13,background:'#fff',colorScheme:'light'}}>
+          <option value="">Padrão{(_fs.find(x=>x.atual)||{}).nome?` (atual: ${(_fs.find(x=>x.atual)).nome})`:''}</option>
+          {_fs.map(x=><option key={x.fornId} value={x.fornId}>{x.nome} — {brl(x.preco)}/kg</option>)}
+        </select>
+      </div>:null;})()}
       <div style={{display:'flex',gap:12,alignItems:'center'}}>
         <div style={{flex:1}}><label className="ft-flbl">{(p.modoRend||'porcao')==='inteiro'?'QUANTIDADE NO BOLO (KG)':'QUANTIDADE (KG)'}</label><NumInput step="0.001" min="0" value={(Number(c.qtdGramas)||0)/1000} onChange={v=>updComp(i,'qtdGramas',Math.round((v||0)*1000))}/></div>
         <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(c.custo)}</div></div>
@@ -621,7 +630,7 @@ function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFil
 }
 
 // ── PRATOS TAB ────────────────────────────────────────────────────
-function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFilter,souCli,ehAdmin}){
+function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFilter,souCli,ehAdmin,token}){
   const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);const[fichaDet,setFichaDet]=useState(null);
   const filtered=pratosCalc.filter(p=>(!q||normNome(p.nome).includes(normNome(q)))&&(!clienteFilter||p._cliente===clienteFilter));
   const categorias=[...new Set(filtered.map(p=>p.categoria||'Sem categoria'))];
@@ -684,7 +693,7 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
         <button className="ft-btn ft-btn-p" style={{marginLeft:'auto',padding:'10px 14px',fontSize:13}} onClick={()=>{setEditForm(pratosCalc.find(p=>p.id===detail.id)||detail);setDetail(null);}}>✏️ Editar</button>
       </div>
     </Modal>;})()}
-    {editForm&&<PratoForm open={true} prato={editForm.id?editForm:null} onClose={()=>setEditForm(null)} onSave={onSave} onDelete={onDelete} ingredientes={ingredientes} fichasCalc={fichasCalc} souCli={souCli} ehAdmin={ehAdmin}/>}
+    {editForm&&<PratoForm open={true} prato={editForm.id?editForm:null} onClose={()=>setEditForm(null)} onSave={onSave} onDelete={onDelete} ingredientes={ingredientes} fichasCalc={fichasCalc} souCli={souCli} ehAdmin={ehAdmin} token={token}/>}
     {fichaDet&&<Modal title={`📋 ${fichaDet.nome}`} onClose={()=>setFichaDet(null)}>
       <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16}}>
         <div className="ft-kpi" style={{borderColor:'var(--coral)'}}><div className="ft-kpi-l" style={{color:'var(--coral)'}}>Custo total</div><div className="ft-kpi-v" style={{color:'var(--coral)'}}>{brl(fichaDet.custoTotal)}</div></div>
@@ -1271,7 +1280,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
     {aba==='resumo'&&<><Dica id="resumo">Esta é a visão geral da operação. O fluxo do sistema é sempre: <b>Ingredientes → Fichas → Pratos → Cadernos</b>. Cada etapa alimenta a seguinte — o custo você nunca digita, ele é calculado.</Dica><TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc} clienteFilter={clienteFilter}/></>}
     {aba==='ingredientes'&&<><Dica id="ingredientes">Tudo começa aqui: cadastre cada ingrediente com <b>preço por kg/L e fator de correção</b> (quanto se perde na limpeza). É desse preço que nascem todos os custos do sistema — mantenha atualizado.</Dica><TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter} carregarLixeira={carregarLixeira} onRestaurar={restaurarIngrediente} token={token} ehAdmin={ehAdmin}/></>}
     {aba==='fichas'&&<><Dica id="fichas">Fichas são as <b>receitas base e pré-preparos</b> (um molho, uma polenta). Monte com os ingredientes e as quantidades — o custo por kg da receita pronta sai sozinho. Uma ficha pode entrar em vários pratos.</Dica><TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin} token={token}/></>}
-    {aba==='pratos'&&<><Dica id="pratos">Pratos são o que vai <b>pro cardápio</b>: combine fichas e ingredientes com as gramaturas do empratamento. Preencha o <b>preço de venda</b> (vira CMV e matriz) e o <b>modo de preparo</b> (vira o caderno da cozinha — linhas começando com ⚠ viram alerta).</Dica><TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin}/></>}
+    {aba==='pratos'&&<><Dica id="pratos">Pratos são o que vai <b>pro cardápio</b>: combine fichas e ingredientes com as gramaturas do empratamento. Preencha o <b>preço de venda</b> (vira CMV e matriz) e o <b>modo de preparo</b> (vira o caderno da cozinha — linhas começando com ⚠ viram alerta).</Dica><TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin} token={token}/></>}
     {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes} meuCli={meuCli} token={token} clienteAtivo={clienteFilter&&clienteFilter!=='zeste'?clienteFilter:meuCli}/></>}
     {aba==='estoque'&&<><Dica id="estoque">Controle de <b>estoque dos ingredientes</b>: registre entradas e saídas para saber o que tem e o que falta. O histórico das últimas movimentações fica guardado em cada item.</Dica><TabEstoque ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter}/></>}
     {aba==='documentos'&&ehAdmin&&<><Dica id="cadernos">"⚡ Gerar Caderno" monta <b>2 documentos</b> a partir dos pratos e fichas do cliente: o <b>Operacional</b> (cozinha, sem custos) e o <b>Gerencial</b> (custos e CMV, confidencial). Quem controla o que o cliente vê é o botão Publicar/Ocultar em <b>Clientes → Documentos</b>.</Dica><Documentos token={token} clientes={clientesList}/></>}
