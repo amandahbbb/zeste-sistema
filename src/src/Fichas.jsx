@@ -166,7 +166,7 @@ function ItemPicker({open,onClose,ingredientes,fichasCalc,allowFicha=true,onPick
   const _esc=escopo||'zeste';
   const _noEsc=ingredientes.filter(i=>{const d=i._cliente||'zeste';return _esc==='zeste'?d==='zeste':(d===_esc||d==='zeste');});
   const _porNome=new Map();
-  for(const i of _noEsc){const d=i._cliente||'zeste';const ex=_porNome.get(i.nome);if(!ex){_porNome.set(i.nome,i);}else{const ed=ex._cliente||'zeste';if(ed==='zeste'&&d!=='zeste')_porNome.set(i.nome,i);}}
+  for(const i of _noEsc){const d=i._cliente||'zeste';const k=normNome(i.nome);const ex=_porNome.get(k);if(!ex){_porNome.set(k,i);}else{const ed=ex._cliente||'zeste';if(ed==='zeste'&&d!=='zeste')_porNome.set(k,i);}}
   const filtIng=[..._porNome.values()].filter(i=>!q||normNome(i.nome).includes(normNome(q)));
   const filtFic=allowFicha?fichasCalc.filter(f=>!q||normNome(f.nome).includes(normNome(q))):[];
   return(<Modal title="Adicionar Insumo" onClose={onClose}>
