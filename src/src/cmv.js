@@ -96,9 +96,14 @@ export function calcPrato(prato,ingredientes,fichas,meuCli){
       if(!ref)return{...c,custo:0,erro:true};
       custoPorKg=ref._custoPorKg||0;precoBase=custoPorKg;
     }else{
-      const pick=pickIngrediente(c.nomeRef,ingredientes,meuCli);
-      if(!pick)return{...c,custo:0,erro:true};
-      ref=pick.ref;custoPorKg=pick.precoUsado||0;precoBase=pick.precoBase||0;ehVersaoCliente=pick.ehVersaoCliente;
+      const exato=c.ingId?ingredientes.find(g=>g.id===c.ingId):null;
+      if(exato){ref=exato;custoPorKg=exato.p||0;precoBase=exato.p||0;}
+      else{
+        const pick=pickIngrediente(c.nomeRef,ingredientes,meuCli);
+        if(!pick)return{...c,custo:0,erro:true};
+        ref=pick.ref;custoPorKg=pick.precoUsado||0;precoBase=pick.precoBase||0;ehVersaoCliente=pick.ehVersaoCliente;
+      }
+      if(c.precoFornecedor!=null&&c.precoFornecedor!=='')custoPorKg=+c.precoFornecedor||custoPorKg;
     }
     const qtdKg=(Number(c.qtdGramas)||0)/1000;
     const fc=c.tipo==='ficha'?1:(c.fc!=null&&c.fc!==''?+c.fc:(ref.fc||1));
