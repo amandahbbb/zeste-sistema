@@ -435,6 +435,17 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLix
         <div className="ft-fld h"><label className="ft-flbl">Fator Correção</label><NumInput step="0.01" value={edit.fc} onChange={v=>setEdit(f=>({...f,fc:v}))}/></div>
         <div className="ft-fld h"><label className="ft-flbl">Fator Cocção</label><NumInput step="0.01" value={edit.fk} onChange={v=>setEdit(f=>({...f,fk:v}))}/></div>
       </div>
+      <div style={{marginTop:6}}>
+        <button type="button" onClick={()=>setEdit(f=>{const nx={...f,_porPacote:!f._porPacote,_compraPeso:f._compraPeso||55};const pc=+nx._compraPreco||0,q=+nx._compraQtd||0,pu=+nx._compraPeso||0;if(nx._porPacote&&pc>0&&q>0&&pu>0)nx.p=+(pc/(q*pu/1000)).toFixed(2);return nx;})} style={{fontSize:11.5,fontWeight:700,padding:'6px 12px',borderRadius:20,border:'1.5px solid '+(edit._porPacote?'var(--verde)':'var(--cinzaM)'),background:edit._porPacote?'var(--verde)':'#fff',color:edit._porPacote?'#fff':'var(--cinzaE)',cursor:'pointer'}}>{edit._porPacote?'✓ Preço por pacote/unidade':'⚖ Calcular preço/kg a partir da compra'}</button>
+        {edit._porPacote&&<div style={{marginTop:8}}>
+          <div style={{display:'flex',gap:8,alignItems:'flex-end',flexWrap:'wrap'}}>
+            <div style={{width:132}}><label className="ft-flbl">PREÇO DA COMPRA (R$)</label><NumInput step="0.01" value={edit._compraPreco??''} onChange={v=>setEdit(f=>{const nx={...f,_compraPreco:v};const pc=+nx._compraPreco||0,q=+nx._compraQtd||0,pu=+nx._compraPeso||0;if(pc>0&&q>0&&pu>0)nx.p=+(pc/(q*pu/1000)).toFixed(2);return nx;})}/></div>
+            <div style={{width:120}}><label className="ft-flbl">QTD NA EMBALAGEM</label><NumInput step="1" value={edit._compraQtd??''} onChange={v=>setEdit(f=>{const nx={...f,_compraQtd:v};const pc=+nx._compraPreco||0,q=+nx._compraQtd||0,pu=+nx._compraPeso||0;if(pc>0&&q>0&&pu>0)nx.p=+(pc/(q*pu/1000)).toFixed(2);return nx;})}/></div>
+            <div style={{width:132}}><label className="ft-flbl">PESO POR UNIDADE (g)</label><NumInput step="1" value={edit._compraPeso??''} onChange={v=>setEdit(f=>{const nx={...f,_compraPeso:v};const pc=+nx._compraPreco||0,q=+nx._compraQtd||0,pu=+nx._compraPeso||0;if(pc>0&&q>0&&pu>0)nx.p=+(pc/(q*pu/1000)).toFixed(2);return nx;})}/></div>
+          </div>
+          <div style={{fontSize:12,color:'var(--cinzaE)',marginTop:6}}>Preço/kg calculado: <b style={{color:'var(--verde)'}}>{brl(+edit.p||0)}/kg</b> <span style={{opacity:.65}}>ex.: bandeja 30 ovos, 55 g cada</span></div>
+        </div>}
+      </div>
       {edit.nome&&edit.id&&(edit._cliente&&edit._cliente!=='zeste'||clienteFilterAtivo)&&<SecaoFornecedores ing={edit} cli={edit._cliente&&edit._cliente!=='zeste'?edit._cliente:(clienteFilterAtivo||'zeste')} token={tokenIng} onPrecoAtual={(p,nome)=>setEdit(f=>({...f,p,...(nome&&nome!=='—'?{fornecedorNome:nome}:{})}))}/>}
       <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:16}}>
         {edit.nome&&edit._cliente&&edit._cliente!=='zeste'&&<button className="ft-btn ft-btn-d" style={{padding:'10px 14px',fontSize:13}} onClick={()=>{onDelete(edit.id);setEdit(null);}}>🗑</button>}
