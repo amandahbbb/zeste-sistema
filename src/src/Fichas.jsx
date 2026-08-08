@@ -20,6 +20,8 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 async function fornList(cli,t){try{const r=await fetch(`${SB_URL}/rest/v1/crm_fornecedores?cliente_id=eq.${cli}&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id})).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"")):[];}catch{return[];}}
 async function fornSave(f,cli,t){return fetch(`${SB_URL}/rest/v1/crm_fornecedores`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({id:f.id,cliente_id:cli,dados:f,updated_at:new Date().toISOString()})});}
 async function precosList(cli,ingId,t){try{const r=await fetch(`${SB_URL}/rest/v1/fornecedor_precos?cliente_id=eq.${cli}&ingrediente_id=eq.${ingId}&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d:[];}catch{return[];}}
+async function precosListAll(clis,t){try{const r=await fetch(`${SB_URL}/rest/v1/fornecedor_precos?cliente_id=in.(${clis})&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d:[];}catch{return[];}}
+async function fornListAll(clis,t){try{const r=await fetch(`${SB_URL}/rest/v1/crm_fornecedores?cliente_id=in.(${clis})&deleted_at=is.null&select=*`,{headers:sbH(t)});const d=await r.json();return Array.isArray(d)?d.map(x=>({...x.dados,id:x.id})):[];}catch{return[];}}
 async function precoUpsert(row,t){return fetch(`${SB_URL}/rest/v1/fornecedor_precos`,{method:"POST",headers:{...sbH(t),"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(row)});}
 async function precoDel(id,t){return fetch(`${SB_URL}/rest/v1/fornecedor_precos?id=eq.${id}`,{method:"PATCH",headers:sbH(t),body:JSON.stringify({deleted_at:new Date().toISOString()})});}
 
@@ -187,9 +189,11 @@ function ItemPicker({open,onClose,ingredientes,fichasCalc,allowFicha=true,onPick
 }
 
 // ── FICHA FORM (criar/editar ficha) ───────────────────────────────
-function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,souCli,ehAdmin}){
+function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,souCli,ehAdmin,token}){
   const[f,setF]=useState(()=>ficha?{...ficha}:{id:uid(),nome:'',margemSeguranca:0.1,itens:[],modoPreparo:'',_cliente:souCli||'zeste'});
   const[picker,setPicker]=useState(false);
+  const[fornMap,setFornMap]=useState({});
+  useEffect(()=>{if(!open)return;let vivo=true;(async()=>{const cli=f._cliente||'zeste';const clis=cli==='zeste'?'zeste':cli+',zeste';const[fs,ps]=await Promise.all([fornListAll(clis,token),precosListAll(clis,token)]);if(!vivo)return;const nm=id=>fs.find(x=>x.id===id)?.nome||'';const m={};for(const r of ps){if(!(+r.preco>0))continue;(m[r.ingrediente_id]=m[r.ingrediente_id]||[]).push({fornId:r.fornecedor_id,nome:nm(r.fornecedor_id),preco:+r.preco,atual:!!r.atual});}setFornMap(m);})();return()=>{vivo=false;};},[open,f._cliente,token]);
   if(!open)return null;
   const addItem=(item)=>setF(p=>({...p,itens:[...p.itens,{...item,qtdLiquida:0.1}]}));
   const updItem=(i,k,v)=>setF(p=>({...p,itens:p.itens.map((it,j)=>j===i?{...it,[k]:v}:it)}));
@@ -204,7 +208,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
   // Calcular custos em tempo real
   const calcItems=f.itens.map(it=>{
     const ref=it.tipo==='ficha'?fichasCalc.find(fc=>fc.nome===it.nomeRef):(ingredientes.find(ig=>ig.id===it.ingId)||ingredientes.find(ig=>ig.nome===it.nomeRef));
-    const precoKg=it.tipo==='ficha'?(ref?._custoPorKg||0):(ref?.p||0);
+    const precoKg=it.tipo==='ficha'?(ref?._custoPorKg||0):((it.precoFornecedor!=null&&it.precoFornecedor!=='')?+it.precoFornecedor:(ref?.p||0));
     const fc=it.tipo==='ficha'?1:(it.fc!=null&&it.fc!==''?+it.fc:(ref?.fc||1));
     const fk=it.tipo==='ficha'?1:(it.fk!=null&&it.fk!==''?+it.fk:(ref?.fk||1));
     const qtdLiq=Number(it.qtdLiquida)||0;
@@ -247,6 +251,13 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
           {ingredientes.filter(g=>g.nome===it.nomeRef).map(g=><option key={g.id} value={g.id}>{g.un} · {brl(g.p)}/kg{g.fornecedor?` · ${g.fornecedor}`:''}</option>)}
         </select>
       </div>}
+      {(()=>{const _ig=it.ingId||(ingredientes.find(g=>g.nome===it.nomeRef)||{}).id;const _fs=fornMap[_ig]||[];return it.tipo!=='ficha'&&_fs.length>0?<div style={{marginBottom:8}}>
+        <label className="ft-flbl">FORNECEDOR</label>
+        <select value={it.fornId||''} onChange={e=>{const fid=e.target.value;const sel=_fs.find(x=>x.fornId===fid);setF(p=>({...p,itens:p.itens.map((x,j)=>j===i?{...x,fornId:fid,precoFornecedor:sel?sel.preco:null,fornNome:sel?sel.nome:null}:x)}));}} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 8px',fontSize:13,background:'#fff',colorScheme:'light'}}>
+          <option value="">Padrão{(_fs.find(x=>x.atual)||{}).nome?` (atual: ${(_fs.find(x=>x.atual)).nome})`:''}</option>
+          {_fs.map(x=><option key={x.fornId} value={x.fornId}>{x.nome} — {brl(x.preco)}/kg</option>)}
+        </select>
+      </div>:null;})()}
       <div style={{display:'flex',gap:12,alignItems:'flex-end'}}>
         <div style={{flex:1}}>
           {it.porUn?(<div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
@@ -562,7 +573,7 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
 }
 
 // ── FICHAS TAB ────────────────────────────────────────────────────
-function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFilter,souCli,ehAdmin}){
+function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFilter,souCli,ehAdmin,token}){
   const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);
   const filtered=fichasCalc.filter(f=>(!q||normNome(f.nome).includes(normNome(q)))&&(!clienteFilter||f._cliente===clienteFilter));
   return(<div className="ft-page">
@@ -605,7 +616,7 @@ function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFil
         <button className="ft-btn ft-btn-p" style={{marginLeft:'auto',padding:'10px 14px',fontSize:13}} onClick={()=>{setEditForm(fichasRaw.find(f=>f.id===detail.id)||detail);setDetail(null);}}>✏️ Editar</button>
       </div>
     </Modal>}
-    {editForm&&<FichaForm open={true} ficha={editForm.id?editForm:null} onClose={()=>setEditForm(null)} onSave={onSave} onDelete={onDelete} ingredientes={ingredientes} fichasCalc={fichasCalc} souCli={souCli} ehAdmin={ehAdmin}/>}
+    {editForm&&<FichaForm open={true} ficha={editForm.id?editForm:null} onClose={()=>setEditForm(null)} onSave={onSave} onDelete={onDelete} ingredientes={ingredientes} fichasCalc={fichasCalc} souCli={souCli} ehAdmin={ehAdmin} token={token}/>}
   </div>);
 }
 
@@ -1259,7 +1270,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
     </div>
     {aba==='resumo'&&<><Dica id="resumo">Esta é a visão geral da operação. O fluxo do sistema é sempre: <b>Ingredientes → Fichas → Pratos → Cadernos</b>. Cada etapa alimenta a seguinte — o custo você nunca digita, ele é calculado.</Dica><TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc} clienteFilter={clienteFilter}/></>}
     {aba==='ingredientes'&&<><Dica id="ingredientes">Tudo começa aqui: cadastre cada ingrediente com <b>preço por kg/L e fator de correção</b> (quanto se perde na limpeza). É desse preço que nascem todos os custos do sistema — mantenha atualizado.</Dica><TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter} carregarLixeira={carregarLixeira} onRestaurar={restaurarIngrediente} token={token} ehAdmin={ehAdmin}/></>}
-    {aba==='fichas'&&<><Dica id="fichas">Fichas são as <b>receitas base e pré-preparos</b> (um molho, uma polenta). Monte com os ingredientes e as quantidades — o custo por kg da receita pronta sai sozinho. Uma ficha pode entrar em vários pratos.</Dica><TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin}/></>}
+    {aba==='fichas'&&<><Dica id="fichas">Fichas são as <b>receitas base e pré-preparos</b> (um molho, uma polenta). Monte com os ingredientes e as quantidades — o custo por kg da receita pronta sai sozinho. Uma ficha pode entrar em vários pratos.</Dica><TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin} token={token}/></>}
     {aba==='pratos'&&<><Dica id="pratos">Pratos são o que vai <b>pro cardápio</b>: combine fichas e ingredientes com as gramaturas do empratamento. Preencha o <b>preço de venda</b> (vira CMV e matriz) e o <b>modo de preparo</b> (vira o caderno da cozinha — linhas começando com ⚠ viram alerta).</Dica><TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin}/></>}
     {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes} meuCli={meuCli} token={token} clienteAtivo={clienteFilter&&clienteFilter!=='zeste'?clienteFilter:meuCli}/></>}
     {aba==='estoque'&&<><Dica id="estoque">Controle de <b>estoque dos ingredientes</b>: registre entradas e saídas para saber o que tem e o que falta. O histórico das últimas movimentações fica guardado em cada item.</Dica><TabEstoque ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter}/></>}
