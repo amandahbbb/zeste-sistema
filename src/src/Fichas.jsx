@@ -1163,9 +1163,11 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
     }
   });};
   const delIngrediente=async id=>{const ing=ingredientes.find(i=>i.id===id);
+    const _ultimoDoNome=!ingredientes.some(i=>i.id!==id&&normNome(i.nome)===normNome(ing?.nome||''));
+    const _usa=(x)=>x.tipo!=='ficha'&&(x.ingId?x.ingId===id:(_ultimoDoNome&&x.nomeRef===ing?.nome));
     const usadoEm=[
-      ...fichasRaw.filter(f=>(f.itens||[]).some(it=>it.tipo!=='ficha'&&it.nomeRef===ing?.nome)).map(f=>`ficha "${f.nome}"`),
-      ...pratosRaw.filter(p=>(p.componentes||[]).some(c=>c.tipo!=='ficha'&&c.nomeRef===ing?.nome)).map(p=>`prato "${p.nome}"`)
+      ...fichasRaw.filter(f=>(f.itens||[]).some(_usa)).map(f=>`ficha "${f.nome}"`),
+      ...pratosRaw.filter(p=>(p.componentes||[]).some(_usa)).map(p=>`prato "${p.nome}"`)
     ];
     if(usadoEm.length){alert(`"${ing?.nome}" não pode ser excluído — é usado em: ${usadoEm.slice(0,5).join(', ')}${usadoEm.length>5?'…':''}. Remova das fichas/pratos primeiro, senão os custos zeram.`);return;}
     if(!window.confirm(`Excluir o ingrediente "${ing?.nome||''}"? Ele vai para a lixeira e pode ser restaurado.`))return;
