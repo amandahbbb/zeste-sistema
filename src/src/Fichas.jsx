@@ -160,10 +160,14 @@ const SH=({children})=><div className="ft-sh"><div className="ft-sh-bar"/><span 
 
 
 // ── ITEM PICKER (selecionar ingrediente ou ficha) ─────────────────
-function ItemPicker({open,onClose,ingredientes,fichasCalc,allowFicha=true,onPick}){
+function ItemPicker({open,onClose,ingredientes,fichasCalc,allowFicha=true,onPick,escopo}){
   const[q,setQ]=useState('');const[tab,setTab]=useState('ing');
   if(!open)return null;
-  const filtIng=ingredientes.filter(i=>!q||normNome(i.nome).includes(normNome(q)));
+  const _esc=escopo||'zeste';
+  const _noEsc=ingredientes.filter(i=>{const d=i._cliente||'zeste';return _esc==='zeste'?d==='zeste':(d===_esc||d==='zeste');});
+  const _porNome=new Map();
+  for(const i of _noEsc){const d=i._cliente||'zeste';const ex=_porNome.get(i.nome);if(!ex){_porNome.set(i.nome,i);}else{const ed=ex._cliente||'zeste';if(ed==='zeste'&&d!=='zeste')_porNome.set(i.nome,i);}}
+  const filtIng=[..._porNome.values()].filter(i=>!q||normNome(i.nome).includes(normNome(q)));
   const filtFic=allowFicha?fichasCalc.filter(f=>!q||normNome(f.nome).includes(normNome(q))):[];
   return(<Modal title="Adicionar Insumo" onClose={onClose}>
     <input placeholder="🔍 Buscar…" value={q} onChange={e=>setQ(e.target.value)} style={{marginBottom:10}}/>
@@ -280,7 +284,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         <button className="ft-btn ft-btn-p" onClick={()=>{onSave({...f});onClose();}} disabled={!f.nome||f.itens.length===0}>💾 Salvar</button>
       </div>
     </div>
-    <ItemPicker open={picker} onClose={()=>setPicker(false)} ingredientes={ingredientes} fichasCalc={fichasCalc} onPick={addItem}/>
+    <ItemPicker open={picker} onClose={()=>setPicker(false)} ingredientes={ingredientes} fichasCalc={fichasCalc} onPick={addItem} escopo={f._cliente}/>
   </Modal>);
 }
 
@@ -390,7 +394,7 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         <button className="ft-btn ft-btn-p" onClick={()=>{onSave({...p});onClose();}} disabled={!p.nome||p.componentes.length===0}>💾 Salvar</button>
       </div>
     </div>
-    <ItemPicker open={picker} onClose={()=>setPicker(false)} ingredientes={ingredientes} fichasCalc={fichasCalc} onPick={addComp}/>
+    <ItemPicker open={picker} onClose={()=>setPicker(false)} ingredientes={ingredientes} fichasCalc={fichasCalc} onPick={addComp} escopo={p._cliente}/>
   </Modal>);
 }
 
