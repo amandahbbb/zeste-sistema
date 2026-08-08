@@ -34,6 +34,7 @@ export function calcFicha(ficha,ingredientes,fichas,meuCli){
         ref=pick.ref;precoKg=pick.precoUsado||0;precoBase=pick.precoBase||0;ehVersaoCliente=pick.ehVersaoCliente;
       }
     }
+    if(it.tipo!=='ficha'&&it.precoFornecedor!=null&&it.precoFornecedor!=='')precoKg=+it.precoFornecedor||precoKg;
     // FC/FK: o valor definido NO ITEM da ficha (vindo da planilha/metodologia) tem prioridade;
     // sem override, usa o do cadastro do ingrediente. Fichas-componente não têm fator.
     const fc=it.tipo==='ficha'?1:(it.fc!=null&&it.fc!==''?+it.fc:(ref.fc||1));
