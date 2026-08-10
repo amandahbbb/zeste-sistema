@@ -725,10 +725,19 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli,token,clienteAti
   const[linhas,setLinhas]=useState([]);
   const[resultado,setResultado]=useState(null);
   const[copiado,setCopiado]=useState(false);
+  const[fichaAberta,setFichaAberta]=useState(null);
   const addLinha=()=>setLinhas(p=>[...p,{tipo:'prato',pratoNome:pratosCalc[0]?.nome||fichasCalc[0]?.nome||'',qtd:1}]);
   const updLinha=(i,k,v)=>setLinhas(p=>p.map((l,j)=>j===i?{...l,[k]:v}:l));
   const remLinha=i=>setLinhas(p=>p.filter((_,j)=>j!==i));
   const setItem=(i,val)=>{const[tipo,...r]=val.split('|');updLinha(i,'tipo',tipo);setLinhas(p=>p.map((l,j)=>j===i?{...l,tipo,pratoNome:r.join('|')}:l));};
+  const fmtQtd=(q,un)=>{const L=String(un||'KG').toUpperCase()==='L';if(q>0&&q<1)return num(q*1000,0)+(L?' ml':' g');return num(q,3)+(L?' L':' kg');};
+  const escalarLinha=(l)=>{const out=[];
+    if(l.tipo==='ficha'){const fi=fichasCalc.find(f=>f.nome===l.pratoNome);if(!fi)return out;
+      for(const it of fi.itens||[]){const q=(Number(it.qtdLiquida)||0)*(+l.qtd||0);const ig=it.tipo!=='ficha'?(pickIngrediente(it.nomeRef,ingredientes,meuCli)||{}).ref:null;out.push({nome:it.nomeRef,sub:it.tipo==='ficha',un:ig?.un||'KG',q});}
+    }else{const pr=pratosCalc.find(x=>x.nome===l.pratoNome);if(!pr)return out;
+      for(const c of pr.comps||[]){const q=((Number(c.qtdGramas)||0)/1000)*(+l.qtd||0);const ig=c.tipo!=='ficha'?(pickIngrediente(c.nomeRef,ingredientes,meuCli)||{}).ref:null;out.push({nome:c.nomeRef,sub:c.tipo==='ficha',un:ig?.un||'KG',q});}
+    }
+    return out;};
   const calcular=()=>{
     const res=calcProducao(linhas.filter(l=>l.qtd>0),pratosCalc,fichasCalc,ingredientes,meuCli);
     setResultado(res);setCopiado(false);setPedidosGerados(null);
@@ -796,14 +805,20 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli,token,clienteAti
         <button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={addLinha}>+ Prato</button>
       </div>
       {linhas.length===0&&<div style={{textAlign:'center',padding:32,color:'var(--cinzaE)',fontStyle:'italic'}}>Adicione pratos para calcular a lista de compras</div>}
-      {linhas.map((l,i)=>(<div key={i} style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+      {linhas.map((l,i)=>(<div key={i}><div style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
         <select value={(l.tipo||'prato')+'|'+l.pratoNome} onChange={e=>setItem(i,e.target.value)} style={{flex:1,fontSize:14,padding:'10px 12px',border:'1.5px solid var(--cinzaM)',borderRadius:8,background:'#fff',color:'#111614',colorScheme:'light',outline:'none'}}>
           <optgroup label="Pratos (qtd = porções)" style={{background:'#fff',color:'#111614'}}>{pratosCalc.map(p=><option key={p.id} value={'prato|'+p.nome} style={{background:'#fff',color:'#111614'}}>{p.nome}</option>)}</optgroup>
           <optgroup label="Receitas base (qtd = receitas inteiras)" style={{background:'#fff',color:'#111614'}}>{fichasCalc.map(f=><option key={f.id} value={'ficha|'+f.nome} style={{background:'#fff',color:'#111614'}}>{f.nome}</option>)}</optgroup>
         </select>
         <input type="number" min="1" value={l.qtd} onChange={e=>updLinha(i,'qtd',+e.target.value)} style={{width:70,textAlign:'center',fontSize:14,padding:'10px 8px',border:'1.5px solid var(--cinzaM)',borderRadius:8,outline:'none'}}/>
         <span style={{fontSize:11,color:'var(--cinzaE)',minWidth:28}}>und</span>
+        <button onClick={()=>setFichaAberta(fichaAberta===i?null:i)} title="Ficha escalada" style={{fontSize:17,minWidth:36,minHeight:36,display:'flex',alignItems:'center',justifyContent:'center',color:fichaAberta===i?'var(--verde)':'var(--cinzaE)',background:'none',border:'none',cursor:'pointer'}}>📋</button>
         <button onClick={()=>remLinha(i)} style={{color:'var(--coral)',fontSize:18,minWidth:36,minHeight:36,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+      </div>
+      {fichaAberta===i&&(()=>{const esc=escalarLinha(l);return <div style={{margin:'0 0 10px',padding:'12px 14px',background:'#f5f8f5',border:'1px solid var(--cinzaM)',borderRadius:10}}>
+        <div style={{fontWeight:700,fontSize:13,color:'var(--verde)',marginBottom:8}}>📋 {l.pratoNome} — pronta pra {l.qtd} {l.tipo==='ficha'?(+l.qtd>1?'receitas':'receita'):(+l.qtd>1?'porções':'porção')}</div>
+        {esc.length===0?<div style={{fontSize:12,color:'var(--cinzaE)',fontStyle:'italic'}}>Sem itens.</div>:esc.map((x,k)=><div key={k} style={{display:'flex',justifyContent:'space-between',gap:10,padding:'5px 0',borderBottom:k<esc.length-1?'1px solid var(--cinzaF)':'none',fontSize:13}}><span>{x.nome}{x.sub?' (sub-receita)':''}</span><b style={{whiteSpace:'nowrap'}}>{fmtQtd(x.q,x.un)}</b></div>)}
+      </div>;})()}
       </div>))}
       {linhas.length>0&&<button className="ft-btn ft-btn-p" style={{width:'100%',marginTop:12}} onClick={calcular}>📋 CALCULAR LISTA DE COMPRAS</button>}
 
