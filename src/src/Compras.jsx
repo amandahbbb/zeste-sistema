@@ -10,9 +10,9 @@ async function sbUpsert(table, item, t, clienteId) { try { const r = await fetch
 async function sbDel(table, id, t) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); if (!r.ok) { toast("Erro ao excluir", "erro"); return false; } toast("✓ Excluído"); return true; } catch { toast("Sem conexão — não foi excluído", "erro"); return false; } }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-async function loadIngsComp(clis, t) { try { const r = await fetch(`${SB_URL}/rest/v1/fin_ingredientes?cliente_id=in.(${clis})&deleted_at=is.null&select=id,dados`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
-async function loadFornsComp(clis, t) { try { const r = await fetch(`${SB_URL}/rest/v1/crm_fornecedores?cliente_id=in.(${clis})&deleted_at=is.null&select=id,dados`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
-async function loadPrecosComp(clis, t) { try { const r = await fetch(`${SB_URL}/rest/v1/fornecedor_precos?cliente_id=in.(${clis})&deleted_at=is.null&select=*`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d : []; } catch { return []; } }
+async function loadIngsComp(clienteId, t) { try { let q = `${SB_URL}/rest/v1/fin_ingredientes?deleted_at=is.null&select=id,dados`; if (clienteId) q += `&cliente_id=in.(${clienteId},zeste)`; const r = await fetch(q, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
+async function loadFornsComp(clienteId, t) { try { let q = `${SB_URL}/rest/v1/crm_fornecedores?deleted_at=is.null&select=id,dados`; if (clienteId) q += `&cliente_id=in.(${clienteId},zeste)`; const r = await fetch(q, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
+async function loadPrecosComp(clienteId, t) { try { let q = `${SB_URL}/rest/v1/fornecedor_precos?deleted_at=is.null&select=*`; if (clienteId) q += `&cliente_id=in.(${clienteId},zeste)`; const r = await fetch(q, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d : []; } catch { return []; } }
 
 function NumBR({ value, onChange, placeholder, style, className }) {
   const fmt = v => (v === 0 || v === "" || v == null || isNaN(v)) ? "" : String(v).replace(".", ",");
@@ -369,8 +369,7 @@ export default function Compras({ onBack, token, clienteId }) {
     Promise.all([sbLoad("crm_fornecedores", token, clienteId), sbLoad("compras_pedidos", token, clienteId), sbLoad("compras_produtos", token, clienteId)])
       .then(([f, p, pr]) => { setFornecedores(f); setPedidos(p); setProdutos(pr); })
       .finally(() => setLoading(false));
-    const clis = (!clienteId || clienteId === "zeste") ? "zeste" : `${clienteId},zeste`;
-    Promise.all([loadIngsComp(clis, token), loadPrecosComp(clis, token), loadFornsComp(clis, token)])
+    Promise.all([loadIngsComp(clienteId, token), loadPrecosComp(clienteId, token), loadFornsComp(clienteId, token)])
       .then(([ig, pr, fo]) => { setIngsComp(ig); setPrecosComp(pr); setFornsComp(fo); });
   }, []);
 
