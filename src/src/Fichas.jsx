@@ -731,13 +731,15 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli,token,clienteAti
   const remLinha=i=>setLinhas(p=>p.filter((_,j)=>j!==i));
   const setItem=(i,val)=>{const[tipo,...r]=val.split('|');updLinha(i,'tipo',tipo);setLinhas(p=>p.map((l,j)=>j===i?{...l,tipo,pratoNome:r.join('|')}:l));};
   const fmtQtd=(q,un)=>{const L=String(un||'KG').toUpperCase()==='L';if(q>0&&q<1)return num(q*1000,0)+(L?' ml':' g');return num(q,3)+(L?' L':' kg');};
-  const escalarLinha=(l)=>{const out=[];
-    if(l.tipo==='ficha'){const fi=fichasCalc.find(f=>f.nome===l.pratoNome);if(!fi)return out;
-      for(const it of fi.itens||[]){const q=(Number(it.qtdLiquida)||0)*(+l.qtd||0);const ig=it.tipo!=='ficha'?(pickIngrediente(it.nomeRef,ingredientes,meuCli)||{}).ref:null;out.push({nome:it.nomeRef,sub:it.tipo==='ficha',un:ig?.un||'KG',q});}
-    }else{const pr=pratosCalc.find(x=>x.nome===l.pratoNome);if(!pr)return out;
-      for(const c of pr.comps||[]){const q=((Number(c.qtdGramas)||0)/1000)*(+l.qtd||0);const ig=c.tipo!=='ficha'?(pickIngrediente(c.nomeRef,ingredientes,meuCli)||{}).ref:null;out.push({nome:c.nomeRef,sub:c.tipo==='ficha',un:ig?.un||'KG',q});}
+  const escalarLinha=(l)=>{const groups={};const order=[];
+    const push=(grupo,nome,qlKg)=>{const ig=(pickIngrediente(nome,ingredientes,meuCli)||{}).ref;const fc=+ig?.fc||1;if(!groups[grupo]){groups[grupo]=[];order.push(grupo);}groups[grupo].push({nome,un:ig?.un||'KG',ql:qlKg,qb:qlKg*fc,fc});};
+    const expand=(nomeRef,mult,grupo)=>{const fi=fichasCalc.find(f=>f.nome===nomeRef);if(!fi)return;for(const it of fi.itens||[]){const ql=(Number(it.qtdLiquida)||0)*mult;if(it.tipo==='ficha')expand(it.nomeRef,ql,it.nomeRef);else push(grupo,it.nomeRef,ql);}};
+    if(l.tipo==='ficha'){const fi=fichasCalc.find(f=>f.nome===l.pratoNome);if(!fi)return[];
+      for(const it of fi.itens||[]){const ql=(Number(it.qtdLiquida)||0)*(+l.qtd||0);if(it.tipo==='ficha')expand(it.nomeRef,ql,it.nomeRef);else push(l.pratoNome,it.nomeRef,ql);}
+    }else{const pr=pratosCalc.find(x=>x.nome===l.pratoNome);if(!pr)return[];
+      for(const c of pr.comps||[]){const kg=((Number(c.qtdGramas)||0)/1000)*(+l.qtd||0);if(c.tipo==='ficha'){const fi=fichasCalc.find(f=>f.nome===c.nomeRef);if(fi&&fi.pesoFinal>0)expand(c.nomeRef,kg/fi.pesoFinal,c.nomeRef);else push(c.nomeRef,c.nomeRef,kg);}else push('Montagem do prato',c.nomeRef,kg);}
     }
-    return out;};
+    return order.map(g=>({grupo:g,itens:groups[g]}));};
   const calcular=()=>{
     const res=calcProducao(linhas.filter(l=>l.qtd>0),pratosCalc,fichasCalc,ingredientes,meuCli);
     setResultado(res);setCopiado(false);setPedidosGerados(null);
@@ -812,12 +814,17 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli,token,clienteAti
         </select>
         <input type="number" min="1" value={l.qtd} onChange={e=>updLinha(i,'qtd',+e.target.value)} style={{width:70,textAlign:'center',fontSize:14,padding:'10px 8px',border:'1.5px solid var(--cinzaM)',borderRadius:8,outline:'none'}}/>
         <span style={{fontSize:11,color:'var(--cinzaE)',minWidth:28}}>und</span>
-        <button onClick={()=>setFichaAberta(fichaAberta===i?null:i)} title="Ficha escalada" style={{fontSize:17,minWidth:36,minHeight:36,display:'flex',alignItems:'center',justifyContent:'center',color:fichaAberta===i?'var(--verde)':'var(--cinzaE)',background:'none',border:'none',cursor:'pointer'}}>📋</button>
         <button onClick={()=>remLinha(i)} style={{color:'var(--coral)',fontSize:18,minWidth:36,minHeight:36,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
       </div>
-      {fichaAberta===i&&(()=>{const esc=escalarLinha(l);return <div style={{margin:'0 0 10px',padding:'12px 14px',background:'#f5f8f5',border:'1px solid var(--cinzaM)',borderRadius:10}}>
-        <div style={{fontWeight:700,fontSize:13,color:'var(--verde)',marginBottom:8}}>📋 {l.pratoNome} — pronta pra {l.qtd} {l.tipo==='ficha'?(+l.qtd>1?'receitas':'receita'):(+l.qtd>1?'porções':'porção')}</div>
-        {esc.length===0?<div style={{fontSize:12,color:'var(--cinzaE)',fontStyle:'italic'}}>Sem itens.</div>:esc.map((x,k)=><div key={k} style={{display:'flex',justifyContent:'space-between',gap:10,padding:'5px 0',borderBottom:k<esc.length-1?'1px solid var(--cinzaF)':'none',fontSize:13}}><span>{x.nome}{x.sub?' (sub-receita)':''}</span><b style={{whiteSpace:'nowrap'}}>{fmtQtd(x.q,x.un)}</b></div>)}
+      <button onClick={()=>setFichaAberta(fichaAberta===i?null:i)} style={{marginBottom:10,fontSize:12,fontWeight:700,padding:'8px 14px',borderRadius:8,border:'1.5px solid '+(fichaAberta===i?'var(--verde)':'var(--cinzaM)'),background:fichaAberta===i?'var(--verde)':'#fff',color:fichaAberta===i?'#fff':'var(--verde)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}>📋 Ficha técnica recalculada {fichaAberta===i?'▲':'▼'}</button>
+      {fichaAberta===i&&(()=>{const esc=escalarLinha(l);return <div style={{margin:'0 0 12px',padding:'12px 14px',background:'#f5f8f5',border:'1px solid var(--cinzaM)',borderRadius:10}}>
+        <div style={{fontWeight:700,fontSize:13,color:'var(--verde)',marginBottom:6}}>{l.pratoNome} — pronta pra {l.qtd} {l.tipo==='ficha'?(+l.qtd>1?'receitas':'receita'):(+l.qtd>1?'porções':'porção')}</div>
+        {esc.length===0?<div style={{fontSize:12,color:'var(--cinzaE)',fontStyle:'italic'}}>Sem itens.</div>:esc.map((grp,gi)=><div key={gi} style={{marginTop:gi>0?10:2}}>
+          <div style={{fontSize:11,fontWeight:800,color:'var(--verde)',marginBottom:3}}>{grp.grupo}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 86px 86px',gap:6,fontSize:9,color:'var(--cinzaE)',fontWeight:700,padding:'0 0 3px',borderBottom:'1px solid var(--cinzaM)'}}><span></span><span style={{textAlign:'right'}}>LÍQUIDA</span><span style={{textAlign:'right'}}>BRUTA</span></div>
+          {grp.itens.map((x,k)=><div key={k} style={{display:'grid',gridTemplateColumns:'1fr 86px 86px',gap:6,padding:'4px 0',borderBottom:k<grp.itens.length-1?'1px solid var(--cinzaF)':'none',fontSize:13,alignItems:'center'}}><span>{x.nome}</span><b style={{textAlign:'right',whiteSpace:'nowrap'}}>{fmtQtd(x.ql,x.un)}</b><span style={{textAlign:'right',whiteSpace:'nowrap',fontWeight:700,color:x.fc>1?'var(--coral)':'var(--cinzaE)'}}>{fmtQtd(x.qb,x.un)}</span></div>)}
+        </div>)}
+        <div style={{fontSize:10,color:'var(--cinzaE)',marginTop:8,lineHeight:1.4}}>Cada sub-receita aparece com seus ingredientes. LÍQUIDA = vai na receita (já limpo); BRUTA = quanto pesar cru, já com a perda de limpeza (FC).</div>
       </div>;})()}
       </div>))}
       {linhas.length>0&&<button className="ft-btn ft-btn-p" style={{width:'100%',marginTop:12}} onClick={calcular}>📋 CALCULAR LISTA DE COMPRAS</button>}
