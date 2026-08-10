@@ -10,6 +10,9 @@ async function sbUpsert(table, item, t, clienteId) { try { const r = await fetch
 async function sbDel(table, id, t) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); if (!r.ok) { toast("Erro ao excluir", "erro"); return false; } toast("✓ Excluído"); return true; } catch { toast("Sem conexão — não foi excluído", "erro"); return false; } }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+async function loadIngsComp(clis, t) { try { const r = await fetch(`${SB_URL}/rest/v1/fin_ingredientes?cliente_id=in.(${clis})&deleted_at=is.null&select=id,dados`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
+async function loadFornsComp(clis, t) { try { const r = await fetch(`${SB_URL}/rest/v1/crm_fornecedores?cliente_id=in.(${clis})&deleted_at=is.null&select=id,dados`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
+async function loadPrecosComp(clis, t) { try { const r = await fetch(`${SB_URL}/rest/v1/fornecedor_precos?cliente_id=in.(${clis})&deleted_at=is.null&select=*`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d : []; } catch { return []; } }
 
 function NumBR({ value, onChange, placeholder, style, className }) {
   const fmt = v => (v === 0 || v === "" || v == null || isNaN(v)) ? "" : String(v).replace(".", ",");
@@ -225,7 +228,7 @@ function Pedidos({ pedidos, fornecedores, onSave, onDelete }) {
 // ── COTAÇÕES ──
 const EProd = () => ({ id: uid(), nome: "", categoria: "Hortifruti", qtdPedir: 0, precos: {} });
 
-function Cotacao({ produtos, fornecedores, onSaveProd, onDelProd }) {
+function Cotacao({ produtos, fornecedores, onSaveProd, onDelProd, ingsComp = [], precosComp = [], fornsComp = [] }) {
   const [modal, setModal] = useState(null);
   const [catAtiva, setCatAtiva] = useState(CAT_FORN[0]);
   const fornsAtivos = fornecedores.filter(f => f.status === "Ativo");
@@ -256,6 +259,35 @@ function Cotacao({ produtos, fornecedores, onSaveProd, onDelProd }) {
         ))}
       </div>
 
+      {(() => {
+        const precoDe = (ingId, fornId) => { const r = precosComp.find(x => x.ingrediente_id === ingId && x.fornecedor_id === fornId && +x.preco > 0); return r ? +r.preco : null; };
+        const ingsCF = ingsComp.filter(ig => precosComp.some(x => x.ingrediente_id === ig.id && +x.preco > 0));
+        const fornsCP = fornsComp.filter(f => precosComp.some(x => x.fornecedor_id === f.id && +x.preco > 0));
+        const menor = ig => { const vs = fornsCP.map(f => precoDe(ig.id, f.id)).filter(v => v != null); return vs.length ? Math.min(...vs) : null; };
+        if (!ingsCF.length) return null;
+        return <div className="cmp-card" style={{ marginBottom: 16 }}>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 15 }}>📊 Comparativo automático — preços já cadastrados</span>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 400 }}>
+              <thead><tr style={{ background: C.cinzaF }}>
+                <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 10, color: C.cinzaE, fontWeight: 700, textTransform: "uppercase" }}>Ingrediente</th>
+                {fornsCP.map(f => <th key={f.id} style={{ padding: "8px 8px", textAlign: "right", fontSize: 10, color: C.cinzaE, fontWeight: 700, whiteSpace: "nowrap" }}>{(f.nome || "").slice(0, 12)}</th>)}
+                <th style={{ padding: "8px 8px", textAlign: "right", fontSize: 10, color: C.verde, fontWeight: 700 }}>Melhor</th>
+              </tr></thead>
+              <tbody>
+                {ingsCF.map(ig => { const mn = menor(ig); return <tr key={ig.id} style={{ borderBottom: `1px solid ${C.cinzaF}` }}>
+                  <td style={{ padding: "8px 12px", fontWeight: 600 }}>{ig.nome}</td>
+                  {fornsCP.map(f => { const v = precoDe(ig.id, f.id); const eh = v != null && mn != null && Math.abs(v - mn) < 0.005; return <td key={f.id} style={{ padding: "8px 8px", textAlign: "right", fontWeight: eh ? 700 : 400, color: eh ? C.verde : C.preto, background: eh ? "#F0F7E6" : "transparent" }}>{v != null ? brl(v) : "—"}</td>; })}
+                  <td style={{ padding: "8px 8px", textAlign: "right", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, color: C.verde }}>{mn != null ? brl(mn) : "—"}</td>
+                </tr>; })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ padding: "10px 16px", fontSize: 11, color: C.cinzaE, fontStyle: "italic" }}>💡 Puxado automático dos fornecedores cadastrados nos ingredientes — o menor preço em verde. (Em breve: editar aqui e salvar de volta.)</div>
+        </div>;
+      })()}
       <div className="cmp-card">
         <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 15 }}>{catAtiva}</span>
@@ -329,11 +361,17 @@ export default function Compras({ onBack, token, clienteId }) {
   const [pedidos, setPedidos] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ingsComp, setIngsComp] = useState([]);
+  const [precosComp, setPrecosComp] = useState([]);
+  const [fornsComp, setFornsComp] = useState([]);
 
   useEffect(() => {
     Promise.all([sbLoad("crm_fornecedores", token, clienteId), sbLoad("compras_pedidos", token, clienteId), sbLoad("compras_produtos", token, clienteId)])
       .then(([f, p, pr]) => { setFornecedores(f); setPedidos(p); setProdutos(pr); })
       .finally(() => setLoading(false));
+    const clis = (!clienteId || clienteId === "zeste") ? "zeste" : `${clienteId},zeste`;
+    Promise.all([loadIngsComp(clis, token), loadPrecosComp(clis, token), loadFornsComp(clis, token)])
+      .then(([ig, pr, fo]) => { setIngsComp(ig); setPrecosComp(pr); setFornsComp(fo); });
   }, []);
 
   const saveForn = async f => { setFornecedores(p => p.find(x => x.id === f.id) ? p.map(x => x.id === f.id ? f : x) : [f, ...p]); await sbUpsert("crm_fornecedores", f, token, clienteId); };
@@ -366,7 +404,7 @@ export default function Compras({ onBack, token, clienteId }) {
       </div>
       {loading ? <div style={{ padding: 40, textAlign: "center", color: C.cinzaE }}>Carregando…</div> : <>
         {aba === "fornecedores" && <Fornecedores fornecedores={fornecedores} onSave={saveForn} onDelete={delForn} />}
-        {aba === "cotacao" && <Cotacao produtos={produtos} fornecedores={fornecedores} onSaveProd={saveProd} onDelProd={delProd} />}
+        {aba === "cotacao" && <Cotacao produtos={produtos} fornecedores={fornecedores} onSaveProd={saveProd} onDelProd={delProd} ingsComp={ingsComp} precosComp={precosComp} fornsComp={fornsComp} />}
         {aba === "pedidos" && <Pedidos pedidos={pedidos} fornecedores={fornecedores} onSave={savePed} onDelete={delPed} />}
       </>}
     </div>
