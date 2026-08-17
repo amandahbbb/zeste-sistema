@@ -193,6 +193,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
   const[f,setF]=useState(()=>ficha?{...ficha}:{id:uid(),nome:'',margemSeguranca:0.1,itens:[],modoPreparo:'',_cliente:souCli||'zeste'});
   const[picker,setPicker]=useState(false);
   const[fornMap,setFornMap]=useState({});
+  const[pesosAbertos,setPesosAbertos]=useState({});
   useEffect(()=>{if(!open)return;let vivo=true;(async()=>{const cli=f._cliente||'zeste';const clis=cli==='zeste'?'zeste':cli+',zeste';const[fs,ps]=await Promise.all([fornListAll(clis,token),precosListAll(clis,token)]);if(!vivo)return;const nm=id=>fs.find(x=>x.id===id)?.nome||'';const m={};for(const r of ps){if(!(+r.preco>0))continue;(m[r.ingrediente_id]=m[r.ingrediente_id]||[]).push({fornId:r.fornecedor_id,nome:nm(r.fornecedor_id),preco:+r.preco,atual:!!r.atual});}setFornMap(m);})();return()=>{vivo=false;};},[open,f._cliente,token]);
   if(!open)return null;
   const addItem=(item)=>setF(p=>({...p,itens:[...p.itens,{...item,qtdLiquida:0.1}]}));
@@ -276,7 +277,15 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
       {it.tipo!=='ficha'&&<div style={{marginTop:10,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
         <button type="button" onClick={()=>setUnConv(i,{porUn:!it.porUn,gUn:it.gUn||55,qtdUn:it.qtdUn||1})} style={{fontSize:11.5,fontWeight:700,padding:'6px 12px',borderRadius:20,border:'1.5px solid '+(it.porUn?'var(--verde)':'var(--cinzaM)'),background:it.porUn?'var(--verde)':'#fff',color:it.porUn?'#fff':'var(--cinzaE)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:5}}>{it.porUn?'✓ Por unidade':'⚖ Inserir por unidade'}</button>
         {it.porUn&&<span style={{fontSize:12,color:'var(--cinzaE)'}}>{it.qtdUn||0} un × {it.gUn||55} g = <b style={{color:'var(--verde)'}}>{num(it.qtdLiquida)} kg</b></span>}
+        <button type="button" onClick={()=>setPesosAbertos(pp=>({...pp,[i]:!pp[i]}))} style={{fontSize:11.5,fontWeight:700,padding:'6px 12px',borderRadius:20,border:'1.5px solid '+(pesosAbertos[i]?'var(--azul)':'var(--cinzaM)'),background:pesosAbertos[i]?'var(--azul)':'#fff',color:pesosAbertos[i]?'#fff':'var(--cinzaE)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:5}}>⚖ {pesosAbertos[i]?'ocultar pesos':'ver pesos'}</button>
       </div>}
+      {it.tipo!=='ficha'&&pesosAbertos[i]&&(()=>{const _ig=ingredientes.find(g=>g.id===it.ingId)||ingredientes.find(g=>g.nome===it.nomeRef);const _un=(_ig?.un||'KG').toString().toUpperCase()==='L'?'L':'kg';const liq=+it.qtdLiquida||0;const bruta=liq*(it.fc||1);const pronto=it.pesoFinal!=null?it.pesoFinal:liq*(it.fk||1);return <div style={{marginTop:8,padding:'10px 12px',background:'#f5f8f5',border:'1px solid var(--cinzaM)',borderRadius:9}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:'5px 8px',fontSize:12.5,alignItems:'center'}}>
+          <span><b>LÍQUIDA</b> <span style={{color:'var(--cinzaE)'}}>· vai na receita</span></span><b style={{textAlign:'right',whiteSpace:'nowrap'}}>{num(liq,3)} {_un}</b>
+          <span><b style={{color:'var(--coral)'}}>BRUTA</b> <span style={{color:'var(--cinzaE)'}}>· comprar/pesar cru · FC {num(it.fc,2)}</span></span><b style={{textAlign:'right',color:'var(--coral)',whiteSpace:'nowrap'}}>{num(bruta,3)} {_un}</b>
+          <span><b style={{color:'var(--azul)'}}>PESO PRONTO</b> <span style={{color:'var(--cinzaE)'}}>· depois de cozido · FK {num(it.fk,2)}</span></span><b style={{textAlign:'right',color:'var(--azul)',whiteSpace:'nowrap'}}>{num(pronto,3)} {_un}</b>
+        </div>
+      </div>;})()}
     </div>))}
     {f.itens.length===0&&<div style={{textAlign:'center',padding:20,color:'var(--cinzaE)',fontStyle:'italic'}}>Clique "+ Adicionar" para incluir insumos</div>}
     <div className="ft-fld" style={{marginTop:12}}><label className="ft-flbl">Modo de preparo (opcional)</label><textarea rows={3} value={f.modoPreparo||''} onChange={e=>setF(p=>({...p,modoPreparo:e.target.value}))} style={{resize:'vertical',minHeight:60}} placeholder="Descreva o passo a passo…"/></div>
