@@ -85,7 +85,18 @@ async function gerarCadernoDaPraca(token, praca, pratosEscolhidos) {
   ]);
   const fichasCalc = _calcAllFichas(fichasRaw, ingredientes);
   const pratosCalc = pratosEscolhidos.map(p => _calcPrato(p, ingredientes, fichasCalc));
-  return { pratosCalc, fichasCalc, count: pratosCalc.length };
+  // Deriva só as fichas que os pratos escolhidos usam (incluindo sub-fichas, recursivo)
+  const usadas = new Set();
+  const byNome = {}; fichasCalc.forEach(f => { byNome[f.nome] = f; });
+  const visitar = (nome) => {
+    const f = byNome[nome];
+    if (!f || usadas.has(nome)) return;
+    usadas.add(nome);
+    (f.itens || []).forEach(it => { if (it.tipo === "ficha" && it.nomeRef) visitar(it.nomeRef); });
+  };
+  pratosEscolhidos.forEach(p => (p.componentes || []).forEach(c => { if (c.tipo === "ficha" && c.nomeRef) visitar(c.nomeRef); }));
+  const fichasUsadas = fichasCalc.filter(f => usadas.has(f.nome));
+  return { pratosCalc, fichasCalc: fichasUsadas, count: pratosCalc.length };
 }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -382,7 +393,7 @@ export default function Documentos({ token, clientes = [] }) {
                   const pr = await sbLoadTabela("fin_pratos", token, praca);
                   if (!pr.length) { alert("Esta praça não tem pratos cadastrados ainda."); setGerLoading(false); return; }
                   setGerPratos(pr);
-                  const sel = {}; pr.forEach(p => { sel[p.id || p._id] = true; });
+                  const sel = {}; pr.forEach((p, i) => { sel[p.id || p._id || i] = true; });
                   setGerSel(sel);
                   setGerEtapa("pratos");
                 } catch (e) { alert("Erro ao carregar pratos: " + e.message); }
@@ -394,10 +405,10 @@ export default function Documentos({ token, clientes = [] }) {
             {gerEtapa === "pratos" && (<>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <label className="doc-label" style={{ marginTop: 0 }}>Quais pratos entram</label>
-              <span onClick={() => { const all = {}; gerPratos.forEach(p => { all[p.id || p._id] = true; }); setGerSel(all); }} style={{ fontSize: 12, color: C.azul, cursor: "pointer" }}>marcar todos</span>
+              <span onClick={() => { const all = {}; gerPratos.forEach((p, i) => { all[p.id || p._id || i] = true; }); setGerSel(all); }} style={{ fontSize: 12, color: C.azul, cursor: "pointer" }}>marcar todos</span>
             </div>
             <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", maxHeight: "40vh", overflowY: "auto" }}>
-              {gerPratos.map((p, idx) => { const pid = p.id || p._id; const on = !!gerSel[pid]; return (
+              {gerPratos.map((p, idx) => { const pid = p.id || p._id || idx; const on = !!gerSel[pid]; return (
                 <div key={pid} onClick={() => setGerSel(s => ({ ...s, [pid]: !s[pid] }))} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: idx < gerPratos.length - 1 ? `1px solid ${C.cinzaF}` : "none", cursor: "pointer", opacity: on ? 1 : 0.5 }}>
                   <span style={{ width: 18, height: 18, borderRadius: 4, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, background: on ? C.lima : "#fff", color: C.preto, border: `1.5px solid ${on ? C.lima : C.cinzaM}` }}>{on ? "✓" : ""}</span>
                   <span style={{ fontSize: 14, textDecoration: on ? "none" : "line-through" }}>{p.nome || "(sem nome)"}</span>
@@ -413,7 +424,7 @@ export default function Documentos({ token, clientes = [] }) {
                 const cli = clientes.find(c => c.cliente_id === cid);
                 const praca = cid === "440" ? gerPraca : cid;
                 const nomePraca = cid === "440" ? (gerPraca === "440-conf" ? `${cli?.nome_display} — Confeitaria` : `${cli?.nome_display} — Restaurante`) : cli?.nome_display;
-                const escolhidos = gerPratos.filter(p => gerSel[p.id || p._id]);
+                const escolhidos = gerPratos.filter((p, i) => gerSel[p.id || p._id || i]);
                 if (!escolhidos.length) { alert("Marque ao menos um prato."); return; }
                 setGerLoading(true);
                 try {
@@ -442,7 +453,7 @@ export default function Documentos({ token, clientes = [] }) {
                   setGerLoading(false); setGerando(false); setGerEtapa("config");
                   setVerAuto(novos[0]);
                 } catch (e) { alert("Erro ao gerar: " + e.message); setGerLoading(false); }
-              }} style={{ marginLeft: "auto", background: gerTipo === "praca" ? C.verde : C.azul, color: "#fff", padding: "10px 20px" }}>{gerTipo === "praca" ? "🖼 Gerar" : `⚡ Gerar com ${gerPratos.filter(p => gerSel[p.id || p._id]).length} pratos`}</button>
+              }} style={{ marginLeft: "auto", background: gerTipo === "praca" ? C.verde : C.azul, color: "#fff", padding: "10px 20px" }}>{gerTipo === "praca" ? "🖼 Gerar" : `⚡ Gerar com ${gerPratos.filter((p, i) => gerSel[p.id || p._id || i]).length} pratos`}</button>
             </div>
             </>)}
           </div>
