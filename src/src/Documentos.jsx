@@ -333,13 +333,12 @@ export default function Documentos({ token, clientes = [] }) {
               {clientes.map(c => <option key={c.cliente_id} value={c.cliente_id} style={{ color: C.preto, background: "#fff" }}>{c.nome_display}</option>)}
             </select>
             {gerTipo !== "praca" && (
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <label style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", padding: "9px 11px", borderRadius: 8, border: `1px solid ${gerOp ? C.lima : C.border}`, background: gerOp ? "#F7F8F0" : "#fff", color: C.preto }}>
-                  <input type="checkbox" checked={gerOp} onChange={e => setGerOp(e.target.checked)} /> 📕 Operacional
-                </label>
-                <label style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", padding: "9px 11px", borderRadius: 8, border: `1px solid ${gerGer ? C.lima : C.border}`, background: gerGer ? "#F7F8F0" : "#fff", color: C.preto }}>
-                  <input type="checkbox" checked={gerGer} onChange={e => setGerGer(e.target.checked)} /> 📊 Gerencial
-                </label>
+              <div style={{ marginTop: 12 }}>
+                <label className="doc-label" style={{ marginTop: 0 }}>Quais cadernos gerar</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" onClick={() => setGerOp(v => !v)} style={{ flex: 1, cursor: "pointer", padding: "11px 12px", borderRadius: 10, fontSize: 14, fontWeight: 600, border: `2px solid ${gerOp ? C.lima : C.border}`, background: gerOp ? C.lima : "#fff", color: gerOp ? C.preto : C.cinzaE, transition: "all .15s" }}>{gerOp ? "✓ " : ""}📕 Operacional</button>
+                  <button type="button" onClick={() => setGerGer(v => !v)} style={{ flex: 1, cursor: "pointer", padding: "11px 12px", borderRadius: 10, fontSize: 14, fontWeight: 600, border: `2px solid ${gerGer ? C.lima : C.border}`, background: gerGer ? C.lima : "#fff", color: gerGer ? C.preto : C.cinzaE, transition: "all .15s" }}>{gerGer ? "✓ " : ""}📊 Gerencial</button>
+                </div>
               </div>
             )}
             {gerLoading && <div style={{ textAlign: "center", color: C.azul, fontSize: 13, padding: "14px 0" }}>⚙️ {gerTipo === "praca" ? "Montando fichas de praça…" : "Montando caderno…"}</div>}
