@@ -167,6 +167,8 @@ export default function Documentos({ token, clientes = [] }) {
   const [gerando, setGerando] = useState(false); // modal gerar caderno automático
   const [gerTipo, setGerTipo] = useState("caderno"); // caderno | praca
   const [gerLoading, setGerLoading] = useState(false);
+  const [gerOp, setGerOp] = useState(true);
+  const [gerGer, setGerGer] = useState(true);
   const [verAuto, setVerAuto] = useState(null); // visualizador inline de caderno/fichas de praça
 
   useEffect(() => { sbLoad(token).then(d => { setDocs(d); setLoading(false); }); }, []);
@@ -176,6 +178,39 @@ export default function Documentos({ token, clientes = [] }) {
     setDocs(p => p.find(x => x.id === d.id) ? p.map(x => x.id === d.id ? d : x) : [d, ...p]);
     await sbSave(d, token);
     setEditing(null);
+  };
+
+  const toggleVisib = async (doc) => {
+    const nova = doc.visibilidade === "entregavel" ? "interno" : "entregavel";
+    const d = { ...doc, visibilidade: nova, atualizadoEm: new Date().toISOString() };
+    setDocs(p => p.map(x => x.id === d.id ? d : x));
+    await sbSave(d, token);
+    toast(nova === "entregavel" ? "📤 Publicado no portal do cliente" : "🔒 Voltou a interno");
+  };
+
+  const regerar = async (doc) => {
+    const cid = doc.clienteId;
+    const cli = clientes.find(c => c.cliente_id === cid);
+    setGerLoading(true);
+    try {
+      const { pratosCalc, fichasCalc, count } = await gerarCadernoDoCliente(token, cid, cli?.nome_display);
+      const quebrados = [
+        ...pratosCalc.flatMap(p => (p.comps || []).filter(c => c.erro).map(c => `${p.nome} → ${c.nomeRef}`)),
+        ...fichasCalc.flatMap(f => (f.itens || []).filter(it => it.erro).map(it => `${f.nome} → ${it.nomeRef}`))
+      ];
+      if (quebrados.length) { alert("Não regerado — referências quebradas (custo zeraria):\n\n" + quebrados.slice(0, 8).join("\n") + (quebrados.length > 8 ? `\n…e mais ${quebrados.length - 8}` : "")); setGerLoading(false); return; }
+      if (count === 0) { alert("Este cliente não tem pratos cadastrados."); setGerLoading(false); return; }
+      const agora = new Date().toISOString();
+      let html;
+      if (doc.modelo === "fichas_praca") html = gerarFichasPracaHTML({ clienteNome: cli?.nome_display, pratos: pratosCalc });
+      else if (doc.modelo === "caderno_gerencial") html = gerarCadernoGerencialHTML({ titulo: doc.titulo, clienteNome: cli?.nome_display, pratos: pratosCalc });
+      else html = gerarCadernoOperacionalHTML({ titulo: doc.titulo, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc });
+      const d = { ...doc, html, geradoEm: agora, atualizadoEm: agora };
+      setDocs(p => p.map(x => x.id === d.id ? d : x));
+      await sbSave(d, token);
+      toast("↻ Caderno atualizado com os dados de agora");
+    } catch { toast("Erro ao regerar", "erro"); }
+    setGerLoading(false);
   };
   const excluir = async (id) => { if (!confirm("Excluir este documento?")) return; setDocs(p => p.filter(x => x.id !== id)); await sbDel(id, token); setEditing(null); };
 
@@ -265,14 +300,22 @@ export default function Documentos({ token, clientes = [] }) {
               if (ehAuto) setVerAuto(d);
               else setEditing(d);
             };
+            const entregavel = d.visibilidade === "entregavel";
+            const selo = entregavel
+              ? { txt: `📤 Publicado · ${cli ? cli.nome_display : "cliente"}`, bg: "#EAF3DE", cor: "#3B6D11" }
+              : { txt: "🔒 Rascunho · só Zeste", bg: "#E6F1FB", cor: "#0C447C" };
             return (
-              <div key={d.id} onClick={abrir} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: i < docs.length - 1 ? `1px solid ${C.cinzaF}` : "none", cursor: "pointer" }}>
-                <div style={{ fontSize: 26 }}>{m.icon || "📄"}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
+              <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: i < docs.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
+                <div onClick={abrir} style={{ fontSize: 26, cursor: "pointer" }}>{m.icon || "📄"}</div>
+                <div onClick={abrir} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
                   <div style={{ fontFamily: "'Antonio',sans-serif", fontWeight: 600, fontSize: 16 }}>{d.titulo || "(sem título)"}</div>
-                  <div style={{ fontSize: 12, color: C.cinzaE }}>{m.nome}{d.visibilidade === "entregavel" ? ` · 📤 ${cli ? cli.nome_display : "cliente"}` : " · 🔒 interno"}</div>
+                  <div style={{ marginTop: 3 }}><span style={{ fontSize: 12, background: selo.bg, color: selo.cor, padding: "2px 9px", borderRadius: 6, fontWeight: 600 }}>{selo.txt}</span></div>
                 </div>
-                <span style={{ color: C.azul, fontWeight: 700 }}>{ehAuto ? "🖨" : "→"}</span>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {ehAuto && <button className="doc-btn" onClick={(e) => { e.stopPropagation(); regerar(d); }} disabled={gerLoading} style={{ width: "auto", padding: "6px 12px", fontSize: 13, background: "#F0EEE8", color: C.cinzaE }} title="Refaz o caderno com os dados atuais das fichas e pratos">↻ Regerar</button>}
+                  <button className="doc-btn" onClick={(e) => { e.stopPropagation(); toggleVisib(d); }} style={{ width: "auto", padding: "6px 12px", fontSize: 13, background: entregavel ? "#F0EEE8" : C.lima, color: entregavel ? C.cinzaE : C.preto }}>{entregavel ? "Ocultar" : "Publicar"}</button>
+                  <span onClick={abrir} style={{ color: C.azul, fontWeight: 700, cursor: "pointer" }}>{ehAuto ? "🖨" : "→"}</span>
+                </div>
               </div>
             );
           })}
@@ -289,6 +332,16 @@ export default function Documentos({ token, clientes = [] }) {
               <option value="" style={{ color: C.preto, background: "#fff" }}>— selecione —</option>
               {clientes.map(c => <option key={c.cliente_id} value={c.cliente_id} style={{ color: C.preto, background: "#fff" }}>{c.nome_display}</option>)}
             </select>
+            {gerTipo !== "praca" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <label style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", padding: "9px 11px", borderRadius: 8, border: `1px solid ${gerOp ? C.lima : C.border}`, background: gerOp ? "#F7F8F0" : "#fff", color: C.preto }}>
+                  <input type="checkbox" checked={gerOp} onChange={e => setGerOp(e.target.checked)} /> 📕 Operacional
+                </label>
+                <label style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", padding: "9px 11px", borderRadius: 8, border: `1px solid ${gerGer ? C.lima : C.border}`, background: gerGer ? "#F7F8F0" : "#fff", color: C.preto }}>
+                  <input type="checkbox" checked={gerGer} onChange={e => setGerGer(e.target.checked)} /> 📊 Gerencial
+                </label>
+              </div>
+            )}
             {gerLoading && <div style={{ textAlign: "center", color: C.azul, fontSize: 13, padding: "14px 0" }}>⚙️ {gerTipo === "praca" ? "Montando fichas de praça…" : "Montando caderno…"}</div>}
             <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
               <button className="doc-btn" onClick={() => setGerando(false)} disabled={gerLoading} style={{ background: "#F0EEE8", color: C.cinzaE }}>Cancelar</button>
@@ -316,10 +369,11 @@ export default function Documentos({ token, clientes = [] }) {
                     const titulo = `Fichas de Praça — ${cli?.nome_display || ""}`;
                     novos.push({ id: uid(), modelo: "fichas_praca", titulo, clienteId: cid, visibilidade: "entregavel", html: gerarFichasPracaHTML({ clienteNome: cli?.nome_display, pratos: pratosCalc }), geradoEm: agora });
                   } else {
+                    if (!gerOp && !gerGer) { alert("Escolha ao menos um caderno (Operacional ou Gerencial)."); setGerLoading(false); return; }
                     const tituloOp = `Caderno Operacional — ${cli?.nome_display || ""}`;
                     const tituloGer = `Caderno Gerencial — ${cli?.nome_display || ""}`;
-                    novos.push({ id: uid(), modelo: "caderno_auto", titulo: tituloOp, clienteId: cid, visibilidade: "entregavel", html: gerarCadernoOperacionalHTML({ titulo: tituloOp, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc }), geradoEm: agora });
-                    novos.push({ id: uid(), modelo: "caderno_gerencial", titulo: tituloGer, clienteId: cid, visibilidade: "entregavel", html: gerarCadernoGerencialHTML({ titulo: tituloGer, clienteNome: cli?.nome_display, pratos: pratosCalc }), geradoEm: agora });
+                    if (gerOp) novos.push({ id: uid(), modelo: "caderno_auto", titulo: tituloOp, clienteId: cid, visibilidade: "interno", html: gerarCadernoOperacionalHTML({ titulo: tituloOp, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc }), geradoEm: agora });
+                    if (gerGer) novos.push({ id: uid(), modelo: "caderno_gerencial", titulo: tituloGer, clienteId: cid, visibilidade: "interno", html: gerarCadernoGerencialHTML({ titulo: tituloGer, clienteNome: cli?.nome_display, pratos: pratosCalc }), geradoEm: agora });
                   }
                   // substitui versões anteriores do mesmo tipo/cliente (evita duplicatas)
                   const modelosNovos = novos.map(n => n.modelo);
@@ -343,7 +397,7 @@ export default function Documentos({ token, clientes = [] }) {
 // Devolve o HTML do documento (renderizado inline em iframe — window.open quebra no iOS)
 function exportarDoc(d, modelo) {
   const linha = t => (t || "").split("\n").filter(x => x.trim());
-  const esc = s => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const esc = s => (s || "").replace(/&/g, "&amp;").replace(/</g, "<").replace(/>/g, ">");
   let corpo = "";
   if (d.modelo === "caderno_op") {
     const dd = d.dados;
