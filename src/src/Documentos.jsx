@@ -78,6 +78,16 @@ async function gerarCadernoDoCliente(token, clienteId, clienteNome) {
   return { pratosCalc, fichasCalc, count: pratosCalc.length };
 }
 
+async function gerarCadernoDaPraca(token, praca, pratosEscolhidos) {
+  const [fichasRaw, ingredientes] = await Promise.all([
+    sbLoadTabela("fin_fichas", token, praca),
+    sbLoadTabela("fin_ingredientes", token, null),
+  ]);
+  const fichasCalc = _calcAllFichas(fichasRaw, ingredientes);
+  const pratosCalc = pratosEscolhidos.map(p => _calcPrato(p, ingredientes, fichasCalc));
+  return { pratosCalc, fichasCalc, count: pratosCalc.length };
+}
+
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const td = () => new Date().toISOString().slice(0, 10);
 const C = { preto: "#0E0E0C", branco: "#fff", lima: "#8FA715", verde: "#497A5D", azul: "#1A4F71", coral: "#C4502B", creme: "#F2EBD8", cinzaE: "#6B6B5E", cinzaF: "#F0EEE8", cinzaM: "#D9D5C8", border: "#E3E1D9" };
@@ -169,6 +179,11 @@ export default function Documentos({ token, clientes = [] }) {
   const [gerLoading, setGerLoading] = useState(false);
   const [gerOp, setGerOp] = useState(true);
   const [gerGer, setGerGer] = useState(true);
+  const [gerPraca, setGerPraca] = useState("440");
+  const [gerEtapa, setGerEtapa] = useState("config");
+  const [gerPratos, setGerPratos] = useState([]);
+  const [gerSel, setGerSel] = useState({});
+  const [gerCliId, setGerCliId] = useState("");
   const [verAuto, setVerAuto] = useState(null); // visualizador inline de caderno/fichas de praça
 
   useEffect(() => { sbLoad(token).then(d => { setDocs(d); setLoading(false); }); }, []);
@@ -277,8 +292,8 @@ export default function Documentos({ token, clientes = [] }) {
           <p style={{ fontSize: 13, color: C.cinzaE, marginTop: 2 }}>Crie documentos operacionais e gerenciais no padrão Zeste.</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="doc-btn" onClick={() => { setGerTipo("caderno"); setGerando(true); }} style={{ background: C.azul, color: "#fff" }}>⚡ Gerar Caderno</button>
-          <button className="doc-btn" onClick={() => { setGerTipo("praca"); setGerando(true); }} style={{ background: C.verde, color: "#fff" }}>🖼 Fichas de Praça</button>
+          <button className="doc-btn" onClick={() => { setGerTipo("caderno"); setGerEtapa("config"); setGerCliId(""); setGerando(true); }} style={{ background: C.azul, color: "#fff" }}>⚡ Gerar Caderno</button>
+          <button className="doc-btn" onClick={() => { setGerTipo("praca"); setGerEtapa("config"); setGerCliId(""); setGerando(true); }} style={{ background: C.verde, color: "#fff" }}>🖼 Fichas de Praça</button>
           <button className="doc-btn" onClick={() => setEscolhendo(true)} style={{ background: C.lima, color: C.preto }}>+ Novo</button>
         </div>
       </div>
@@ -324,70 +339,116 @@ export default function Documentos({ token, clientes = [] }) {
 
       {gerando && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => !gerLoading && setGerando(false)}>
-          <div style={{ background: "#fff", borderRadius: 14, padding: 24, maxWidth: 460, width: "100%" }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: "#fff", borderRadius: 14, padding: 24, maxWidth: 460, width: "100%", maxHeight: "88vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ fontFamily: "'Antonio',sans-serif", fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{gerTipo === "praca" ? "🖼 Fichas de Praça" : "⚡ Gerar Caderno Automático"}</div>
-            <div style={{ fontSize: 13, color: C.cinzaE, marginBottom: 16, lineHeight: 1.45 }}>{gerTipo === "praca" ? "Gera uma folha A4 por prato, com foto grande e o modo de empratar em letra grande — pra plastificar e colar na parede da cozinha. Dica: cadastre a foto do prato (link) no cadastro de cada prato." : "O sistema monta DOIS cadernos a partir dos pratos e fichas já cadastrados: o Operacional (empratamento + receitas base, uso da cozinha) e o Gerencial (custos e CMV, confidencial). Sem digitar nada."}</div>
+            <div style={{ fontSize: 13, color: C.cinzaE, marginBottom: 16, lineHeight: 1.45 }}>{gerTipo === "praca" ? "Gera uma folha A4 por prato, com foto grande e o modo de empratar em letra grande — pra plastificar e colar na parede da cozinha." : "Monta o caderno a partir dos pratos que você escolher. As fichas base entram sozinhas conforme os pratos usam."}</div>
+
+            {gerEtapa === "config" && (<>
             <label className="doc-label" style={{ marginTop: 0 }}>Cliente</label>
-            <select id="ger-cli" className="doc-input" defaultValue="" style={{ color: C.preto, background: "#FCFBF9" }}>
+            <select id="ger-cli" className="doc-input" defaultValue="" style={{ color: C.preto, background: "#FCFBF9" }} onChange={e => { setGerCliId(e.target.value); setGerPraca("440"); }}>
               <option value="" style={{ color: C.preto, background: "#fff" }}>— selecione —</option>
               {clientes.map(c => <option key={c.cliente_id} value={c.cliente_id} style={{ color: C.preto, background: "#fff" }}>{c.nome_display}</option>)}
             </select>
+
+            {gerCliId === "440" && (
+              <div style={{ marginTop: 12 }}>
+                <label className="doc-label" style={{ marginTop: 0 }}>Praça</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" onClick={() => setGerPraca("440")} style={{ flex: 1, cursor: "pointer", padding: "11px 12px", borderRadius: 10, fontSize: 14, fontWeight: 600, border: `2px solid ${gerPraca === "440" ? C.lima : C.border}`, background: gerPraca === "440" ? C.lima : "#fff", color: gerPraca === "440" ? C.preto : C.cinzaE }}>{gerPraca === "440" ? "✓ " : ""}🍽 Restaurante</button>
+                  <button type="button" onClick={() => setGerPraca("440-conf")} style={{ flex: 1, cursor: "pointer", padding: "11px 12px", borderRadius: 10, fontSize: 14, fontWeight: 600, border: `2px solid ${gerPraca === "440-conf" ? C.lima : C.border}`, background: gerPraca === "440-conf" ? C.lima : "#fff", color: gerPraca === "440-conf" ? C.preto : C.cinzaE }}>{gerPraca === "440-conf" ? "✓ " : ""}🧁 Confeitaria</button>
+                </div>
+              </div>
+            )}
+
             {gerTipo !== "praca" && (
               <div style={{ marginTop: 12 }}>
                 <label className="doc-label" style={{ marginTop: 0 }}>Quais cadernos gerar</label>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" onClick={() => setGerOp(v => !v)} style={{ flex: 1, cursor: "pointer", padding: "11px 12px", borderRadius: 10, fontSize: 14, fontWeight: 600, border: `2px solid ${gerOp ? C.lima : C.border}`, background: gerOp ? C.lima : "#fff", color: gerOp ? C.preto : C.cinzaE, transition: "all .15s" }}>{gerOp ? "✓ " : ""}📕 Operacional</button>
-                  <button type="button" onClick={() => setGerGer(v => !v)} style={{ flex: 1, cursor: "pointer", padding: "11px 12px", borderRadius: 10, fontSize: 14, fontWeight: 600, border: `2px solid ${gerGer ? C.lima : C.border}`, background: gerGer ? C.lima : "#fff", color: gerGer ? C.preto : C.cinzaE, transition: "all .15s" }}>{gerGer ? "✓ " : ""}📊 Gerencial</button>
+                  <button type="button" onClick={() => setGerOp(v => !v)} style={{ flex: 1, cursor: "pointer", padding: "11px 12px", borderRadius: 10, fontSize: 14, fontWeight: 600, border: `2px solid ${gerOp ? C.lima : C.border}`, background: gerOp ? C.lima : "#fff", color: gerOp ? C.preto : C.cinzaE }}>{gerOp ? "✓ " : ""}📕 Operacional</button>
+                  <button type="button" onClick={() => setGerGer(v => !v)} style={{ flex: 1, cursor: "pointer", padding: "11px 12px", borderRadius: 10, fontSize: 14, fontWeight: 600, border: `2px solid ${gerGer ? C.lima : C.border}`, background: gerGer ? C.lima : "#fff", color: gerGer ? C.preto : C.cinzaE }}>{gerGer ? "✓ " : ""}📊 Gerencial</button>
                 </div>
               </div>
             )}
-            {gerLoading && <div style={{ textAlign: "center", color: C.azul, fontSize: 13, padding: "14px 0" }}>⚙️ {gerTipo === "praca" ? "Montando fichas de praça…" : "Montando caderno…"}</div>}
+
             <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-              <button className="doc-btn" onClick={() => setGerando(false)} disabled={gerLoading} style={{ background: "#F0EEE8", color: C.cinzaE }}>Cancelar</button>
+              <button className="doc-btn" onClick={() => setGerando(false)} style={{ background: "#F0EEE8", color: C.cinzaE }}>Cancelar</button>
               <button className="doc-btn" disabled={gerLoading} onClick={async () => {
-                const sel = document.getElementById("ger-cli");
-                const cid = sel.value;
+                const cid = gerCliId;
                 if (!cid) { alert("Escolha um cliente."); return; }
-                const cli = clientes.find(c => c.cliente_id === cid);
+                if (gerTipo !== "praca" && !gerOp && !gerGer) { alert("Escolha ao menos um caderno (Operacional ou Gerencial)."); return; }
+                const praca = cid === "440" ? gerPraca : cid;
                 setGerLoading(true);
                 try {
-                  const { pratosCalc, fichasCalc, count } = await gerarCadernoDoCliente(token, cid, cli?.nome_display);
+                  const pr = await sbLoadTabela("fin_pratos", token, praca);
+                  if (!pr.length) { alert("Esta praça não tem pratos cadastrados ainda."); setGerLoading(false); return; }
+                  setGerPratos(pr);
+                  const sel = {}; pr.forEach(p => { sel[p.id || p._id] = true; });
+                  setGerSel(sel);
+                  setGerEtapa("pratos");
+                } catch (e) { alert("Erro ao carregar pratos: " + e.message); }
+                setGerLoading(false);
+              }} style={{ marginLeft: "auto", background: C.azul, color: "#fff", padding: "10px 20px" }}>Avançar →</button>
+            </div>
+            </>)}
+
+            {gerEtapa === "pratos" && (<>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <label className="doc-label" style={{ marginTop: 0 }}>Quais pratos entram</label>
+              <span onClick={() => { const all = {}; gerPratos.forEach(p => { all[p.id || p._id] = true; }); setGerSel(all); }} style={{ fontSize: 12, color: C.azul, cursor: "pointer" }}>marcar todos</span>
+            </div>
+            <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", maxHeight: "40vh", overflowY: "auto" }}>
+              {gerPratos.map((p, idx) => { const pid = p.id || p._id; const on = !!gerSel[pid]; return (
+                <div key={pid} onClick={() => setGerSel(s => ({ ...s, [pid]: !s[pid] }))} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: idx < gerPratos.length - 1 ? `1px solid ${C.cinzaF}` : "none", cursor: "pointer", opacity: on ? 1 : 0.5 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: 4, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, background: on ? C.lima : "#fff", color: C.preto, border: `1.5px solid ${on ? C.lima : C.cinzaM}` }}>{on ? "✓" : ""}</span>
+                  <span style={{ fontSize: 14, textDecoration: on ? "none" : "line-through" }}>{p.nome || "(sem nome)"}</span>
+                </div>
+              ); })}
+            </div>
+            <div style={{ fontSize: 12, color: C.cinzaE, marginTop: 8 }}>As fichas base (massas, cremes, caldas) entram sozinhas conforme os pratos marcados usam.</div>
+            {gerLoading && <div style={{ textAlign: "center", color: C.azul, fontSize: 13, padding: "14px 0" }}>⚙️ Montando…</div>}
+            <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+              <button className="doc-btn" onClick={() => setGerEtapa("config")} disabled={gerLoading} style={{ background: "#F0EEE8", color: C.cinzaE }}>← Voltar</button>
+              <button className="doc-btn" disabled={gerLoading} onClick={async () => {
+                const cid = gerCliId;
+                const cli = clientes.find(c => c.cliente_id === cid);
+                const praca = cid === "440" ? gerPraca : cid;
+                const nomePraca = cid === "440" ? (gerPraca === "440-conf" ? `${cli?.nome_display} — Confeitaria` : `${cli?.nome_display} — Restaurante`) : cli?.nome_display;
+                const escolhidos = gerPratos.filter(p => gerSel[p.id || p._id]);
+                if (!escolhidos.length) { alert("Marque ao menos um prato."); return; }
+                setGerLoading(true);
+                try {
+                  const { pratosCalc, fichasCalc } = await gerarCadernoDaPraca(token, praca, escolhidos);
                   const quebrados = [
                     ...pratosCalc.flatMap(p => (p.comps || []).filter(c => c.erro).map(c => `${p.nome} → ${c.nomeRef}`)),
                     ...fichasCalc.flatMap(f => (f.itens || []).filter(it => it.erro).map(it => `${f.nome} → ${it.nomeRef}`))
                   ];
-                  if (quebrados.length) {
-                    setGerLoading(false);
-                    alert("Caderno NÃO gerado — referências quebradas (custo zeraria):\n\n" + quebrados.slice(0, 8).join("\n") + (quebrados.length > 8 ? `\n…e mais ${quebrados.length - 8}` : "") + "\n\nCorrija nas fichas/pratos e gere de novo.");
-                    return;
-                  }
-                  if (count === 0) { alert("Este cliente não tem pratos cadastrados ainda. Cadastre os pratos nas Fichas primeiro."); setGerLoading(false); return; }
+                  if (quebrados.length) { setGerLoading(false); alert("Caderno NÃO gerado — referências quebradas (custo zeraria):\n\n" + quebrados.slice(0, 8).join("\n") + (quebrados.length > 8 ? `\n…e mais ${quebrados.length - 8}` : "") + "\n\nCorrija ou desmarque esses pratos e gere de novo."); return; }
                   const agora = new Date().toISOString();
                   const novos = [];
                   if (gerTipo === "praca") {
-                    const titulo = `Fichas de Praça — ${cli?.nome_display || ""}`;
-                    novos.push({ id: uid(), modelo: "fichas_praca", titulo, clienteId: cid, visibilidade: "entregavel", html: gerarFichasPracaHTML({ clienteNome: cli?.nome_display, pratos: pratosCalc }), geradoEm: agora });
+                    const titulo = `Fichas de Praça — ${nomePraca}`;
+                    novos.push({ id: uid(), modelo: "fichas_praca", titulo, clienteId: praca, visibilidade: "interno", html: gerarFichasPracaHTML({ clienteNome: nomePraca, pratos: pratosCalc }), geradoEm: agora });
                   } else {
-                    if (!gerOp && !gerGer) { alert("Escolha ao menos um caderno (Operacional ou Gerencial)."); setGerLoading(false); return; }
-                    const tituloOp = `Caderno Operacional — ${cli?.nome_display || ""}`;
-                    const tituloGer = `Caderno Gerencial — ${cli?.nome_display || ""}`;
-                    if (gerOp) novos.push({ id: uid(), modelo: "caderno_auto", titulo: tituloOp, clienteId: cid, visibilidade: "interno", html: gerarCadernoOperacionalHTML({ titulo: tituloOp, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc }), geradoEm: agora });
-                    if (gerGer) novos.push({ id: uid(), modelo: "caderno_gerencial", titulo: tituloGer, clienteId: cid, visibilidade: "interno", html: gerarCadernoGerencialHTML({ titulo: tituloGer, clienteNome: cli?.nome_display, pratos: pratosCalc }), geradoEm: agora });
+                    const tituloOp = `Caderno Operacional — ${nomePraca}`;
+                    const tituloGer = `Caderno Gerencial — ${nomePraca}`;
+                    if (gerOp) novos.push({ id: uid(), modelo: "caderno_auto", titulo: tituloOp, clienteId: praca, visibilidade: "interno", html: gerarCadernoOperacionalHTML({ titulo: tituloOp, clienteNome: nomePraca, pratos: pratosCalc, fichas: fichasCalc }), geradoEm: agora });
+                    if (gerGer) novos.push({ id: uid(), modelo: "caderno_gerencial", titulo: tituloGer, clienteId: praca, visibilidade: "interno", html: gerarCadernoGerencialHTML({ titulo: tituloGer, clienteNome: nomePraca, pratos: pratosCalc }), geradoEm: agora });
                   }
-                  // substitui versões anteriores do mesmo tipo/cliente (evita duplicatas)
                   const modelosNovos = novos.map(n => n.modelo);
-                  const antigos = docs.filter(x => modelosNovos.includes(x.modelo) && x.clienteId === cid);
+                  const antigos = docs.filter(x => modelosNovos.includes(x.modelo) && x.clienteId === praca);
                   for (const a of antigos) await sbDel(a.id, token);
                   for (const n of novos) await sbSave(n, token);
-                  setDocs(p => [...novos, ...p.filter(x => !(modelosNovos.includes(x.modelo) && x.clienteId === cid))]);
-                  setGerLoading(false); setGerando(false);
+                  setDocs(p => [...novos, ...p.filter(x => !(modelosNovos.includes(x.modelo) && x.clienteId === praca))]);
+                  setGerLoading(false); setGerando(false); setGerEtapa("config");
                   setVerAuto(novos[0]);
                 } catch (e) { alert("Erro ao gerar: " + e.message); setGerLoading(false); }
-              }} style={{ marginLeft: "auto", background: gerTipo === "praca" ? C.verde : C.azul, color: "#fff", padding: "10px 20px" }}>{gerTipo === "praca" ? "🖼 Gerar" : "⚡ Gerar"}</button>
+              }} style={{ marginLeft: "auto", background: gerTipo === "praca" ? C.verde : C.azul, color: "#fff", padding: "10px 20px" }}>{gerTipo === "praca" ? "🖼 Gerar" : `⚡ Gerar com ${gerPratos.filter(p => gerSel[p.id || p._id]).length} pratos`}</button>
             </div>
+            </>)}
           </div>
         </div>
       )}
+
     </div>
   );
 }
