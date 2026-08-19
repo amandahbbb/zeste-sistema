@@ -230,7 +230,7 @@ export default function Documentos({ token, clientes = [] }) {
       let html;
       if (doc.modelo === "fichas_praca") html = gerarFichasPracaHTML({ clienteNome: cli?.nome_display, pratos: pratosCalc });
       else if (doc.modelo === "caderno_gerencial") html = gerarCadernoGerencialHTML({ titulo: doc.titulo, clienteNome: cli?.nome_display, pratos: pratosCalc });
-      else html = gerarCadernoOperacionalHTML({ titulo: doc.titulo, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc });
+      else html = gerarCadernoOperacionalHTML({ titulo: doc.titulo, clienteNome: cli?.nome_display, pratos: pratosCalc, fichas: fichasCalc, praca: cid });
       const d = { ...doc, html, geradoEm: agora, atualizadoEm: agora };
       setDocs(p => p.map(x => x.id === d.id ? d : x));
       await sbSave(d, token);
@@ -442,7 +442,7 @@ export default function Documentos({ token, clientes = [] }) {
                   } else {
                     const tituloOp = `Caderno Operacional — ${nomePraca}`;
                     const tituloGer = `Caderno Gerencial — ${nomePraca}`;
-                    if (gerOp) novos.push({ id: uid(), modelo: "caderno_auto", titulo: tituloOp, clienteId: praca, visibilidade: "interno", html: gerarCadernoOperacionalHTML({ titulo: tituloOp, clienteNome: nomePraca, pratos: pratosCalc, fichas: fichasCalc }), geradoEm: agora });
+                    if (gerOp) novos.push({ id: uid(), modelo: "caderno_auto", titulo: tituloOp, clienteId: praca, visibilidade: "interno", html: gerarCadernoOperacionalHTML({ titulo: tituloOp, clienteNome: nomePraca, pratos: pratosCalc, fichas: fichasCalc, praca }), geradoEm: agora });
                     if (gerGer) novos.push({ id: uid(), modelo: "caderno_gerencial", titulo: tituloGer, clienteId: praca, visibilidade: "interno", html: gerarCadernoGerencialHTML({ titulo: tituloGer, clienteNome: nomePraca, pratos: pratosCalc }), geradoEm: agora });
                   }
                   const modelosNovos = novos.map(n => n.modelo);
