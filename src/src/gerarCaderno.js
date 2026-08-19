@@ -137,7 +137,31 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 .wrap.conf .tbl-ing th{font-size:11.5px}
 .wrap.conf .tbl-ing td{font-size:16px;padding:11px 24px}
 .wrap.conf .parte-tit{font-size:36px}
+/* ── Caderno rico: obs no componente, checklist de pré-preparo, utensílios ── */
+.comp-obs{font-size:10.5px;color:#8FA715;font-weight:700;font-style:italic;margin-top:6px}
+.tbl-pp{border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;margin:0 24px 10px;width:calc(100% - 48px)}
+.tbl-pp thead th{background:#1C1D1B;color:#cfcfc6;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.1em;font-size:10px;text-align:left;padding:9px 12px}
+.tbl-pp thead th:first-child{background:#8FA715;color:#14210a}
+.tbl-pp td{padding:9px 12px;border-bottom:1px solid #F0EEE8;font-size:12.5px;vertical-align:middle}
+.tbl-pp tr:nth-child(even) td{background:#FBFAF6}
+.tbl-pp .item{font-weight:700;display:flex;align-items:center;gap:8px}
+.tbl-pp .cbox{width:14px;height:14px;border:2px solid #b9b7ad;border-radius:3px;flex:0 0 14px}
+.bdg{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:10px;padding:3px 8px;border-radius:4px;white-space:nowrap}
+.bdg-diario{color:#7a6a12;border:1.5px solid #E8B04B}
+.bdg-semanal{color:#1A4F71;border:1.5px solid #1A4F71}
+.bdg-congelado{background:#1C1D1B;color:#fff}
+.bdg-vblue{background:#1A4F71;color:#fff}
+.bdg-vred{background:#C0392B;color:#fff}
+.bdg-vyellow{background:#E8B04B;color:#3a2c05}
+.bdg-dash{color:#b9b7ad}
+.utens{display:flex;flex-wrap:wrap;gap:8px;padding:2px 24px 20px}
+.pill{border:1.5px solid #1C1D1B;border-radius:6px;padding:5px 11px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.05em;font-size:10.5px;text-transform:uppercase}
+.wrap.conf .tbl-pp td{font-size:14px;padding:11px 14px}
+.wrap.conf .pill{font-size:12px}
 @media(max-width:640px){
+.tbl-pp{margin:0 16px 8px;width:calc(100% - 32px)}
+.tbl-pp td,.tbl-pp th{font-size:11px;padding:7px 8px}
+.utens{padding:2px 16px 16px}
 .parte{padding:24px 12px}
 .capa{padding:40px 22px}
 .capa .titulo{font-size:30px}
@@ -169,6 +193,36 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 </div></body></html>`;
 }
 
+// selos do checklist de pré-preparo (só leitura; campo ausente = não desenha)
+function _bFreq(f) {
+  const t = (f || "").toString().trim().toUpperCase();
+  if (!t) return "";
+  if (t.includes("CONGEL")) return `<span class="bdg bdg-congelado">CONGELADO</span>`;
+  if (t.includes("SEMAN")) return `<span class="bdg bdg-semanal">SEMANAL</span>`;
+  return `<span class="bdg bdg-diario">${_esc(t)}</span>`;
+}
+function _bVal(v) {
+  const t = (v || "").toString().trim();
+  if (!t) return `<span class="bdg bdg-dash">—</span>`;
+  const u = t.toUpperCase();
+  if (u.includes("HORA") || u.includes("MÁX") || u.includes("MAX")) return `<span class="bdg bdg-vred">${_esc(u)}</span>`;
+  if (u.includes("VERIFIC")) return `<span class="bdg bdg-vyellow">${_esc(u)}</span>`;
+  return `<span class="bdg bdg-vblue">${_esc(u)}</span>`;
+}
+// monta a tabela de pré-preparo a partir dos componentes que TÊM campos autorados (acao/freq/validade). Nenhum autorado → não desenha.
+function _checklistPP(comps) {
+  const linhas = (comps || []).filter(c => c.acao || c.freq || c.validade);
+  if (!linhas.length) return "";
+  const rows = linhas.map(c => `<tr><td><div class="item"><span class="cbox"></span>${_esc(c.nomeRef)}</div></td><td>${_esc(c.acao || "")}</td><td>${_bFreq(c.freq)}</td><td>${_bVal(c.validade)}</td></tr>`).join("");
+  return `<div class="secao-lbl">— CHECKLIST DE PRÉ-PREPARO</div>
+    <table class="tbl-pp"><thead><tr><th>ITEM</th><th>AÇÃO</th><th>FREQ.</th><th>VALIDADE</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function _utensilios(p) {
+  const lista = Array.isArray(p.utensilios) ? p.utensilios : _linhas(p.utensilios);
+  if (!lista.length) return "";
+  return `<div class="secao-lbl">— UTENSÍLIOS & EQUIPAMENTOS</div><div class="utens">${lista.map(u => `<span class="pill">${_esc(u)}</span>`).join("")}</div>`;
+}
+
 // ── CADERNO OPERACIONAL — uso da cozinha (empratamento + receitas base) ──
 export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, fichas, praca }) {
   const ehConf = (praca || "").toLowerCase().includes("conf"); // confeitaria: bruta≈líquida → só quantidade (exceto FC real, ex. suco de limão)
@@ -178,15 +232,16 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
     const comps = (p.comps || []).map(c => {
       const liq = _g(c.qtdGramas);
       const temFC = c.tipo === "ing" && c.fc > 1;
+      const obs = c.obs ? `<div class="comp-obs">(${_esc(c.obs)})</div>` : "";
       if (ehConf) {
         const cru = temFC ? `<div class="comp-cru">⚖ comprar ~${_g((c.qtdGramas || 0) * (c.fc || 1))} cru (rende ${liq})</div>` : "";
         return `<div class="comp"><div class="comp-nome">${_esc(c.nomeRef)}</div>
-        <div class="comp-g"><span class="lbl">QUANTIDADE</span><span class="v-liq">${liq}</span></div>${cru}</div>`;
+        <div class="comp-g"><span class="lbl">QUANTIDADE</span><span class="v-liq">${liq}</span></div>${cru}${obs}</div>`;
       }
       const bruta = temFC ? `${_g((c.qtdGramas || 0) * (c.fc || 1))} cru` : liq;
       return `<div class="comp"><div class="comp-nome">${_esc(c.nomeRef)}</div>
         <div class="comp-g"><span class="lbl">LÍQUIDA</span><span class="v-liq">${liq}</span></div>
-        <div class="comp-g"><span class="lbl">BRUTA</span><span class="v-bruta">${bruta}</span></div></div>`;
+        <div class="comp-g"><span class="lbl">BRUTA</span><span class="v-bruta">${bruta}</span></div>${obs}</div>`;
     }).join("");
     const mop = _renderPassos(p.modoPreparo);
     const catLbl = ehConf ? "PRODUTO" : "PRATO PRINCIPAL";
@@ -196,6 +251,8 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
       <div class="secao-lbl">— COMPOSIÇÃO & GRAMATURAS</div>
       <div class="comps">${comps}</div>
       ${mop ? `<div class="secao-lbl">— MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div>` : ""}
+      ${_checklistPP(p.comps)}
+      ${_utensilios(p)}
     </div>`;
   });
 
