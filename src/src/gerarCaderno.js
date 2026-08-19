@@ -80,6 +80,21 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .kpi-v{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:800;color:#fff;margin-top:2px}
 .kpi-lima .kpi-v{color:#8FA715}
 .kpi-s{font-size:10px;color:#888;margin-top:2px}
+.faixa-rend{display:inline-block;background:#8FA715;color:#14210a;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.03em;padding:6px 14px;border-radius:20px;margin:18px 24px 0}
+.conta{display:flex;align-items:stretch;gap:10px;padding:12px 24px 8px}
+.conta-box{flex:1;background:#1b1b1b;border-radius:12px;padding:14px 16px}
+.conta-box.rende{flex:0 0 96px;text-align:center}
+.conta-box.destaque{background:#8FA715}
+.conta-l{font-size:9.5px;letter-spacing:.08em;color:#9a9a9a;font-weight:700}
+.conta-box.destaque .conta-l{color:#1b3d0e}
+.conta-v{font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:800;color:#fff;line-height:1.05;margin-top:3px}
+.conta-box.destaque .conta-v{color:#14210a}
+.conta-box.rende .conta-v{font-size:34px;color:#8FA715}
+.conta-s{font-size:9.5px;color:#7a7a7a;margin-top:3px}
+.conta-box.destaque .conta-s{color:#25460f}
+.conta-op{display:flex;align-items:center;font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:800;color:#8FA715}
+.ger-sec{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:6px 24px 18px}
+@media(max-width:640px){.conta{flex-wrap:wrap}.conta-op{width:100%;justify-content:center;font-size:22px}.conta-box.rende{flex:1}.ger-sec{grid-template-columns:1fr}}
 .tbl-custo{width:100%;border-collapse:collapse;margin:0 24px 24px;width:calc(100% - 48px)}
 .tbl-custo th{font-size:10px;color:#999;text-align:left;padding:8px 10px;letter-spacing:.05em;border-bottom:2px solid #E3E1D9}
 .tbl-custo td{font-size:13px;padding:9px 10px;border-bottom:1px solid #F5F3EE}
@@ -186,13 +201,36 @@ export function gerarCadernoGerencialHTML({ titulo, clienteNome, pratos }) {
     const num = String(idx + 1).padStart(2, "0");
     const linhasCusto = (p.comps || []).map(c => `<tr><td>${_esc(c.nomeRef)}</td><td>${_g(c.qtdGramas)}</td><td>${(c.fc||1).toFixed(2)}</td><td>${_g((c.qtdGramas||0)*(c.fc||1))}</td><td>${_brl(c.custoPorKg)}/kg</td><td class="custo">${_brl(c.custo)}</td></tr>`).join("");
     const margemRS = (p.precoVenda || 0) - (p.custoTotal || 0);
-    parte1 += `<div class="card-ger">
-      <div class="ger-head"><div class="prato-num lima">${num}</div><div><div class="prato-cat">COMPOSIÇÃO DE CUSTOS</div><div class="prato-nome">${_esc(p.nome)}</div></div></div>
-      <div class="ger-kpis">
+    // Bloco de rendimento: bolo/torta que rende N fatias → conta à mostra; senão KPIs por porção
+    const rende = Number(p.rendFatias) || 0;
+    const ehInteiro = (p.modoRend || "porcao") === "inteiro";
+    let blocoRend;
+    if (ehInteiro && rende > 0) {
+      const custoFatia = p.custoTotal / rende;
+      const precoFatia = Number(p.precoFatia) || 0;
+      const cmvFatia = precoFatia > 0 ? custoFatia / precoFatia : 0;
+      blocoRend = `<div class="faixa-rend">1 forma · rende ${rende} fatias · vende por fatia</div>
+      <div class="conta">
+        <div class="conta-box"><div class="conta-l">CUSTA A FORMA INTEIRA</div><div class="conta-v">${_brl(p.custoTotal)}</div><div class="conta-s">todos os ingredientes juntos</div></div>
+        <div class="conta-op">÷</div>
+        <div class="conta-box rende"><div class="conta-l">RENDE</div><div class="conta-v">${rende}</div><div class="conta-s">fatias</div></div>
+        <div class="conta-op">=</div>
+        <div class="conta-box destaque"><div class="conta-l">CADA FATIA CUSTA</div><div class="conta-v">${_brl(custoFatia)}</div><div class="conta-s">é esse o custo que importa</div></div>
+      </div>
+      <div class="ger-sec">
+        <div class="kpi kpi-verde"><div class="kpi-l">PREÇO DA FATIA</div><div class="kpi-v">${precoFatia ? _brl(precoFatia) : "A definir"}</div><div class="kpi-s">${p.precoVenda ? `bolo inteiro: ${_brl(p.precoVenda)}` : "balcão"}</div></div>
+        <div class="kpi kpi-azul"><div class="kpi-l">CMV DA FATIA</div><div class="kpi-v">${precoFatia ? _pct(cmvFatia) : "—"}</div><div class="kpi-s">${precoFatia ? `sobra ${_brl(precoFatia - custoFatia)} por fatia` : "aguarda preço da fatia"}</div></div>
+      </div>`;
+    } else {
+      blocoRend = `<div class="ger-kpis">
         <div class="kpi kpi-lima"><div class="kpi-l">CUSTO POR PORÇÃO</div><div class="kpi-v">${_brl(p.custoTotal)}</div><div class="kpi-s">incl. margem segurança</div></div>
         <div class="kpi kpi-verde"><div class="kpi-l">PREÇO DE VENDA</div><div class="kpi-v">${p.precoVenda ? _brl(p.precoVenda) : "A definir"}</div><div class="kpi-s">cardápio</div></div>
         <div class="kpi kpi-azul"><div class="kpi-l">CMV</div><div class="kpi-v">${p.precoVenda ? _pct(p.cmv) : "—"}</div><div class="kpi-s">${p.precoVenda ? `Margem: ${_brl(margemRS)} (${_pct(p.margem)})` : "Aguarda preço de venda"}</div></div>
-      </div>
+      </div>`;
+    }
+    parte1 += `<div class="card-ger">
+      <div class="ger-head"><div class="prato-num lima">${num}</div><div><div class="prato-cat">COMPOSIÇÃO DE CUSTOS</div><div class="prato-nome">${_esc(p.nome)}</div></div></div>
+      ${blocoRend}
       <div class="secao-lbl">— COMPOSIÇÃO DE CUSTO · PREÇO/KG DA RECEITA PRONTA</div>
       <table class="tbl-custo"><thead><tr><th>RECEITA / INSUMO</th><th>QTD. LÍQ.</th><th>FC</th><th>QTD. BRUTA</th><th>PREÇO/KG</th><th>CUSTO</th></tr></thead><tbody>${linhasCusto}</tbody>
       <tfoot><tr><td colspan="5">CUSTO TOTAL</td><td class="custo">${_brl(p.custoTotal)}</td></tr></tfoot></table>
