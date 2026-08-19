@@ -106,7 +106,7 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 @media(max-width:640px){.comps,.ger-kpis{grid-template-columns:1fr}.receita-body{grid-template-columns:1fr}.receita-ing{border-right:none;border-bottom:1px solid #F0EEE8}}
 `;
 
-function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo }) {
+function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = "" }) {
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${_esc(titulo)}</title>
 <style>${BASE_CSS}
 .passo-alerta{background:#FBEDEA;border-left:3px solid #C0392B;color:#8E2F21;font-size:13px;font-weight:600;padding:8px 12px;border-radius:6px;margin:6px 0 6px 40px}
@@ -118,6 +118,25 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo }) {
 .tbl-resumo td{font-size:14px;padding:11px 14px;border-bottom:1px solid #F5F3EE}
 .tbl-resumo .num{font-family:'Barlow Condensed',sans-serif;font-weight:700}
 .nota-ref{font-size:12px;color:#666;margin-top:14px}
+/* ── Camada 3: caderno da CONFEITARIA — estilo maior, mastigado ── */
+.comp-cru{font-size:11px;color:#B5651D;font-weight:700;margin-top:6px;letter-spacing:.01em}
+.wrap.conf .prato-cat{font-size:12.5px}
+.wrap.conf .prato-nome{font-size:30px}
+.wrap.conf .prato-porcao{font-size:14px}
+.wrap.conf .secao-lbl{font-size:13.5px;padding:20px 24px 10px}
+.wrap.conf .comps{grid-template-columns:1fr 1fr;gap:16px;padding:0 24px 24px}
+.wrap.conf .comp{padding:16px 20px;border-left-width:5px}
+.wrap.conf .comp-nome{font-size:18px;margin-bottom:6px}
+.wrap.conf .v-liq,.wrap.conf .v-bruta{font-size:26px}
+.wrap.conf .comp-g .lbl{font-size:10px}
+.wrap.conf .passo{padding:13px 0}
+.wrap.conf .passo-n{font-size:28px;min-width:34px}
+.wrap.conf .passo-txt{font-size:17px;line-height:1.45}
+.wrap.conf .passo-alerta{font-size:15px;padding:11px 15px}
+.wrap.conf .receita-nome{font-size:23px}
+.wrap.conf .tbl-ing th{font-size:11.5px}
+.wrap.conf .tbl-ing td{font-size:16px;padding:11px 24px}
+.wrap.conf .parte-tit{font-size:36px}
 @media(max-width:640px){
 .parte{padding:24px 12px}
 .capa{padding:40px 22px}
@@ -143,7 +162,7 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo }) {
 .tbl-resumo th,.tbl-resumo td{font-size:12px;padding:8px 10px}
 .tbl-ing th,.tbl-ing td{padding:6px 12px}
 }
-</style></head><body><div class="wrap">
+</style></head><body><div class="wrap ${variante}">
   <div class="capa"><div class="marca">ZESTE</div><div class="sub">${_esc(sub)}</div><div class="titulo">${_esc(titulo)}</div>${clienteNome ? `<div class="cliente">${_esc(clienteNome)}</div>` : ""}<div class="data">Gerado em ${_hoje()}</div>${extraCapa}</div>
   ${corpo}
   <div class="rodape">Documento gerado por Zeste · Inteligência para Negócios Gastronômicos · Gerado em ${_hoje()}</div>
@@ -151,20 +170,29 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo }) {
 }
 
 // ── CADERNO OPERACIONAL — uso da cozinha (empratamento + receitas base) ──
-export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, fichas }) {
+export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, fichas, praca }) {
+  const ehConf = (praca || "").toLowerCase().includes("conf"); // confeitaria: bruta≈líquida → só quantidade (exceto FC real, ex. suco de limão)
   let parte1 = "";
   pratos.forEach((p, idx) => {
     const num = String(idx + 1).padStart(2, "0");
     const comps = (p.comps || []).map(c => {
       const liq = _g(c.qtdGramas);
-      const bruta = c.tipo === "ing" && c.fc > 1 ? `${_g((c.qtdGramas || 0) * (c.fc || 1))} cru` : liq;
+      const temFC = c.tipo === "ing" && c.fc > 1;
+      if (ehConf) {
+        const cru = temFC ? `<div class="comp-cru">⚖ comprar ~${_g((c.qtdGramas || 0) * (c.fc || 1))} cru (rende ${liq})</div>` : "";
+        return `<div class="comp"><div class="comp-nome">${_esc(c.nomeRef)}</div>
+        <div class="comp-g"><span class="lbl">QUANTIDADE</span><span class="v-liq">${liq}</span></div>${cru}</div>`;
+      }
+      const bruta = temFC ? `${_g((c.qtdGramas || 0) * (c.fc || 1))} cru` : liq;
       return `<div class="comp"><div class="comp-nome">${_esc(c.nomeRef)}</div>
         <div class="comp-g"><span class="lbl">LÍQUIDA</span><span class="v-liq">${liq}</span></div>
         <div class="comp-g"><span class="lbl">BRUTA</span><span class="v-bruta">${bruta}</span></div></div>`;
     }).join("");
     const mop = _renderPassos(p.modoPreparo);
+    const catLbl = ehConf ? "PRODUTO" : "PRATO PRINCIPAL";
+    const porcaoLbl = (p.modoRend === "inteiro" && Number(p.rendFatias) > 0) ? `Receita inteira · rende ${Number(p.rendFatias)} fatias` : "1 porção";
     parte1 += `<div class="card-prato">
-      <div class="prato-head"><div class="prato-num">${num}</div><div><div class="prato-cat">PRATO PRINCIPAL · ${(p.comps||[]).length} componentes</div><div class="prato-nome">${_esc(p.nome)}</div><div class="prato-porcao">1 porção</div></div></div>
+      <div class="prato-head"><div class="prato-num">${num}</div><div><div class="prato-cat">${catLbl} · ${(p.comps||[]).length} componentes</div><div class="prato-nome">${_esc(p.nome)}</div><div class="prato-porcao">${porcaoLbl}</div></div></div>
       <div class="secao-lbl">— COMPOSIÇÃO & GRAMATURAS</div>
       <div class="comps">${comps}</div>
       ${mop ? `<div class="secao-lbl">— MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div>` : ""}
@@ -176,12 +204,21 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
   const fichasBase = fichas.filter(f => fichasUsadas.has(f.nome));
   let parte2 = "";
   fichasBase.forEach(f => {
-    const itens = (f.itens || []).map(it => `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${it.qtdLiquida ? _g((it.qtdLiquida||0)*1000) : "QB"}</td><td class="bruta">${it.qtdBruta ? _g((it.qtdBruta||0)*1000) : "QB"}</td></tr>`).join("");
+    const itens = (f.itens || []).map(it => {
+      const liq = it.qtdLiquida ? _g((it.qtdLiquida || 0) * 1000) : "QB";
+      const bru = it.qtdBruta ? _g((it.qtdBruta || 0) * 1000) : "QB";
+      if (ehConf) {
+        const difere = it.qtdBruta && it.qtdLiquida && it.qtdBruta > it.qtdLiquida * 1.02;
+        const nota = difere ? ` <span class="comp-cru" style="display:inline">· ⚖ comprar ~${bru} cru</span>` : "";
+        return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${liq}${nota}</td></tr>`;
+      }
+      return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${liq}</td><td class="bruta">${bru}</td></tr>`;
+    }).join("");
     const preparo = _renderPassos(f.modoPreparo);
     parte2 += `<div class="receita">
       <div class="receita-head"><div class="receita-nome">${_esc(f.nome)}</div></div>
       <div class="receita-body">
-        <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th><th>LÍQUIDA</th><th>BRUTA</th></tr></thead><tbody>${itens}</tbody></table></div>
+        <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th>${ehConf ? "<th>QUANTIDADE</th>" : "<th>LÍQUIDA</th><th>BRUTA</th>"}</tr></thead><tbody>${itens}</tbody></table></div>
         ${preparo ? `<div class="receita-mop"><div class="secao-lbl">— MODO DE PREPARO</div>${preparo}</div>` : ""}
       </div>
     </div>`;
@@ -191,7 +228,7 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
   ${parte1 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 01</div><div class="parte-tit">Fichas de Empratamento</div></div><div class="parte-num">01</div></div>${parte1}</div>` : ""}
   ${parte2 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Receitas Base & Pré-Preparos</div></div><div class="parte-num">02</div></div>${parte2}</div>` : ""}`;
 
-  return _shell({ titulo, clienteNome, sub: "Caderno Operacional · Uso da Cozinha", corpo });
+  return _shell({ titulo, clienteNome, sub: "Caderno Operacional · Uso da Cozinha", corpo, variante: ehConf ? "conf" : "" });
 }
 
 // ── CADERNO GERENCIAL — confidencial (custos, CMV, comparativo) ──
