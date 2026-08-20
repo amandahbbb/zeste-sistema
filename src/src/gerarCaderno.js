@@ -358,6 +358,7 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
         <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th>${ehConf ? "<th>QUANTIDADE</th>" : "<th>LÍQUIDA</th><th>BRUTA</th>"}</tr></thead><tbody>${itens}</tbody></table></div>
         ${preparo ? `<div class="receita-mop"><div class="secao-lbl">— MODO DE PREPARO</div>${preparo}</div>` : ""}
       </div>
+      ${_utensilios(f)}
     </div>`;
   });
 
