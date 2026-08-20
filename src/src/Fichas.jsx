@@ -391,9 +391,19 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
           ))}
         </div>
       </div>
+      <div style={{marginTop:8,borderTop:'1px dashed var(--cinzaM)',paddingTop:8}}>
+        <label className="ft-flbl">PRÉ-PREPARO (checklist do caderno)</label>
+        <input value={c.acao||''} onChange={e=>updComp(i,'acao',e.target.value)} placeholder="Ação: ex. Limpar, porcionar 220 g, refrigerar" style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px',fontSize:13,background:'#fff',colorScheme:'light'}}/>
+        <div style={{display:'flex',gap:8,marginTop:6}}>
+          <select value={c.freq||''} onChange={e=>updComp(i,'freq',e.target.value)} style={{flex:1,minWidth:0,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px 6px',fontSize:12,background:'#fff',colorScheme:'light'}}><option value="">Freq…</option><option value="DIÁRIO">Diário</option><option value="SEMANAL">Semanal</option><option value="CONGELADO">Congelado</option></select>
+          <input value={c.validade||''} onChange={e=>updComp(i,'validade',e.target.value)} placeholder="Validade" style={{flex:1,minWidth:0,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px',fontSize:12,background:'#fff',colorScheme:'light'}}/>
+          <select value={c.local||''} onChange={e=>updComp(i,'local',e.target.value)} style={{flex:1,minWidth:0,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px 6px',fontSize:12,background:'#fff',colorScheme:'light'}}><option value="">Local…</option><option value="Freezer">Freezer</option><option value="Geladeira">Geladeira</option><option value="Bancada">Bancada</option></select>
+        </div>
+      </div>
     </div>))}
     {p.componentes.length===0&&<div style={{textAlign:'center',padding:20,color:'var(--cinzaE)',fontStyle:'italic'}}>Clique "+ Adicionar" para incluir componentes</div>}
     <div className="ft-fld" style={{marginTop:12}}><label className="ft-flbl">Empratamento / modo (opcional)</label><textarea rows={2} value={p.modoPreparo||''} onChange={e=>setP(pr=>({...pr,modoPreparo:e.target.value}))} style={{resize:'vertical',minHeight:50}} placeholder="1. Empratar…"/></div>
+    <div className="ft-fld" style={{marginTop:8}}><label className="ft-flbl">Utensílios & equipamentos (um por linha, opcional)</label><textarea rows={2} value={p.utensilios||''} onChange={e=>setP(pr=>({...pr,utensilios:e.target.value}))} style={{resize:'vertical',minHeight:46}} placeholder={"1× Frigideira antiaderente\n2× Pinças\n1× Microondas"}/></div>
     {!ehInteiro&&<div style={{background:'var(--preto)',borderRadius:10,padding:'14px 16px',marginTop:14,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--coral)'}}>{brl(custoTotal)}</div></div>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>VENDA</div><div style={{fontFamily:'var(--ff)',fontSize:18,fontWeight:700,color:'var(--lima)'}}>{brl(preco)}</div></div>
