@@ -155,6 +155,16 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 .bdg-vyellow{background:#E8B04B;color:#3a2c05}
 .bdg-dash{color:#b9b7ad}
 .deriv-tag{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:8.5px;letter-spacing:.08em;color:#8a8a82;background:#eceae2;border-radius:3px;padding:1px 5px;vertical-align:middle;text-transform:uppercase}
+.estoque{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:8px 24px 24px}
+.loc-card{background:#fff;border-radius:10px;box-shadow:0 1px 6px rgba(0,0,0,.05);overflow:hidden}
+.loc-h{background:#1C1D1B;color:#fff;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.1em;font-size:12px;text-transform:uppercase}
+.loc-h.freezer{background:#1A4F71}.loc-h.bancada{background:#5c6a1f}
+.loc-item{display:flex;justify-content:space-between;gap:10px;padding:7px 16px;border-bottom:1px solid #f4f2ec;font-size:13px}
+.loc-item:last-child{border-bottom:none}
+.loc-item b{font-weight:700}
+.loc-item .q{font-family:'Barlow Condensed',sans-serif;font-weight:800;color:#1A4F71;white-space:nowrap}
+.wrap.conf .loc-h.freezer{background:#5b2b4d}
+.wrap.conf .loc-item{font-size:15px}
 .utens{display:flex;flex-wrap:wrap;gap:8px;padding:2px 24px 20px}
 .pill{border:1.5px solid #1C1D1B;border-radius:6px;padding:5px 11px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.05em;font-size:10.5px;text-transform:uppercase}
 .wrap.conf .tbl-pp td{font-size:14px;padding:11px 14px}
@@ -237,6 +247,29 @@ function _utensilios(p) {
   if (!lista.length) return "";
   return `<div class="secao-lbl">— UTENSÍLIOS & EQUIPAMENTOS</div><div class="utens">${lista.map(u => `<span class="pill">${_esc(u)}</span>`).join("")}</div>`;
 }
+// bloco de estoque por local (só leitura): agrupa os itens de todos os pratos por `local` (autorado ou derivado),
+// mostrando a gramatura — ou a obs (ex.: "montado"/"discos") na confeitaria. Item sem local fica de fora.
+function _estoquePorLocal(pratos, fichaMap, ehConf) {
+  const ordem = ["Freezer", "Geladeira", "Bancada"];
+  const grupos = {}; const vistos = new Set();
+  (pratos || []).forEach(p => (p.comps || []).forEach(c => {
+    const loc = _derivPP(c, fichaMap).local;
+    if (!loc) return;
+    const key = (c.nomeRef || "").toLowerCase().trim();
+    if (vistos.has(key)) return; vistos.add(key);
+    const qtd = c.obs ? _esc(c.obs) : _g(c.qtdGramas);
+    (grupos[loc] = grupos[loc] || []).push({ nome: c.nomeRef, qtd });
+  }));
+  const locs = [...ordem.filter(l => grupos[l]), ...Object.keys(grupos).filter(l => !ordem.includes(l))];
+  if (!locs.length) return "";
+  const cls = { Freezer: "freezer", Bancada: "bancada" };
+  const cards = locs.map(l => {
+    const titulo = (ehConf && l === "Freezer") ? "Freezer — exclusivo doce" : l;
+    const itens = grupos[l].map(x => `<div class="loc-item"><b>${_esc(x.nome)}</b><span class="q">${x.qtd}</span></div>`).join("");
+    return `<div class="loc-card"><div class="loc-h ${cls[l] || ""}">${_esc(titulo)}</div>${itens}</div>`;
+  }).join("");
+  return `<div class="estoque">${cards}</div>`;
+}
 
 // ── CADERNO OPERACIONAL — uso da cozinha (empratamento + receitas base) ──
 export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, fichas, praca }) {
@@ -298,9 +331,11 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
     </div>`;
   });
 
+  const estoque = _estoquePorLocal(pratos, fichaMap, ehConf);
   const corpo = `
   ${parte1 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 01</div><div class="parte-tit">Fichas de Empratamento</div></div><div class="parte-num">01</div></div>${parte1}</div>` : ""}
-  ${parte2 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Receitas Base & Pré-Preparos</div></div><div class="parte-num">02</div></div>${parte2}</div>` : ""}`;
+  ${parte2 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Receitas Base & Pré-Preparos</div></div><div class="parte-num">02</div></div>${parte2}</div>` : ""}
+  ${estoque ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 03</div><div class="parte-tit">Locais de Estoque</div></div><div class="parte-num">03</div></div>${estoque}</div>` : ""}`;
 
   return _shell({ titulo, clienteNome, sub: "Caderno Operacional · Uso da Cozinha", corpo, variante: ehConf ? "conf" : "" });
 }
