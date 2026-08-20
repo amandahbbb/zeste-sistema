@@ -65,6 +65,8 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .receita{background:#fff;border-radius:12px;margin-bottom:20px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.05);page-break-inside:avoid}
 .receita-head{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:2px solid #8FA715}
 .receita-nome{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:800;text-transform:uppercase}
+.receita-cons{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.loc-pill{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:10px;letter-spacing:.05em;color:#5c6a1f;border:1.5px solid #b7c07f;border-radius:4px;padding:3px 8px;text-transform:uppercase}
 .receita-kg{background:#8FA715;color:#111;font-weight:700;font-size:13px;padding:5px 12px;border-radius:20px}
 .receita-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
 .receita-ing{border-right:1px solid #F0EEE8}
@@ -223,15 +225,26 @@ function _bVal(v) {
 // deriva freq/validade/local/ação a partir de sinais existentes (SÓ LEITURA, na hora de gerar; nunca grava).
 // O que a Amanda autorou sempre vence; a derivação só preenche o que está em branco. Só sinais de alta confiança.
 function _derivPP(c, fichaMap) {
-  let acao = c.acao || "", freq = c.freq || "", val = c.validade || "", local = c.local || "";
-  if (acao && freq && val && local) return { acao, freq, val, local, deriv: false };
   const f = c.tipo === "ficha" && fichaMap ? fichaMap[c.nomeRef] : null;
+  // prioridade: 1) autorado no componente do prato  2) autorado na ficha (herda)  3) derivado do texto ("auto")
+  let acao = c.acao || "", freq = c.freq || (f && f.freq) || "", val = c.validade || (f && f.validade) || "", local = c.local || (f && f.local) || "";
+  if (acao && freq && val && local) return { acao, freq, val, local, deriv: false };
   const txt = (((f && f.modoPreparo) || "") + " " + (c.nomeRef || "") + " " + (c.obs || "")).toLowerCase();
   let deriv = false;
-  if (/congel|freezer|❄/.test(txt)) { freq = freq || "CONGELADO"; val = val || "3 MESES"; local = local || "Freezer"; acao = acao || "Manter congelado."; deriv = !c.freq || !c.validade; }
-  else if (/\bcru\b|\bcrua\b|descongel/.test(txt)) { freq = freq || "DIÁRIO"; val = val || "DESCONGELAR REFRIG."; local = local || "Geladeira"; acao = acao || "Descongelar sob refrigeração."; deriv = !c.freq || !c.validade; }
-  else if (/refriger|geladeira/.test(txt)) { local = local || "Geladeira"; acao = acao || "Refrigerado."; deriv = !c.acao; }
+  if (/congel|freezer|❄/.test(txt)) { if (!freq) { freq = "CONGELADO"; deriv = true; } if (!val) { val = "3 MESES"; deriv = true; } local = local || "Freezer"; acao = acao || "Manter congelado."; }
+  else if (/\bcru\b|\bcrua\b|descongel/.test(txt)) { if (!freq) { freq = "DIÁRIO"; deriv = true; } if (!val) { val = "DESCONGELAR REFRIG."; deriv = true; } local = local || "Geladeira"; acao = acao || "Descongelar sob refrigeração."; }
+  else if (/refriger|geladeira/.test(txt)) { local = local || "Geladeira"; if (!acao) { acao = "Refrigerado."; deriv = true; } }
   return { acao, freq, val, local, deriv };
+}
+// conservação de uma ficha base (pro cabeçalho da receita): autorado na ficha, senão derivado do modo de preparo
+function _fichaConserv(f) {
+  let freq = f.freq || "", val = f.validade || "", local = f.local || "";
+  if (freq && val) return { freq, val, local, deriv: false };
+  const txt = ((f.modoPreparo || "") + " " + (f.nome || "")).toLowerCase();
+  let deriv = false;
+  if (/congel|freezer|❄/.test(txt)) { if (!freq) { freq = "CONGELADO"; deriv = true; } if (!val) { val = "3 MESES"; deriv = true; } local = local || "Freezer"; }
+  else if (/refriger|geladeira/.test(txt)) { local = local || "Geladeira"; }
+  return { freq, val, local, deriv };
 }
 // monta a tabela de pré-preparo. Usa campos autorados; onde faltar, deriva do modo de preparo (só leitura).
 // Linha aparece se tiver algo autorado OU derivável; item sem sinal nenhum (azeite, brotos) fica de fora.
@@ -322,8 +335,10 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
       return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${liq}</td><td class="bruta">${bru}</td></tr>`;
     }).join("");
     const preparo = _renderPassos(f.modoPreparo);
+    const cons = _fichaConserv(f);
+    const consBadge = (cons.freq || cons.val || cons.local) ? `<div class="receita-cons">${_bFreq(cons.freq)}${cons.val ? _bVal(cons.val) : ""}${cons.local ? `<span class="loc-pill">${_esc(cons.local)}</span>` : ""}${cons.deriv ? `<span class="deriv-tag">auto</span>` : ""}</div>` : "";
     parte2 += `<div class="receita">
-      <div class="receita-head"><div class="receita-nome">${_esc(f.nome)}</div></div>
+      <div class="receita-head"><div class="receita-nome">${_esc(f.nome)}</div>${consBadge}</div>
       <div class="receita-body">
         <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th>${ehConf ? "<th>QUANTIDADE</th>" : "<th>LÍQUIDA</th><th>BRUTA</th>"}</tr></thead><tbody>${itens}</tbody></table></div>
         ${preparo ? `<div class="receita-mop"><div class="secao-lbl">— MODO DE PREPARO</div>${preparo}</div>` : ""}
