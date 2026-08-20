@@ -11,17 +11,26 @@ const _linhas = t => (t || "").split("\n").map(x => x.trim()).filter(Boolean);
 const _hoje = () => new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
 
 // Passos numerados; linhas iniciadas com "⚠" ou "!" viram alerta (dica) ligado ao passo anterior
+// realça a leitura: "circula" quantidades/tempos/temperaturas num chip e grifa cautelas técnicas
+function _hl(s) {
+  let t = _esc(s);
+  // cautelas/técnicas → negrito (antes das medidas, pra não engolir os chips)
+  t = t.replace(/\b(reservar|sempre|cuidado|aos poucos|rapidamente|fogo (?:baixo|alto|m[ée]dio)|mexendo sempre|n[ãa]o pode[^.,;:()]*|n[ãa]o deix\w*[^.,;:()]*|n[ãa]o no [^.,;:()]*|at[ée] (?:dourar|ferver|amaciar|o ponto[^.,;:()]*|ponto de [^.,;:()]*))/gi, "<strong>$1</strong>");
+  // quantidades / tempos / temperaturas → chip "circulado"
+  t = t.replace(/(\d+(?:[.,]\d+)?(?:\s?[–-]\s?\d+(?:[.,]\d+)?)?\s?(?:°\s?C|℃|graus|kg|mg|ml|g|l|min|h|%|un\b|unidades?|x[íi]caras?|colheres?|dentes?))/gi, '<span class="q">$1</span>');
+  return t;
+}
 function _renderPassos(texto) {
   const ls = _linhas(texto);
   let html = "", n = 0;
-  ls.forEach(l => {
-    const alerta = l.startsWith("⚠") || l.startsWith("!");
-    if (alerta) {
-      const txt = l.replace(/^[⚠!]+\s*/, "");
-      html += `<div class="passo-alerta">⚠ ${_esc(txt)}</div>`;
+  ls.forEach(l0 => {
+    const l = l0.replace(/^[-–•*]\s*/, "").trim();
+    if (!l) return;
+    if (l.startsWith("⚠") || l.startsWith("!")) {
+      html += `<div class="passo-alerta">⚠ ${_hl(l.replace(/^[⚠!]+\s*/, ""))}</div>`;
     } else {
       n += 1;
-      html += `<div class="passo"><div class="passo-n">${n}</div><div class="passo-txt">${_esc(l)}</div></div>`;
+      html += `<div class="passo"><div class="passo-n">${n}</div><div class="passo-txt">${_hl(l)}</div></div>`;
     }
   });
   return html;
@@ -59,22 +68,31 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .v-liq{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#1A4F71}
 .v-bruta{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#1C1D1B}
 .mop{padding:0 24px 20px}
-.passo{display:flex;gap:14px;padding:10px 0;border-bottom:1px solid #F0EEE8}
-.passo-n{font-family:'Anton',sans-serif;font-size:22px;color:#8FA715;min-width:26px}
-.passo-txt{font-size:14px;padding-top:2px}
-.receita{background:#fff;border-radius:12px;margin-bottom:20px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.05);page-break-inside:avoid}
-.receita-head{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:2px solid #8FA715}
-.receita-nome{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:800;text-transform:uppercase}
+.passo{display:flex;gap:15px;padding:12px 0;border-bottom:1px solid #F1EFE8;align-items:flex-start}
+.passo:last-child{border-bottom:none}
+.passo-n{font-family:'Anton',sans-serif;font-size:25px;color:#8FA715;min-width:30px;line-height:.95;opacity:.92}
+.passo-txt{font-size:15px;padding-top:1px;line-height:1.58;color:#2b2b28}
+.passo-txt .q{background:#EEF3D8;border:1px solid #cdd79a;border-radius:20px;padding:1px 9px;font-weight:800;color:#556018;white-space:nowrap;font-variant-numeric:tabular-nums}
+.passo-txt strong,.passo-alerta strong{font-weight:700;color:#1A4F71}
+.passo-alerta .q{background:#f6ddd6;border-color:#e0b3a8;color:#8E2F21}
+.receita{background:#fff;border-radius:14px;margin-bottom:20px;overflow:hidden;box-shadow:0 3px 16px rgba(0,0,0,.06);page-break-inside:avoid}
+.receita-head{display:flex;justify-content:space-between;align-items:center;padding:15px 26px;border-bottom:2px solid #8FA715;gap:12px}
+.receita-nome{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;text-transform:uppercase;letter-spacing:.01em}
 .receita-cons{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .loc-pill{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:10px;letter-spacing:.05em;color:#5c6a1f;border:1.5px solid #b7c07f;border-radius:4px;padding:3px 8px;text-transform:uppercase}
 .receita-kg{background:#8FA715;color:#111;font-weight:700;font-size:13px;padding:5px 12px;border-radius:20px}
-.receita-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
-.receita-ing{border-right:1px solid #F0EEE8}
-.receita-mop{padding-bottom:16px}
-.tbl-ing{width:100%;border-collapse:collapse;padding:0 24px}
-.tbl-ing th{font-size:10px;color:#999;text-align:left;padding:6px 24px;letter-spacing:.06em}
-.tbl-ing td{font-size:13px;padding:8px 24px;border-top:1px solid #F5F3EE}
-.tbl-ing .liq{color:#1A4F71;font-weight:700}.tbl-ing .bruta{color:#666}
+.receita-body{display:grid;grid-template-columns:0.78fr 1.22fr;gap:0}
+.receita-ing{border-right:1px solid #EFEDE4;background:#FAFAF5}
+.receita-mop{padding:6px 26px 20px}
+.tbl-ing{width:100%;border-collapse:collapse}
+.tbl-ing th{font-size:9px;color:#a6a49b;text-align:left;padding:8px 22px 4px;letter-spacing:.1em;font-weight:700}
+.tbl-ing td{font-size:12.5px;padding:6px 22px;border-top:1px solid #EFEDE4}
+.tbl-ing tr:first-child td{border-top:none}
+.tbl-ing .liq{color:#1A4F71;font-weight:800;font-family:'Barlow Condensed',sans-serif;font-size:14px;white-space:nowrap;text-align:right}.tbl-ing .bruta{color:#888}
+.tbl-ing td:first-child{font-weight:600;color:#3a3a36}
+.receita-mop .secao-lbl{padding:14px 0 6px}
+.receita-ing .secao-lbl{padding:14px 22px 6px}
+.receita-ing .utens,.receita-mop .utens{padding-left:0;padding-right:0}
 .ger-kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:20px 24px}
 .kpi{background:#111;border-radius:10px;padding:14px 16px;border-left:4px solid}
 .kpi-lima{border-color:#8FA715}.kpi-verde{border-color:#497A5D}.kpi-azul{border-color:#1A4F71}
@@ -133,11 +151,14 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 .wrap.conf .comp-g .lbl{font-size:10px}
 .wrap.conf .passo{padding:13px 0}
 .wrap.conf .passo-n{font-size:28px;min-width:34px}
-.wrap.conf .passo-txt{font-size:17px;line-height:1.45}
+.wrap.conf .passo-txt{font-size:17px;line-height:1.6}
+.wrap.conf .passo-n{font-size:30px;min-width:34px}
 .wrap.conf .passo-alerta{font-size:15px;padding:11px 15px}
 .wrap.conf .receita-nome{font-size:23px}
 .wrap.conf .tbl-ing th{font-size:11.5px}
-.wrap.conf .tbl-ing td{font-size:16px;padding:11px 24px}
+.wrap.conf .tbl-ing td{font-size:13px;padding:7px 22px}
+.wrap.conf .tbl-ing .liq{font-size:15px}
+.wrap.conf .passo-txt .q{font-size:15px}
 .wrap.conf .parte-tit{font-size:36px}
 /* ── Caderno rico: obs no componente, checklist de pré-preparo, utensílios ── */
 .comp-obs{font-size:10.5px;color:#8FA715;font-weight:700;font-style:italic;margin-top:6px}
