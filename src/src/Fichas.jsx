@@ -297,6 +297,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         <select value={f.local||''} onChange={e=>setF(p=>({...p,local:e.target.value}))} style={{flex:1,minWidth:0,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 6px',fontSize:13,background:'#fff',colorScheme:'light'}}><option value="">Local…</option><option value="Freezer">Freezer</option><option value="Geladeira">Geladeira</option><option value="Bancada">Bancada</option></select>
       </div>
     </div>
+    <div className="ft-fld" style={{marginTop:10}}><label className="ft-flbl">Utensílios & equipamentos desta receita (um por linha, opcional)</label><textarea rows={3} value={f.utensilios||''} onChange={e=>setF(p=>({...p,utensilios:e.target.value}))} style={{resize:'vertical',minHeight:64,width:'100%',boxSizing:'border-box'}} placeholder={"1× Panela\n1× Fouet\n1× Batedeira"}/></div>
     <div style={{background:'var(--preto)',borderRadius:10,padding:'14px 16px',marginTop:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.1em'}}>CUSTO TOTAL</div><div style={{fontFamily:'var(--ff)',fontSize:22,fontWeight:700,color:'var(--lima)'}}>{brl(custoTotal)}</div></div>
       <div style={{textAlign:'right'}}><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>MARGEM {pct(f.margemSeguranca)}</div><div style={{fontSize:12,color:'var(--cinzaE)'}}>Base: {brl(custoSomado)}{(() => {
