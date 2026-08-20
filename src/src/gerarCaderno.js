@@ -284,6 +284,21 @@ function _estoquePorLocal(pratos, fichaMap, ehConf) {
   return `<div class="estoque">${cards}</div>`;
 }
 
+// checklist de pré-preparo CONSOLIDADO (só leitura): une os componentes de todos os pratos do caderno,
+// dedup por nomeRef, numa tabela só — é a visão "produções" (o que preparar e como guardar).
+function _checklistConsolidado(pratos, fichaMap) {
+  const vistos = new Set(); const linhas = [];
+  (pratos || []).forEach(p => (p.comps || []).forEach(c => {
+    const key = (c.nomeRef || "").toLowerCase().trim();
+    if (!key || vistos.has(key)) return; vistos.add(key);
+    const d = _derivPP(c, fichaMap);
+    if (d.acao || d.freq || d.val) linhas.push({ nome: c.nomeRef, d });
+  }));
+  if (!linhas.length) return "";
+  const rows = linhas.map(({ nome, d }) => `<tr><td><div class="item"><span class="cbox"></span>${_esc(nome)}</div></td><td>${_esc(d.acao || "")}${d.deriv ? ` <span class="deriv-tag">auto</span>` : ""}</td><td>${_bFreq(d.freq)}</td><td>${_bVal(d.val)}</td></tr>`).join("");
+  return `<table class="tbl-pp" style="margin:10px 24px 24px"><thead><tr><th>ITEM</th><th>AÇÃO</th><th>FREQ.</th><th>VALIDADE</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
 // ── CADERNO OPERACIONAL — uso da cozinha (empratamento + receitas base) ──
 export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, fichas, praca }) {
   const ehConf = (praca || "").toLowerCase().includes("conf"); // confeitaria: bruta≈líquida → só quantidade (exceto FC real, ex. suco de limão)
@@ -347,10 +362,12 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
   });
 
   const estoque = _estoquePorLocal(pratos, fichaMap, ehConf);
+  const consolidado = _checklistConsolidado(pratos, fichaMap);
   const corpo = `
   ${parte1 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 01</div><div class="parte-tit">Fichas de Empratamento</div></div><div class="parte-num">01</div></div>${parte1}</div>` : ""}
   ${parte2 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Receitas Base & Pré-Preparos</div></div><div class="parte-num">02</div></div>${parte2}</div>` : ""}
-  ${estoque ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 03</div><div class="parte-tit">Locais de Estoque</div></div><div class="parte-num">03</div></div>${estoque}</div>` : ""}`;
+  ${estoque ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 03</div><div class="parte-tit">Locais de Estoque</div></div><div class="parte-num">03</div></div>${estoque}</div>` : ""}
+  ${consolidado ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 04</div><div class="parte-tit">Checklist de Pré-Preparo Consolidado</div></div><div class="parte-num">04</div></div>${consolidado}</div>` : ""}`;
 
   return _shell({ titulo, clienteNome, sub: "Caderno Operacional · Uso da Cozinha", corpo, variante: ehConf ? "conf" : "" });
 }
