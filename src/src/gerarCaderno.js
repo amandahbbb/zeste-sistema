@@ -154,6 +154,7 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 .bdg-vred{background:#C0392B;color:#fff}
 .bdg-vyellow{background:#E8B04B;color:#3a2c05}
 .bdg-dash{color:#b9b7ad}
+.deriv-tag{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:8.5px;letter-spacing:.08em;color:#8a8a82;background:#eceae2;border-radius:3px;padding:1px 5px;vertical-align:middle;text-transform:uppercase}
 .utens{display:flex;flex-wrap:wrap;gap:8px;padding:2px 24px 20px}
 .pill{border:1.5px solid #1C1D1B;border-radius:6px;padding:5px 11px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.05em;font-size:10.5px;text-transform:uppercase}
 .wrap.conf .tbl-pp td{font-size:14px;padding:11px 14px}
@@ -209,11 +210,25 @@ function _bVal(v) {
   if (u.includes("VERIFIC")) return `<span class="bdg bdg-vyellow">${_esc(u)}</span>`;
   return `<span class="bdg bdg-vblue">${_esc(u)}</span>`;
 }
-// monta a tabela de pré-preparo a partir dos componentes que TÊM campos autorados (acao/freq/validade). Nenhum autorado → não desenha.
-function _checklistPP(comps) {
-  const linhas = (comps || []).filter(c => c.acao || c.freq || c.validade);
+// deriva freq/validade/local/ação a partir de sinais existentes (SÓ LEITURA, na hora de gerar; nunca grava).
+// O que a Amanda autorou sempre vence; a derivação só preenche o que está em branco. Só sinais de alta confiança.
+function _derivPP(c, fichaMap) {
+  let acao = c.acao || "", freq = c.freq || "", val = c.validade || "", local = c.local || "";
+  if (acao && freq && val && local) return { acao, freq, val, local, deriv: false };
+  const f = c.tipo === "ficha" && fichaMap ? fichaMap[c.nomeRef] : null;
+  const txt = (((f && f.modoPreparo) || "") + " " + (c.nomeRef || "") + " " + (c.obs || "")).toLowerCase();
+  let deriv = false;
+  if (/congel|freezer|❄/.test(txt)) { freq = freq || "CONGELADO"; val = val || "3 MESES"; local = local || "Freezer"; acao = acao || "Manter congelado."; deriv = !c.freq || !c.validade; }
+  else if (/\bcru\b|\bcrua\b|descongel/.test(txt)) { freq = freq || "DIÁRIO"; val = val || "DESCONGELAR REFRIG."; local = local || "Geladeira"; acao = acao || "Descongelar sob refrigeração."; deriv = !c.freq || !c.validade; }
+  else if (/refriger|geladeira/.test(txt)) { local = local || "Geladeira"; acao = acao || "Refrigerado."; deriv = !c.acao; }
+  return { acao, freq, val, local, deriv };
+}
+// monta a tabela de pré-preparo. Usa campos autorados; onde faltar, deriva do modo de preparo (só leitura).
+// Linha aparece se tiver algo autorado OU derivável; item sem sinal nenhum (azeite, brotos) fica de fora.
+function _checklistPP(comps, fichaMap) {
+  const linhas = (comps || []).map(c => ({ c, d: _derivPP(c, fichaMap) })).filter(x => x.d.acao || x.d.freq || x.d.val);
   if (!linhas.length) return "";
-  const rows = linhas.map(c => `<tr><td><div class="item"><span class="cbox"></span>${_esc(c.nomeRef)}</div></td><td>${_esc(c.acao || "")}</td><td>${_bFreq(c.freq)}</td><td>${_bVal(c.validade)}</td></tr>`).join("");
+  const rows = linhas.map(({ c, d }) => `<tr><td><div class="item"><span class="cbox"></span>${_esc(c.nomeRef)}</div></td><td>${_esc(d.acao || "")}${d.deriv ? ` <span class="deriv-tag">auto</span>` : ""}</td><td>${_bFreq(d.freq)}</td><td>${_bVal(d.val)}</td></tr>`).join("");
   return `<div class="secao-lbl">— CHECKLIST DE PRÉ-PREPARO</div>
     <table class="tbl-pp"><thead><tr><th>ITEM</th><th>AÇÃO</th><th>FREQ.</th><th>VALIDADE</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -226,6 +241,8 @@ function _utensilios(p) {
 // ── CADERNO OPERACIONAL — uso da cozinha (empratamento + receitas base) ──
 export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, fichas, praca }) {
   const ehConf = (praca || "").toLowerCase().includes("conf"); // confeitaria: bruta≈líquida → só quantidade (exceto FC real, ex. suco de limão)
+  const fichaMap = {};
+  (fichas || []).forEach(f => { fichaMap[f.nome] = f; });
   let parte1 = "";
   pratos.forEach((p, idx) => {
     const num = String(idx + 1).padStart(2, "0");
@@ -251,7 +268,7 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
       <div class="secao-lbl">— COMPOSIÇÃO & GRAMATURAS</div>
       <div class="comps">${comps}</div>
       ${mop ? `<div class="secao-lbl">— MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div>` : ""}
-      ${_checklistPP(p.comps)}
+      ${_checklistPP(p.comps, fichaMap)}
       ${_utensilios(p)}
     </div>`;
   });
