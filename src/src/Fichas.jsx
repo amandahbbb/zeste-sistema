@@ -382,6 +382,15 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         <div style={{flex:1}}><label className="ft-flbl">{(p.modoRend||'porcao')==='inteiro'?'QUANTIDADE NO BOLO (KG)':'QUANTIDADE (KG)'}</label><NumInput step="0.001" min="0" value={(Number(c.qtdGramas)||0)/1000} onChange={v=>updComp(i,'qtdGramas',Math.round((v||0)*1000))}/></div>
         <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(c.custo)}</div></div>
       </div>
+      <div style={{marginTop:8}}>
+        <label className="ft-flbl">OBS. DO EMPRATAMENTO (opcional)</label>
+        <input value={c.obs||''} onChange={e=>updComp(i,'obs',e.target.value)} placeholder="ex.: já porcionado" style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px',fontSize:13,background:'#fff',colorScheme:'light'}}/>
+        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:6}}>
+          {['já porcionado','porção padrão','porcionado','usar concha','na hora'].map(op=>(
+            <button key={op} type="button" onClick={()=>updComp(i,'obs',c.obs===op?'':op)} style={{fontSize:11,fontWeight:600,color:c.obs===op?'#fff':'var(--verde)',background:c.obs===op?'var(--verde)':'#F0F6EE',border:'1px solid #cdd7a0',borderRadius:20,padding:'4px 10px'}}>{op}</button>
+          ))}
+        </div>
+      </div>
     </div>))}
     {p.componentes.length===0&&<div style={{textAlign:'center',padding:20,color:'var(--cinzaE)',fontStyle:'italic'}}>Clique "+ Adicionar" para incluir componentes</div>}
     <div className="ft-fld" style={{marginTop:12}}><label className="ft-flbl">Empratamento / modo (opcional)</label><textarea rows={2} value={p.modoPreparo||''} onChange={e=>setP(pr=>({...pr,modoPreparo:e.target.value}))} style={{resize:'vertical',minHeight:50}} placeholder="1. Empratar…"/></div>
