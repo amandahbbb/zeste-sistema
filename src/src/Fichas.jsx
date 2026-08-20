@@ -289,6 +289,14 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
     </div>))}
     {f.itens.length===0&&<div style={{textAlign:'center',padding:20,color:'var(--cinzaE)',fontStyle:'italic'}}>Clique "+ Adicionar" para incluir insumos</div>}
     <div className="ft-fld" style={{marginTop:12}}><label className="ft-flbl">Modo de preparo (opcional)</label><textarea rows={10} value={f.modoPreparo||''} onChange={e=>setF(p=>({...p,modoPreparo:e.target.value}))} style={{resize:'vertical',height:240,minHeight:180,width:'100%',boxSizing:'border-box',lineHeight:1.5}} placeholder="Descreva o passo a passo…"/></div>
+    <div className="ft-fld" style={{marginTop:10}}>
+      <label className="ft-flbl">CONSERVAÇÃO (vale pra esta receita — pratos que a usam herdam)</label>
+      <div style={{display:'flex',gap:8,marginTop:2}}>
+        <select value={f.freq||''} onChange={e=>setF(p=>({...p,freq:e.target.value}))} style={{flex:1,minWidth:0,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 6px',fontSize:13,background:'#fff',colorScheme:'light'}}><option value="">Freq…</option><option value="DIÁRIO">Diário</option><option value="SEMANAL">Semanal</option><option value="CONGELADO">Congelado</option></select>
+        <input value={f.validade||''} onChange={e=>setF(p=>({...p,validade:e.target.value}))} placeholder="Validade (ex.: 3 MESES)" style={{flex:1,minWidth:0,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px',fontSize:13,background:'#fff',colorScheme:'light'}}/>
+        <select value={f.local||''} onChange={e=>setF(p=>({...p,local:e.target.value}))} style={{flex:1,minWidth:0,border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'9px 6px',fontSize:13,background:'#fff',colorScheme:'light'}}><option value="">Local…</option><option value="Freezer">Freezer</option><option value="Geladeira">Geladeira</option><option value="Bancada">Bancada</option></select>
+      </div>
+    </div>
     <div style={{background:'var(--preto)',borderRadius:10,padding:'14px 16px',marginTop:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
       <div><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.1em'}}>CUSTO TOTAL</div><div style={{fontFamily:'var(--ff)',fontSize:22,fontWeight:700,color:'var(--lima)'}}>{brl(custoTotal)}</div></div>
       <div style={{textAlign:'right'}}><div style={{fontSize:10,fontWeight:700,color:'var(--cinzaE)'}}>MARGEM {pct(f.margemSeguranca)}</div><div style={{fontSize:12,color:'var(--cinzaE)'}}>Base: {brl(custoSomado)}{(() => {
