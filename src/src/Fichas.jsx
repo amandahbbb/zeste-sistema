@@ -208,7 +208,7 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
   })}));
   // Calcular custos em tempo real
   const calcItems=f.itens.map(it=>{
-    const ref=it.tipo==='ficha'?fichasCalc.find(fc=>fc.nome===it.nomeRef):(ingredientes.find(ig=>ig.id===it.ingId)||ingredientes.find(ig=>ig.nome===it.nomeRef));
+    const ref=it.tipo==='ficha'?fichasCalc.find(fc=>fc.nome===it.nomeRef):((it.ingId?ingredientes.find(ig=>ig.id===it.ingId):null)||ingredientes.find(ig=>ig.nome===it.nomeRef));
     const precoKg=it.tipo==='ficha'?(ref?._custoPorKg||0):((it.precoFornecedor!=null&&it.precoFornecedor!=='')?+it.precoFornecedor:(ref?.p||0));
     const fc=it.tipo==='ficha'?1:(it.fc!=null&&it.fc!==''?+it.fc:(ref?.fc||1));
     const fk=it.tipo==='ficha'?1:(it.fk!=null&&it.fk!==''?+it.fk:(ref?.fk||1));
@@ -329,7 +329,7 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
   const updComp=(i,k,v)=>setP(pr=>({...pr,componentes:pr.componentes.map((c,j)=>j===i?{...c,[k]:v}:c)}));
   const remComp=(i)=>setP(pr=>({...pr,componentes:pr.componentes.filter((_,j)=>j!==i)}));
   const calcComps=p.componentes.map(c=>{
-    const ref=c.tipo==='ficha'?fichasCalc.find(f=>f.nome===c.nomeRef):(ingredientes.find(ig=>ig.id===c.ingId)||ingredientes.find(ig=>ig.nome===c.nomeRef));
+    const ref=c.tipo==='ficha'?fichasCalc.find(f=>f.nome===c.nomeRef):((c.ingId?ingredientes.find(ig=>ig.id===c.ingId):null)||ingredientes.find(ig=>ig.nome===c.nomeRef));
     const custoPorKg=c.tipo==='ficha'?(ref?._custoPorKg||0):((c.precoFornecedor!=null&&c.precoFornecedor!=='')?+c.precoFornecedor:(ref?.p||0));
     const fc=c.tipo==='ficha'?1:(ref?.fc||1);
     const qtdKg=(Number(c.qtdGramas)||0)/1000;
