@@ -122,6 +122,11 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .tbl-custo tfoot td{font-weight:700;border-top:2px solid #111;border-bottom:none}
 .rodape{text-align:center;padding:32px;font-size:11px;color:#999;border-top:1px solid #E3E1D9}
 @media print{body{background:#fff}.parte{page-break-before:always}.capa{page-break-after:always}
+  .card-prato{page-break-inside:auto}
+  .prato-head,.comp,.passo,.tbl-pp tr,.utens,.loc-card,.grp,.receita{page-break-inside:avoid}
+  .tbl-pp thead{display:table-header-group}
+  .secao-lbl,.parte-head{page-break-after:avoid}
+  .card-prato,.receita,.tbl-pp,.loc-card,.card-ger{overflow:visible}
   .card-prato,.receita,.card-ger,.prato-head,.ger-head,.kpi,.capa{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 @media(max-width:640px){.comps,.ger-kpis{grid-template-columns:1fr}.receita-body{grid-template-columns:1fr}.receita-ing{border-right:none;border-bottom:1px solid #F0EEE8}}
 `;
