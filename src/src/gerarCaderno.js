@@ -40,10 +40,10 @@ const BASE_CSS = `@import url('https://fonts.googleapis.com/css2?family=Anton&fa
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-height:1.5}
 .wrap{max-width:900px;margin:0 auto;background:#F0EEE8}
-.capa{background:#111;color:#fff;padding:64px 48px;text-align:left}
+.capa{background:#111;color:#fff;padding:72px 56px;text-align:left;display:flex;flex-direction:column;justify-content:center;min-height:262mm}
 .capa .marca{font-family:'Barlow Condensed',sans-serif;font-size:40px;font-weight:800;color:#8FA715;letter-spacing:.04em}
 .capa .sub{font-size:13px;color:#888;letter-spacing:.2em;text-transform:uppercase;margin-top:4px}
-.capa .titulo{font-family:'Anton',sans-serif;font-size:44px;margin-top:32px;line-height:1.05;text-transform:uppercase}
+.capa .titulo{font-family:'Anton',sans-serif;font-size:46px;margin-top:28px;line-height:1.04;text-transform:uppercase;max-width:88%}.capa .capa-rule{width:96px;height:5px;background:#8FA715;margin:22px 0 6px}
 .capa .cliente{font-size:16px;color:#8FA715;margin-top:12px;font-weight:600}
 .capa .data{font-size:12px;color:#666;margin-top:24px}
 .parte{padding:40px 48px}
@@ -121,12 +121,29 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .tbl-custo .custo{color:#497A5D;font-weight:700;text-align:right}
 .tbl-custo tfoot td{font-weight:700;border-top:2px solid #111;border-bottom:none}
 .rodape{text-align:center;padding:32px;font-size:11px;color:#999;border-top:1px solid #E3E1D9}
-@media print{body{background:#fff}.parte{page-break-before:always}.capa{page-break-after:always}
-  .card-prato{page-break-inside:auto}
-  .prato-head,.comp,.passo,.tbl-pp tr,.utens,.loc-card,.grp,.receita{page-break-inside:avoid}
+@media print{body{background:#fff}
+  .capa{page-break-after:always;break-after:page}
+  .parte{page-break-before:always;break-before:page}
+  /* ATOMOS — o que nunca pode ser cortado ao meio */
+  .comp,.passo,.passo-alerta,.tbl-pp tr,.loc-item,.pill,.prato-head,.receita-head,.grp{page-break-inside:avoid;break-inside:avoid}
+  /* CONTAINERS — podem continuar na pagina seguinte (a quebra cai entre atomos) */
+  .card-prato,.receita,.bloco,.mopwrap,.comps,.mop,.utens,.estoque,.tbl-pp,.receita-body{page-break-inside:auto;break-inside:auto}
+  /* COLA — titulo nunca se separa do primeiro conteudo da secao */
+  .secao-lbl,.prato-head,.receita-head,.parte-head{page-break-after:avoid;break-after:avoid}
+  .mop .passo:first-child,.tbl-pp thead,.comps .comp:first-child,.utens .pill:first-child{page-break-before:avoid;break-before:avoid}
+  .passo-alerta{page-break-before:avoid;break-before:avoid}
+  /* orfas/viuvas de texto corrido */
+  .passo-txt,.tbl-pp td{orphans:2;widows:2}
+  /* flex nao respeita break-inside na impressao: passo vira bloco com numero flutuante */
+  .passo{display:table;width:100%}
+  .passo-n{display:table-cell;width:34px;padding-right:10px}
+  .passo-txt{display:table-cell;vertical-align:top}
+  .tbl-pp .item{display:block}
+  .tbl-pp .cbox{display:inline-block;vertical-align:top;margin:2px 6px 0 0}
+  /* tabela que continua na proxima pagina repete o cabecalho */
   .tbl-pp thead{display:table-header-group}
-  .secao-lbl,.parte-head{page-break-after:avoid}
-  .card-prato,.receita,.tbl-pp,.loc-card,.card-ger{overflow:visible}
+  /* impressao nunca corta conteudo */
+  .card-prato,.receita,.tbl-pp,.loc-card,.card-ger,.comps,.utens{overflow:visible}
   .card-prato,.receita,.card-ger,.prato-head,.ger-head,.kpi,.capa{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 @media(max-width:640px){.comps,.ger-kpis{grid-template-columns:1fr}.receita-body{grid-template-columns:1fr}.receita-ing{border-right:none;border-bottom:1px solid #F0EEE8}}
 `;
@@ -146,20 +163,20 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 /* ── Camada 3: caderno da CONFEITARIA — estilo maior, mastigado ── */
 .comp-cru{font-size:11px;color:#B5651D;font-weight:700;margin-top:6px;letter-spacing:.01em}
 .wrap.conf .prato-cat{font-size:12.5px}
-.wrap.conf .prato-nome{font-size:30px}
+.wrap.conf .prato-nome{font-size:24px}
 .wrap.conf .prato-porcao{font-size:14px}
-.wrap.conf .secao-lbl{font-size:13.5px;padding:20px 24px 10px}
+.wrap.conf .secao-lbl{font-size:11px;padding:16px 24px 8px}
 .wrap.conf .comps{grid-template-columns:1fr 1fr;gap:16px;padding:0 24px 24px}
 .wrap.conf .comp{padding:16px 20px;border-left-width:5px}
-.wrap.conf .comp-nome{font-size:18px;margin-bottom:6px}
-.wrap.conf .v-liq,.wrap.conf .v-bruta{font-size:26px}
+.wrap.conf .comp-nome{font-size:14.5px;margin-bottom:5px}
+.wrap.conf .v-liq,.wrap.conf .v-bruta{font-size:20px}
 .wrap.conf .comp-g .lbl{font-size:10px}
 .wrap.conf .passo{padding:13px 0}
-.wrap.conf .passo-n{font-size:28px;min-width:34px}
-.wrap.conf .passo-txt{font-size:17px;line-height:1.6}
-.wrap.conf .passo-n{font-size:30px;min-width:34px}
-.wrap.conf .passo-alerta{font-size:15px;padding:11px 15px}
-.wrap.conf .receita-nome{font-size:23px}
+.wrap.conf .passo-n{font-size:24px;min-width:30px}
+.wrap.conf .passo-txt{font-size:15px;line-height:1.5}
+.wrap.conf .passo-n{font-size:24px;min-width:30px}
+.wrap.conf .passo-alerta{font-size:13.5px;padding:9px 13px}
+.wrap.conf .receita-nome{font-size:19px}
 .wrap.conf .tbl-ing th{font-size:11.5px}
 .wrap.conf .tbl-ing td{font-size:13px;padding:7px 22px}
 .wrap.conf .tbl-ing .liq{font-size:15px}
@@ -167,7 +184,7 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 .wrap.conf .parte-tit{font-size:36px}
 /* ── Caderno rico: obs no componente, checklist de pré-preparo, utensílios ── */
 .comp-obs{font-size:10.5px;color:#8FA715;font-weight:700;font-style:italic;margin-top:6px}
-.tbl-pp{border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;margin:0 24px 10px;width:calc(100% - 48px)}
+.tbl-pp{border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;margin:0 24px 10px;width:calc(100% - 48px);table-layout:fixed}.tbl-pp th:nth-child(1),.tbl-pp td:nth-child(1){width:27%}.tbl-pp th:nth-child(3),.tbl-pp td:nth-child(3){width:16%}.tbl-pp th:nth-child(4),.tbl-pp td:nth-child(4){width:15%}.tbl-pp td:nth-child(2){word-break:normal;overflow-wrap:break-word}.tbl-pp .item{align-items:flex-start;overflow-wrap:break-word;word-break:normal;min-width:0;padding-right:6px}.tbl-pp td{overflow:visible;overflow-wrap:break-word}
 .tbl-pp thead th{background:#1C1D1B;color:#cfcfc6;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.1em;font-size:10px;text-align:left;padding:9px 12px}
 .tbl-pp thead th:first-child{background:#8FA715;color:#14210a}
 .tbl-pp td{padding:9px 12px;border-bottom:1px solid #F0EEE8;font-size:12.5px;vertical-align:middle}
@@ -195,8 +212,8 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 .wrap.conf .loc-item{font-size:15px}
 .utens{display:flex;flex-wrap:wrap;gap:8px;padding:2px 24px 20px}
 .pill{border:1.5px solid #1C1D1B;border-radius:6px;padding:5px 11px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.05em;font-size:10.5px;text-transform:uppercase}
-.wrap.conf .tbl-pp td{font-size:14px;padding:11px 14px}
-.wrap.conf .pill{font-size:12px}
+.wrap.conf .tbl-pp td{font-size:13px;padding:9px 12px}
+.wrap.conf .pill{font-size:11px}
 @media(max-width:640px){
 .tbl-pp{margin:0 16px 8px;width:calc(100% - 32px)}
 .tbl-pp td,.tbl-pp th{font-size:11px;padding:7px 8px}
@@ -226,7 +243,7 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 .tbl-ing th,.tbl-ing td{padding:6px 12px}
 }
 </style></head><body><div class="wrap ${variante}">
-  <div class="capa"><div class="marca">ZESTE</div><div class="sub">${_esc(sub)}</div><div class="titulo">${_esc(titulo)}</div>${clienteNome ? `<div class="cliente">${_esc(clienteNome)}</div>` : ""}<div class="data">Gerado em ${_hoje()}</div>${extraCapa}</div>
+  <div class="capa"><div class="marca">ZESTE</div><div class="sub">${_esc(sub)}</div><div class="titulo">${_esc(titulo)}</div><div class="capa-rule"></div>${clienteNome ? `<div class="cliente">${_esc(clienteNome)}</div>` : ""}<div class="data">Gerado em ${_hoje()}</div>${extraCapa}</div>
   ${corpo}
   <div class="rodape">Documento gerado por Zeste · Inteligência para Negócios Gastronômicos · Gerado em ${_hoje()}</div>
 </div></body></html>`;
@@ -277,14 +294,14 @@ function _fichaConserv(f) {
 function _checklistPP(comps, fichaMap) {
   const linhas = (comps || []).map(c => ({ c, d: _derivPP(c, fichaMap) })).filter(x => x.d.acao || x.d.freq || x.d.val);
   if (!linhas.length) return "";
-  const rows = linhas.map(({ c, d }) => `<tr><td><div class="item"><span class="cbox"></span>${_esc(c.nomeRef)}</div></td><td>${_esc(d.acao || "")}${d.deriv ? ` <span class="deriv-tag">auto</span>` : ""}</td><td>${_bFreq(d.freq)}</td><td>${_bVal(d.val)}</td></tr>`).join("");
-  return `<div class="secao-lbl">— CHECKLIST DE PRÉ-PREPARO</div>
-    <table class="tbl-pp"><thead><tr><th>ITEM</th><th>AÇÃO</th><th>FREQ.</th><th>VALIDADE</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const rows = linhas.map(({ c, d }) => `<tr><td><div class="item"><span class="cbox"></span><span>${_esc(c.nomeRef)}</span></div></td><td>${_esc(d.acao || "")}${d.deriv ? ` <span class="deriv-tag">auto</span>` : ""}</td><td>${_bFreq(d.freq)}</td><td>${_bVal(d.val)}</td></tr>`).join("");
+  return `<div class="bloco"><div class="secao-lbl">— CHECKLIST DE PRÉ-PREPARO</div>
+    <table class="tbl-pp"><thead><tr><th>ITEM</th><th>AÇÃO</th><th>FREQ.</th><th>VALIDADE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function _utensilios(p) {
   const lista = Array.isArray(p.utensilios) ? p.utensilios : _linhas(p.utensilios);
   if (!lista.length) return "";
-  return `<div class="secao-lbl">— UTENSÍLIOS & EQUIPAMENTOS</div><div class="utens">${lista.map(u => `<span class="pill">${_esc(u)}</span>`).join("")}</div>`;
+  return `<div class="bloco"><div class="secao-lbl">— UTENSÍLIOS & EQUIPAMENTOS</div><div class="utens">${lista.map(u => `<span class="pill">${_esc(u)}</span>`).join("")}</div></div>`;
 }
 // bloco de estoque por local (só leitura): agrupa os itens de todos os pratos por `local` (autorado ou derivado),
 // mostrando a gramatura — ou a obs (ex.: "montado"/"discos") na confeitaria. Item sem local fica de fora.
@@ -321,8 +338,8 @@ function _checklistConsolidado(pratos, fichaMap) {
     if (d.acao || d.freq || d.val) linhas.push({ nome: c.nomeRef, d });
   }));
   if (!linhas.length) return "";
-  const rows = linhas.map(({ nome, d }) => `<tr><td><div class="item"><span class="cbox"></span>${_esc(nome)}</div></td><td>${_esc(d.acao || "")}${d.deriv ? ` <span class="deriv-tag">auto</span>` : ""}</td><td>${_bFreq(d.freq)}</td><td>${_bVal(d.val)}</td></tr>`).join("");
-  return `<table class="tbl-pp" style="margin:10px 24px 24px"><thead><tr><th>ITEM</th><th>AÇÃO</th><th>FREQ.</th><th>VALIDADE</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const rows = linhas.map(({ nome, d }) => `<tr><td><div class="item"><span class="cbox"></span><span>${_esc(nome)}</span></div></td><td>${_esc(d.acao || "")}${d.deriv ? ` <span class="deriv-tag">auto</span>` : ""}</td><td>${_bFreq(d.freq)}</td><td>${_bVal(d.val)}</td></tr>`).join("");
+  return `<table class="tbl-pp" style="margin:10px 24px 24px"><thead><tr><th>ITEM</th><th>AÇÃO</th><th>FREQ.</th><th>VALIDADE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 // ── CADERNO OPERACIONAL — uso da cozinha (empratamento + receitas base) ──
@@ -352,9 +369,9 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
     const porcaoLbl = (p.modoRend === "inteiro" && Number(p.rendFatias) > 0) ? `Receita inteira · rende ${Number(p.rendFatias)} fatias` : "1 porção";
     parte1 += `<div class="card-prato">
       <div class="prato-head"><div class="prato-num">${num}</div><div><div class="prato-cat">${catLbl} · ${(p.comps||[]).length} componentes</div><div class="prato-nome">${_esc(p.nome)}</div><div class="prato-porcao">${porcaoLbl}</div></div></div>
-      <div class="secao-lbl">— COMPOSIÇÃO & GRAMATURAS</div>
-      <div class="comps">${comps}</div>
-      ${mop ? `<div class="secao-lbl">— MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div>` : ""}
+      <div class="bloco"><div class="secao-lbl">— COMPOSIÇÃO & GRAMATURAS</div>
+      <div class="comps">${comps}</div></div>
+      ${mop ? `<div class="mopwrap"><div class="secao-lbl">— MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div></div>` : ""}
       ${_checklistPP(p.comps, fichaMap)}
       ${_utensilios(p)}
     </div>`;
