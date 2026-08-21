@@ -128,6 +128,8 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
   .comp,.passo,.passo-alerta,.tbl-pp tr,.loc-item,.pill,.prato-head,.receita-head,.grp{page-break-inside:avoid;break-inside:avoid}
   /* CONTAINERS — podem continuar na pagina seguinte (a quebra cai entre atomos) */
   .card-prato,.receita,.bloco,.mopwrap,.comps,.mop,.utens,.estoque,.tbl-pp,.receita-body{page-break-inside:auto;break-inside:auto}
+  /* cada prato/receita comeca em pagina nova (o 1o segue logo apos o titulo da PARTE) */
+  .card-prato ~ .card-prato,.receita ~ .receita{page-break-before:always;break-before:page}
   /* COLA — titulo nunca se separa do primeiro conteudo da secao */
   .secao-lbl,.prato-head,.receita-head,.parte-head{page-break-after:avoid;break-after:avoid}
   .mop .passo:first-child,.tbl-pp thead,.comps .comp:first-child,.utens .pill:first-child{page-break-before:avoid;break-before:avoid}
