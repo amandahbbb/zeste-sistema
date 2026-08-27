@@ -88,7 +88,7 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .tbl-ing th{font-size:9px;color:#a6a49b;text-align:left;padding:8px 22px 4px;letter-spacing:.1em;font-weight:700}
 .tbl-ing td{font-size:12.5px;padding:6px 22px;border-top:1px solid #EFEDE4}
 .tbl-ing tr:first-child td{border-top:none}
-.tbl-ing .liq{color:#1A4F71;font-weight:800;font-family:'Barlow Condensed',sans-serif;font-size:14px;white-space:nowrap;text-align:right}.tbl-ing .bruta{color:#888}
+.tbl-ing .liq{color:#1A4F71;font-weight:800;font-family:'Barlow Condensed',sans-serif;font-size:14px;white-space:nowrap;text-align:right}.q-oper{display:block;font-size:16px;line-height:1.15}.q-peso{display:block;font-size:11.5px;font-weight:600;color:#9a988f;font-family:'Barlow',sans-serif;letter-spacing:.01em}.wrap.conf .q-oper{font-size:18px}.wrap.conf .q-peso{font-size:12.5px}.tbl-ing .bruta{color:#888}
 .tbl-ing td:first-child{font-weight:600;color:#3a3a36}
 .receita-mop .secao-lbl{padding:14px 0 6px}
 .receita-ing .secao-lbl{padding:14px 22px 6px}
@@ -153,7 +153,7 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = "" }) {
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${_esc(titulo)}</title>
 <style>${BASE_CSS}
-.passo-alerta{background:#FBEDEA;border-left:3px solid #C0392B;color:#8E2F21;font-size:13px;font-weight:600;padding:8px 12px;border-radius:6px;margin:6px 0 6px 40px}
+.passo-alerta{background:#FBEDEA;border-left:5px solid #C0392B;color:#8E2F21;font-size:15px;font-weight:700;padding:11px 15px;border-radius:6px;margin:8px 0 8px 40px;line-height:1.45}
 .confid{border:1px solid #C0392B;border-radius:10px;padding:14px 18px;margin-top:32px;background:rgba(192,57,43,.08)}
 .confid-t{color:#E74C3C;font-size:12px;font-weight:800;letter-spacing:.15em}
 .confid-s{color:#C9C6BD;font-size:12px;margin-top:4px}
@@ -165,35 +165,35 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 /* ── Camada 3: caderno da CONFEITARIA — estilo maior, mastigado ── */
 .comp-cru{font-size:11px;color:#B5651D;font-weight:700;margin-top:6px;letter-spacing:.01em}
 .wrap.conf .prato-cat{font-size:12.5px}
-.wrap.conf .prato-nome{font-size:24px}
+.wrap.conf .prato-nome{font-size:26px}
 .wrap.conf .prato-porcao{font-size:14px}
-.wrap.conf .secao-lbl{font-size:11px;padding:16px 24px 8px}
+.wrap.conf .secao-lbl{font-size:13px;padding:16px 24px 8px}
 .wrap.conf .comps{grid-template-columns:1fr 1fr;gap:16px;padding:0 24px 24px}
 .wrap.conf .comp{padding:16px 20px;border-left-width:5px}
-.wrap.conf .comp-nome{font-size:14.5px;margin-bottom:5px}
-.wrap.conf .v-liq,.wrap.conf .v-bruta{font-size:20px}
+.wrap.conf .comp-nome{font-size:16px;margin-bottom:5px}
+.wrap.conf .v-liq,.wrap.conf .v-bruta{font-size:22px}
 .wrap.conf .comp-g .lbl{font-size:10px}
 .wrap.conf .passo{padding:13px 0}
 .wrap.conf .passo-n{font-size:24px;min-width:30px}
-.wrap.conf .passo-txt{font-size:15px;line-height:1.5}
+.wrap.conf .passo-txt{font-size:17px;line-height:1.55}
 .wrap.conf .passo-n{font-size:24px;min-width:30px}
-.wrap.conf .passo-alerta{font-size:13.5px;padding:9px 13px}
+.wrap.conf .passo-alerta{font-size:16px;padding:12px 16px}
 .wrap.conf .receita-nome{font-size:19px}
 .wrap.conf .tbl-ing th{font-size:11.5px}
 .wrap.conf .tbl-ing td{font-size:13px;padding:7px 22px}
 .wrap.conf .tbl-ing .liq{font-size:15px}
-.wrap.conf .passo-txt .q{font-size:15px}
+.wrap.conf .passo-txt .q{font-size:16px}
 .wrap.conf .parte-tit{font-size:36px}
 /* ── Caderno rico: obs no componente, checklist de pré-preparo, utensílios ── */
 .comp-obs{font-size:10.5px;color:#8FA715;font-weight:700;font-style:italic;margin-top:6px}
-.tbl-pp{border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;margin:0 24px 10px;width:calc(100% - 48px);table-layout:fixed}.tbl-pp th:nth-child(1),.tbl-pp td:nth-child(1){width:27%}.tbl-pp th:nth-child(3),.tbl-pp td:nth-child(3){width:16%}.tbl-pp th:nth-child(4),.tbl-pp td:nth-child(4){width:15%}.tbl-pp td:nth-child(2){word-break:normal;overflow-wrap:break-word}.tbl-pp .item{align-items:flex-start;overflow-wrap:break-word;word-break:normal;min-width:0;padding-right:6px}.tbl-pp td{overflow:visible;overflow-wrap:break-word}
+.tbl-pp{border-collapse:collapse;background:#fff;border-radius:10px;margin:0 24px 12px;width:calc(100% - 48px);table-layout:fixed}.tbl-pp th:nth-child(1),.tbl-pp td:nth-child(1){width:28%}.tbl-pp th:nth-child(3),.tbl-pp td:nth-child(3){width:18%}.tbl-pp th:nth-child(4),.tbl-pp td:nth-child(4){width:18%}.tbl-pp td:nth-child(2){word-break:normal;overflow-wrap:break-word;padding-left:16px}.tbl-pp .item{align-items:flex-start;overflow-wrap:break-word;word-break:normal;min-width:0;padding-right:10px}.tbl-pp td{overflow:visible;overflow-wrap:break-word}
 .tbl-pp thead th{background:#1C1D1B;color:#cfcfc6;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.1em;font-size:10px;text-align:left;padding:9px 12px}
 .tbl-pp thead th:first-child{background:#8FA715;color:#14210a}
-.tbl-pp td{padding:9px 12px;border-bottom:1px solid #F0EEE8;font-size:12.5px;vertical-align:middle}
+.tbl-pp td{padding:11px 12px;border-bottom:1px solid #F0EEE8;font-size:14px;vertical-align:middle;line-height:1.45}
 .tbl-pp tr:nth-child(even) td{background:#FBFAF6}
 .tbl-pp .item{font-weight:700;display:flex;align-items:center;gap:8px}
-.tbl-pp .cbox{width:14px;height:14px;border:2px solid #b9b7ad;border-radius:3px;flex:0 0 14px}
-.bdg{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:10px;padding:3px 8px;border-radius:4px;white-space:nowrap}
+.tbl-pp .cbox{width:17px;height:17px;border:2px solid #9a988f;border-radius:3px;flex:0 0 17px}
+.bdg{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:11.5px;padding:4px 8px;border-radius:5px;white-space:nowrap}
 .bdg-diario{color:#7a6a12;border:1.5px solid #E8B04B}
 .bdg-semanal{color:#1A4F71;border:1.5px solid #1A4F71}
 .bdg-congelado{background:#1C1D1B;color:#fff}
@@ -204,18 +204,18 @@ function _shell({ titulo, clienteNome, sub, extraCapa = "", corpo, variante = ""
 .deriv-tag{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:8.5px;letter-spacing:.08em;color:#8a8a82;background:#eceae2;border-radius:3px;padding:1px 5px;vertical-align:middle;text-transform:uppercase}
 .estoque{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:8px 24px 24px}
 .loc-card{background:#fff;border-radius:10px;box-shadow:0 1px 6px rgba(0,0,0,.05);overflow:hidden}
-.loc-h{background:#1C1D1B;color:#fff;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.1em;font-size:12px;text-transform:uppercase}
+.loc-h{background:#1C1D1B;color:#fff;padding:11px 16px;font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.09em;font-size:14px;text-transform:uppercase}
 .loc-h.freezer{background:#1A4F71}.loc-h.bancada{background:#5c6a1f}
-.loc-item{display:flex;justify-content:space-between;gap:10px;padding:7px 16px;border-bottom:1px solid #f4f2ec;font-size:13px}
+.loc-item{display:flex;justify-content:space-between;gap:10px;padding:9px 16px;border-bottom:1px solid #f4f2ec;font-size:14.5px}
 .loc-item:last-child{border-bottom:none}
 .loc-item b{font-weight:700}
 .loc-item .q{font-family:'Barlow Condensed',sans-serif;font-weight:800;color:#1A4F71;white-space:nowrap}
 .wrap.conf .loc-h.freezer{background:#5b2b4d}
-.wrap.conf .loc-item{font-size:15px}
-.utens{display:flex;flex-wrap:wrap;gap:8px;padding:2px 24px 20px}
-.pill{border:1.5px solid #1C1D1B;border-radius:6px;padding:5px 11px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.05em;font-size:10.5px;text-transform:uppercase}
-.wrap.conf .tbl-pp td{font-size:13px;padding:9px 12px}
-.wrap.conf .pill{font-size:11px}
+.wrap.conf .loc-item{font-size:15.5px}
+.utens{display:flex;flex-wrap:wrap;gap:10px;padding:4px 24px 22px}
+.pill{border:1.5px solid #1C1D1B;border-radius:7px;padding:7px 13px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;font-size:13px;text-transform:uppercase;display:inline-flex;align-items:center;gap:7px;background:#fff;line-height:1.2}.pill-ic{font-size:14px;line-height:1}
+.wrap.conf .tbl-pp td{font-size:15px;padding:11px 13px}
+.wrap.conf .pill{font-size:14px;padding:8px 14px}.wrap.conf .pill-ic{font-size:15px}
 @media(max-width:640px){
 .tbl-pp{margin:0 16px 8px;width:calc(100% - 32px)}
 .tbl-pp td,.tbl-pp th{font-size:11px;padding:7px 8px}
@@ -282,6 +282,19 @@ function _derivPP(c, fichaMap) {
   return { acao, freq, val, local, deriv };
 }
 // conservação de uma ficha base (pro cabeçalho da receita): autorado na ficha, senão derivado do modo de preparo
+// QUANTIDADE OPERACIONAL (camada de apresentação — não altera nem recalcula dado).
+// Prioridade: 1) medida caseira autorada (it.medida) 2) unidade já cadastrada
+// (it.porUn: qtdUn × gUn) 3) o peso, como sempre. O peso segue visível como referência.
+function _qtdOper(it, pesoTxt) {
+  const med = (it.medida || "").toString().trim();
+  if (med) return `<span class="q-oper">${_esc(med)}</span><span class="q-peso">${pesoTxt}</span>`;
+  if (it.porUn && +it.qtdUn > 0) {
+    const n = +it.qtdUn;
+    const nTxt = Number.isInteger(n) ? String(n) : String(n).replace(".", ",");
+    return `<span class="q-oper">${nTxt} un</span><span class="q-peso">${pesoTxt}</span>`;
+  }
+  return pesoTxt;
+}
 function _fichaConserv(f) {
   let freq = f.freq || "", val = f.validade || "", local = f.local || "";
   if (freq && val) return { freq, val, local, deriv: false };
@@ -297,13 +310,34 @@ function _checklistPP(comps, fichaMap) {
   const linhas = (comps || []).map(c => ({ c, d: _derivPP(c, fichaMap) })).filter(x => x.d.acao || x.d.freq || x.d.val);
   if (!linhas.length) return "";
   const rows = linhas.map(({ c, d }) => `<tr><td><div class="item"><span class="cbox"></span><span>${_esc(c.nomeRef)}</span></div></td><td>${_esc(d.acao || "")}${d.deriv ? ` <span class="deriv-tag">auto</span>` : ""}</td><td>${_bFreq(d.freq)}</td><td>${_bVal(d.val)}</td></tr>`).join("");
-  return `<div class="bloco"><div class="secao-lbl">— CHECKLIST DE PRÉ-PREPARO</div>
+  return `<div class="bloco"><div class="secao-lbl">☐ CHECKLIST DE PRÉ-PREPARO</div>
     <table class="tbl-pp"><thead><tr><th>ITEM</th><th>AÇÃO</th><th>FREQ.</th><th>VALIDADE</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+// camada VISUAL de ícone: símbolo por correspondência de palavra.
+// NÃO altera o dado — o texto original é renderizado intacto ao lado do ícone.
+// Sem correspondência = sem ícone (nunca inventa informação).
+function _icone(txt) {
+  const t = (txt || "").toLowerCase();
+  const mapa = [
+    [/balan[çc]a|pesag|pesar/, "⚖"],
+    [/fog[ãa]o|forno|panela|frigideira|cooktop|leiteira|banho-maria/, "♨"],
+    [/freezer|congelad|geladeira|refriger|gelar/, "❄"],
+    [/batedeira|processador|liquidificador|mixer|micro-?ondas/, "⚙"],
+    [/faca|t[áa]bua|corte|zester|ralador|descascador/, "✂"],
+    [/timer|cron[oô]metro|term[oô]metro/, "⌛"],
+  ];
+
+  for (const [re, ic] of mapa) if (re.test(t)) return ic;
+  return "";
+}
+function _pill(txt) {
+  const ic = _icone(txt);
+  return `<span class="pill">${ic ? `<span class="pill-ic">${ic}</span>` : ""}${_esc(txt)}</span>`;
 }
 function _utensilios(p) {
   const lista = Array.isArray(p.utensilios) ? p.utensilios : _linhas(p.utensilios);
   if (!lista.length) return "";
-  return `<div class="bloco"><div class="secao-lbl">— UTENSÍLIOS & EQUIPAMENTOS</div><div class="utens">${lista.map(u => `<span class="pill">${_esc(u)}</span>`).join("")}</div></div>`;
+  return `<div class="bloco"><div class="secao-lbl">⚙ UTENSÍLIOS &amp; EQUIPAMENTOS</div><div class="utens">${lista.map(u => _pill(u)).join("")}</div></div>`;
 }
 // bloco de estoque por local (só leitura): agrupa os itens de todos os pratos por `local` (autorado ou derivado),
 // mostrando a gramatura — ou a obs (ex.: "montado"/"discos") na confeitaria. Item sem local fica de fora.
@@ -324,7 +358,8 @@ function _estoquePorLocal(pratos, fichaMap, ehConf) {
   const cards = locs.map(l => {
     const titulo = (ehConf && l === "Freezer") ? "Freezer — exclusivo doce" : l;
     const itens = grupos[l].map(x => `<div class="loc-item"><b>${_esc(x.nome)}</b><span class="q">${x.qtd}</span></div>`).join("");
-    return `<div class="loc-card"><div class="loc-h ${cls[l] || ""}">${_esc(titulo)}</div>${itens}</div>`;
+    const icL = _icone(l);
+    return `<div class="loc-card"><div class="loc-h ${cls[l] || ""}">${icL ? icL + " " : ""}${_esc(titulo)}</div>${itens}</div>`;
   }).join("");
   return `<div class="estoque">${cards}</div>`;
 }
@@ -371,9 +406,9 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
     const porcaoLbl = (p.modoRend === "inteiro" && Number(p.rendFatias) > 0) ? `Receita inteira · rende ${Number(p.rendFatias)} fatias` : "1 porção";
     parte1 += `<div class="card-prato">
       <div class="prato-head"><div class="prato-num">${num}</div><div><div class="prato-cat">${catLbl} · ${(p.comps||[]).length} componentes</div><div class="prato-nome">${_esc(p.nome)}</div><div class="prato-porcao">${porcaoLbl}</div></div></div>
-      <div class="bloco"><div class="secao-lbl">— COMPOSIÇÃO & GRAMATURAS</div>
+      <div class="bloco"><div class="secao-lbl">⚖ COMPOSIÇÃO &amp; GRAMATURAS</div>
       <div class="comps">${comps}</div></div>
-      ${mop ? `<div class="mopwrap"><div class="secao-lbl">— MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div></div>` : ""}
+      ${mop ? `<div class="mopwrap"><div class="secao-lbl">☰ MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div></div>` : ""}
       ${_checklistPP(p.comps, fichaMap)}
       ${_utensilios(p)}
     </div>`;
@@ -390,9 +425,9 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
       if (ehConf) {
         const difere = it.qtdBruta && it.qtdLiquida && it.qtdBruta > it.qtdLiquida * 1.02;
         const nota = difere ? ` <span class="comp-cru" style="display:inline">· ⚖ comprar ~${bru} cru</span>` : "";
-        return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${liq}${nota}</td></tr>`;
+        return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${_qtdOper(it, liq)}${nota}</td></tr>`;
       }
-      return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${liq}</td><td class="bruta">${bru}</td></tr>`;
+      return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${_qtdOper(it, liq)}</td><td class="bruta">${bru}</td></tr>`;
     }).join("");
     const preparo = _renderPassos(f.modoPreparo);
     const cons = _fichaConserv(f);
@@ -401,7 +436,7 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
       <div class="receita-head"><div class="receita-nome">${_esc(f.nome)}</div>${consBadge}</div>
       <div class="receita-body">
         <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th>${ehConf ? "<th>QUANTIDADE</th>" : "<th>LÍQUIDA</th><th>BRUTA</th>"}</tr></thead><tbody>${itens}</tbody></table></div>
-        ${preparo ? `<div class="receita-mop"><div class="secao-lbl">— MODO DE PREPARO</div>${preparo}</div>` : ""}
+        ${preparo ? `<div class="receita-mop"><div class="secao-lbl">♨ MODO DE PREPARO</div>${preparo}</div>` : ""}
       </div>
       ${_utensilios(f)}
     </div>`;
