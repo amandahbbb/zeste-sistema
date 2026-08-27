@@ -113,7 +113,7 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .conta-s{font-size:9.5px;color:#7a7a7a;margin-top:3px}
 .conta-box.destaque .conta-s{color:#25460f}
 .conta-op{display:flex;align-items:center;font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:800;color:#8FA715}
-.ger-sec{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:6px 24px 18px}.ger-foto{height:52mm;background-size:cover;background-position:center;margin:14px 24px 4px;border-radius:12px;background-color:#f0eee8}
+.ger-sec{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:6px 24px 18px}.ger-foto{height:62mm;background-size:contain;background-repeat:no-repeat;background-position:center;margin:14px 24px 6px;border-radius:12px;background-color:#fff;border:1px solid #ecebe4}
 @media(max-width:640px){.conta{flex-wrap:wrap}.conta-op{width:100%;justify-content:center;font-size:22px}.conta-box.rende{flex:1}.ger-sec{grid-template-columns:1fr}}
 .tbl-custo{width:100%;border-collapse:collapse;margin:0 24px 24px;width:calc(100% - 48px)}
 .tbl-custo th{font-size:10px;color:#999;text-align:left;padding:8px 10px;letter-spacing:.05em;border-bottom:2px solid #E3E1D9}
@@ -380,6 +380,19 @@ function _checklistConsolidado(pratos, fichaMap) {
 }
 
 // ── CADERNO OPERACIONAL — uso da cozinha (empratamento + receitas base) ──
+// converte link do Google Drive em imagem direta; outras URLs passam intactas.
+function _fotoUrl(u) {
+  const s = (u || "").toString().trim();
+  if (!s) return "";
+  const m = s.match(/\/d\/([-\w]{20,})/) || s.match(/[?&]id=([-\w]{20,})/);
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000`;
+  return s;
+}
+function _fotoBox(u, cls) {
+  const url = _fotoUrl(u);
+  return url ? `<div class="ger-foto ${cls||''}" style="background-image:url('${url}')"></div>` : "";
+}
+
 export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, fichas, praca }) {
   const ehConf = (praca || "").toLowerCase().includes("conf"); // confeitaria: bruta≈líquida → só quantidade (exceto FC real, ex. suco de limão)
   const fichaMap = {};
@@ -406,6 +419,7 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
     const porcaoLbl = (p.modoRend === "inteiro" && Number(p.rendFatias) > 0) ? `Receita inteira · rende ${Number(p.rendFatias)} fatias` : "1 porção";
     parte1 += `<div class="card-prato">
       <div class="prato-head"><div class="prato-num">${num}</div><div><div class="prato-cat">${catLbl} · ${(p.comps||[]).length} componentes</div><div class="prato-nome">${_esc(p.nome)}</div><div class="prato-porcao">${porcaoLbl}</div></div></div>
+      ${_fotoBox(p.foto)}
       <div class="bloco"><div class="secao-lbl">⚖ COMPOSIÇÃO &amp; GRAMATURAS</div>
       <div class="comps">${comps}</div></div>
       ${mop ? `<div class="mopwrap"><div class="secao-lbl">☰ MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div></div>` : ""}
@@ -458,18 +472,6 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
 }
 
 // ── CADERNO GERENCIAL — confidencial (custos, CMV, comparativo) ──
-// converte link do Google Drive em imagem direta; outras URLs passam intactas.
-function _fotoUrl(u) {
-  const s = (u || "").toString().trim();
-  if (!s) return "";
-  const m = s.match(/\/d\/([-\w]{20,})/) || s.match(/[?&]id=([-\w]{20,})/);
-  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000`;
-  return s;
-}
-function _fotoBox(u, cls) {
-  const url = _fotoUrl(u);
-  return url ? `<div class="ger-foto ${cls||''}" style="background-image:url('${url}')"></div>` : "";
-}
 export function gerarCadernoGerencialHTML({ titulo, clienteNome, pratos }) {
   let parte1 = "";
   pratos.forEach((p, idx) => {
