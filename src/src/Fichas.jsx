@@ -274,6 +274,15 @@ function FichaForm({open,ficha,onClose,onSave,onDelete,ingredientes,fichasCalc,s
         </div>
         <div style={{textAlign:'right'}}><div className="ft-flbl">CUSTO</div><div style={{fontFamily:'var(--ff)',fontSize:16,fontWeight:700,color:'var(--verde)'}}>{brl(it.custo)}</div></div>
       </div>
+      {it.tipo!=='ficha'&&<div style={{marginTop:8}}>
+        <label className="ft-flbl">MEDIDA CASEIRA (opcional — aparece no caderno no lugar do peso)</label>
+        <input value={it.medida||''} onChange={e=>updItem(i,'medida',e.target.value)} placeholder="ex.: 1 pitada · 2 col. sopa" style={{width:'100%',boxSizing:'border-box',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px',fontSize:13,background:'#fff',colorScheme:'light'}}/>
+        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:6}}>
+          {['1 pitada','1 col. sopa','2 col. sopa','1 col. chá','1 xícara','a gosto','QB'].map(op=>(
+            <button key={op} type="button" onClick={()=>updItem(i,'medida',it.medida===op?'':op)} style={{fontSize:11,fontWeight:600,color:it.medida===op?'#fff':'var(--verde)',background:it.medida===op?'var(--verde)':'#F0F6EE',border:'1px solid #cdd7a0',borderRadius:20,padding:'4px 10px',cursor:'pointer'}}>{op}</button>
+          ))}
+        </div>
+      </div>}
       {it.tipo!=='ficha'&&<div style={{marginTop:10,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
         <button type="button" onClick={()=>setUnConv(i,{porUn:!it.porUn,gUn:it.gUn||55,qtdUn:it.qtdUn||1})} style={{fontSize:11.5,fontWeight:700,padding:'6px 12px',borderRadius:20,border:'1.5px solid '+(it.porUn?'var(--verde)':'var(--cinzaM)'),background:it.porUn?'var(--verde)':'#fff',color:it.porUn?'#fff':'var(--cinzaE)',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:5}}>{it.porUn?'✓ Por unidade':'⚖ Inserir por unidade'}</button>
         {it.porUn&&<span style={{fontSize:12,color:'var(--cinzaE)'}}>{it.qtdUn||0} un × {it.gUn||55} g = <b style={{color:'var(--verde)'}}>{num(it.qtdLiquida)} kg</b></span>}
