@@ -113,7 +113,7 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .conta-s{font-size:9.5px;color:#7a7a7a;margin-top:3px}
 .conta-box.destaque .conta-s{color:#25460f}
 .conta-op{display:flex;align-items:center;font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:800;color:#8FA715}
-.ger-sec{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:6px 24px 18px}.ger-foto{height:62mm;background-size:contain;background-repeat:no-repeat;background-position:center;margin:14px 24px 6px;border-radius:12px;background-color:#fff;border:1px solid #ecebe4}
+.ger-sec{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:6px 24px 18px}.ger-fotos{display:flex;gap:12px;justify-content:center;align-items:center;margin:16px 24px 8px;flex-wrap:wrap}.ger-foto{width:70mm;height:70mm;background-size:contain;background-repeat:no-repeat;background-position:center;border-radius:12px;background-color:#fff;border:1px solid #ecebe4}.ger-foto.dupla{width:58mm;height:58mm}
 @media(max-width:640px){.conta{flex-wrap:wrap}.conta-op{width:100%;justify-content:center;font-size:22px}.conta-box.rende{flex:1}.ger-sec{grid-template-columns:1fr}}
 .tbl-custo{width:100%;border-collapse:collapse;margin:0 24px 24px;width:calc(100% - 48px)}
 .tbl-custo th{font-size:10px;color:#999;text-align:left;padding:8px 10px;letter-spacing:.05em;border-bottom:2px solid #E3E1D9}
@@ -146,7 +146,7 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
   .tbl-pp thead{display:table-header-group}
   /* impressao nunca corta conteudo */
   .card-prato,.receita,.tbl-pp,.loc-card,.card-ger,.comps,.utens{overflow:visible}
-  .card-prato,.receita,.card-ger,.prato-head,.ger-head,.kpi,.capa,.ger-foto{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  .card-prato,.receita,.card-ger,.prato-head,.ger-head,.kpi,.capa,.ger-foto,.ger-fotos{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 @media(max-width:640px){.comps,.ger-kpis{grid-template-columns:1fr}.receita-body{grid-template-columns:1fr}.receita-ing{border-right:none;border-bottom:1px solid #F0EEE8}}
 `;
 
@@ -388,9 +388,12 @@ function _fotoUrl(u) {
   if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000`;
   return s;
 }
-function _fotoBox(u, cls) {
-  const url = _fotoUrl(u);
-  return url ? `<div class="ger-foto ${cls||''}" style="background-image:url('${url}')"></div>` : "";
+function _fotoBox(u, u2) {
+  const urls = [_fotoUrl(u), _fotoUrl(u2)].filter(Boolean);
+  if (!urls.length) return "";
+  const cls = urls.length > 1 ? "dupla" : "";
+  const imgs = urls.map(x => `<div class="ger-foto ${cls}" style="background-image:url('${x}')"></div>`).join("");
+  return `<div class="ger-fotos">${imgs}</div>`;
 }
 
 export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, fichas, praca }) {
@@ -419,7 +422,7 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
     const porcaoLbl = (p.modoRend === "inteiro" && Number(p.rendFatias) > 0) ? `Receita inteira · rende ${Number(p.rendFatias)} fatias` : "1 porção";
     parte1 += `<div class="card-prato">
       <div class="prato-head"><div class="prato-num">${num}</div><div><div class="prato-cat">${catLbl} · ${(p.comps||[]).length} componentes</div><div class="prato-nome">${_esc(p.nome)}</div><div class="prato-porcao">${porcaoLbl}</div></div></div>
-      ${_fotoBox(p.foto)}
+      ${_fotoBox(p.foto, p.foto2)}
       <div class="bloco"><div class="secao-lbl">⚖ COMPOSIÇÃO &amp; GRAMATURAS</div>
       <div class="comps">${comps}</div></div>
       ${mop ? `<div class="mopwrap"><div class="secao-lbl">☰ MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div></div>` : ""}
@@ -507,7 +510,7 @@ export function gerarCadernoGerencialHTML({ titulo, clienteNome, pratos }) {
     }
     parte1 += `<div class="card-ger">
       <div class="ger-head"><div class="prato-num lima">${num}</div><div><div class="prato-cat">COMPOSIÇÃO DE CUSTOS</div><div class="prato-nome">${_esc(p.nome)}</div></div></div>
-      ${_fotoBox(p.foto)}
+      ${_fotoBox(p.foto, p.foto2)}
       ${blocoRend}
       <div class="secao-lbl">— COMPOSIÇÃO DE CUSTO · PREÇO/KG DA RECEITA PRONTA</div>
       <table class="tbl-custo"><thead><tr><th>RECEITA / INSUMO</th><th>QTD. LÍQ.</th><th>FC</th><th>QTD. BRUTA</th><th>PREÇO/KG</th><th>CUSTO</th></tr></thead><tbody>${linhasCusto}</tbody>
