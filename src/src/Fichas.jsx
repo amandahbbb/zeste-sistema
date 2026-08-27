@@ -378,8 +378,9 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
       {ehInteiro&&<div className="ft-fld h"><label className="ft-flbl">Preço da FATIA (R$)</label><NumInput step="0.01" min="0" value={p.precoFatia} onChange={v=>setP(pr=>({...pr,precoFatia:v}))} placeholder="balcão"/></div>}
       {ehInteiro&&<div className="ft-fld"><label className="ft-flbl">Preço do BOLO INTEIRO (R$)</label><NumInput step="0.01" min="0" value={p.precoVenda} onChange={v=>setP(pr=>({...pr,precoVenda:v}))} placeholder="encomenda"/></div>}
       <div className="ft-fld"><label className="ft-flbl">Foto do prato empratado (link)</label><input value={p.foto||''} onChange={e=>setP(pr=>({...pr,foto:e.target.value}))} placeholder="Cole o link da foto (Drive, Instagram, etc)"/></div>
+      <div className="ft-fld"><label className="ft-flbl">Foto 2 (opcional — link)</label><input value={p.foto2||''} onChange={e=>setP(pr=>({...pr,foto2:e.target.value}))} placeholder="Segunda foto (aparece ao lado da primeira)"/></div>
     </div>
-    {p.foto&&<div style={{marginBottom:14,textAlign:'center'}}><img src={p.foto} alt="" style={{maxWidth:'100%',maxHeight:180,borderRadius:10,objectFit:'cover'}} onError={e=>{e.target.style.display='none';}}/></div>}
+    {(p.foto||p.foto2)&&<div style={{marginBottom:14,display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>{[p.foto,p.foto2].filter(Boolean).map((u,k)=><img key={k} src={u} alt="" style={{maxWidth:'48%',maxHeight:180,borderRadius:10,objectFit:'contain',background:'#fff',border:'1px solid #eee'}} onError={e=>{e.target.style.display='none';}}/>)}</div>}
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
       <span style={{fontFamily:'var(--ff)',fontSize:13,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.08em'}}>{(p.modoRend||'porcao')==='inteiro'?'COMPONENTES (RECEITA INTEIRA / BOLO)':'COMPONENTES (POR PORÇÃO)'}</span>
       <button className="ft-btn ft-btn-p" style={{padding:'8px 14px',fontSize:12}} onClick={()=>setPicker(true)}>+ Adicionar</button>
