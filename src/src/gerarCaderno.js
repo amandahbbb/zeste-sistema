@@ -78,7 +78,7 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .receita{background:#fff;border-radius:14px;margin-bottom:20px;overflow:hidden;box-shadow:0 3px 16px rgba(0,0,0,.06);page-break-inside:avoid}
 .receita-head{display:flex;justify-content:space-between;align-items:center;padding:15px 26px;border-bottom:2px solid #8FA715;gap:12px}
 .receita-nome{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;text-transform:uppercase;letter-spacing:.01em}
-.receita-cons{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.receita-cons{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.receita-rende{display:inline-block;margin-top:6px;background:#8FA715;color:#14210a;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.05em;padding:4px 12px;border-radius:20px}.wrap.conf .receita-rende{font-size:14.5px;padding:5px 14px}
 .loc-pill{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:10px;letter-spacing:.05em;color:#5c6a1f;border:1.5px solid #b7c07f;border-radius:4px;padding:3px 8px;text-transform:uppercase}
 .receita-kg{background:#8FA715;color:#111;font-weight:700;font-size:13px;padding:5px 12px;border-radius:20px}
 .receita-body{display:grid;grid-template-columns:0.78fr 1.22fr;gap:0}
@@ -430,10 +430,14 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
       return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${_qtdOper(it, liq)}</td><td class="bruta">${bru}</td></tr>`;
     }).join("");
     const preparo = _renderPassos(f.modoPreparo);
+    const _rend = Number(f.rendReal) || 0;
+    const _rUn = f.rendUnidade || "kg";
+    const _rendN = Number.isInteger(_rend) ? String(_rend) : String(_rend).replace(".", ",");
+    const _rendTxt = _rend > 0 ? `RENDE ${_rendN} ${_rUn === "un" ? (_rend === 1 ? "UNIDADE" : "UNIDADES") : _rUn.toUpperCase()}` : "";
     const cons = _fichaConserv(f);
     const consBadge = (cons.freq || cons.val || cons.local) ? `<div class="receita-cons">${_bFreq(cons.freq)}${cons.val ? _bVal(cons.val) : ""}${cons.local ? `<span class="loc-pill">${_esc(cons.local)}</span>` : ""}${cons.deriv ? `<span class="deriv-tag">auto</span>` : ""}</div>` : "";
     parte2 += `<div class="receita">
-      <div class="receita-head"><div class="receita-nome">${_esc(f.nome)}</div>${consBadge}</div>
+      <div class="receita-head"><div><div class="receita-nome">${_esc(f.nome)}</div>${_rendTxt ? `<div class="receita-rende">${_rendTxt}</div>` : ""}</div>${consBadge}</div>
       <div class="receita-body">
         <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th>${ehConf ? "<th>QUANTIDADE</th>" : "<th>LÍQUIDA</th><th>BRUTA</th>"}</tr></thead><tbody>${itens}</tbody></table></div>
         ${preparo ? `<div class="receita-mop"><div class="secao-lbl">♨ MODO DE PREPARO</div>${preparo}</div>` : ""}
