@@ -360,7 +360,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     });
     sbLoad("fin_pratos", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=id`).then(r => setFichasCount(r.length));
     sbLoad("portal_documentos", token, `cliente_id=eq.${cid}&select=*&order=created_at.desc`).then(r => setDocs(r.map(x => x.dados || x)));
-    sbLoad("docs_operacionais", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*&order=updated_at.desc`).then(r => setDocsOp(r.map(x => x.dados || x).filter(d => d.visibilidade === "entregavel")));
+    sbLoad("docs_operacionais", token, `or=(cliente_id.eq.${cid},cliente_id.like.${cid}-*)&deleted_at=is.null&select=*&order=updated_at.desc`).then(r => setDocsOp(r.map(x => x.dados || x).filter(d => d.visibilidade === "entregavel")));
     sbLoad("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
   }, []);
 
