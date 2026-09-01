@@ -8,6 +8,7 @@ import BreakEven from "./BreakEven.jsx";
 import Compras from "./Compras.jsx";
 import Engenharia from "./Engenharia.jsx";
 import PortalAdmin from "./PortalAdmin.jsx";
+import Lab from "./Lab.jsx";
 import Studio from "./Studio.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
@@ -179,6 +180,7 @@ const MODULOS = [
   { id: "dashboard",  icon: "🏠", label: "Início"      },
   { id: "fichas",     icon: "🍽️", label: "Operação"    },
   { id: "portaladmin",icon: "👥", label: "Clientes"    },
+  { id: "lab",        icon: "🧪", label: "Lab"         },
   { id: "engenharia", icon: "📈", label: "Engenharia"  },
   { id: "compras",    icon: "🛒", label: "Compras"     },
   { id: "financeiro", icon: "💰", label: "Financeiro"  },
@@ -194,7 +196,7 @@ const TERRITORIOS = [
   { titulo: null,          ids: ["dashboard"] },
   { titulo: "GESTÃO",      ids: ["financeiro", "breakeven", "comercial"] },
   { titulo: "OPERAÇÃO",    ids: ["fichas", "engenharia", "compras"] },
-  { titulo: "CLIENTES",    ids: ["portaladmin"] },
+  { titulo: "CLIENTES",    ids: ["portaladmin", "lab"] },
   { titulo: "CRIATIVO",    ids: ["marketing", "studio"] },
 ];
 const modById = id => MODULOS.find(m => m.id === id);
@@ -817,6 +819,15 @@ function ZesteSistemaInner() {
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
         <PortalAdmin onBack={() => setModulo("dashboard")} token={session.token} />
+      </AppCtx.Provider>
+    </>
+  );
+
+  if (modulo === "lab") return (
+    <>
+      <style>{GLOBAL_STYLE}</style>
+      <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
+        <Lab onBack={() => setModulo("dashboard")} token={session.token} />
       </AppCtx.Provider>
     </>
   );
