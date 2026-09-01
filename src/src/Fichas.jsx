@@ -30,6 +30,7 @@ const brl=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{min
 const pct=v=>v==null||isNaN(v)?'—':(v*100).toFixed(1)+'%';
 const num=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:d});
 const normNome=s=>(s||'').toString().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+const _subPraca=(c,f)=>!!c&&!!f&&c.startsWith(f+'-'); // cliente enxerga as PRÓPRIAS sub-praças (ex.: 440 vê 440-conf); no admin clienteFilter='' e isto nunca dispara
 
 // Input numérico BR: aceita vírgula, sem zero travado. Guarda string, devolve número.
 function NumInput({value,onChange,step,min,placeholder,style,className}){
@@ -471,7 +472,7 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLix
   const[q,setQ]=useState('');const[edit,setEdit]=useState(null);
   const[lixeira,setLixeira]=useState(null);
   const abrirLixeira=async()=>{setLixeira([]);setLixeira(await carregarLixeira());};
-  const filtered=ingredientes.filter(i=>(!q||normNome(i.nome).includes(normNome(q)))&&(!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente));
+  const filtered=ingredientes.filter(i=>(!q||normNome(i.nome).includes(normNome(q)))&&(!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente||_subPraca(i._cliente,clienteFilter)));
   return(<div className="ft-page">
     <div className="ft-search"><input placeholder="🔍 Buscar ingrediente…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/>
       {carregarLixeira&&<button className="ft-btn" style={{padding:'10px 12px',fontSize:13,border:'1.5px solid var(--cinzaM)',background:'transparent',color:'var(--cinzaE)'}} onClick={abrirLixeira} title="Ingredientes excluídos">🗑</button>}
@@ -631,7 +632,7 @@ function SecaoFornecedores({ing,cli,token,onPrecoAtual}){
 // ── FICHAS TAB ────────────────────────────────────────────────────
 function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFilter,souCli,ehAdmin,token}){
   const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);
-  const filtered=fichasCalc.filter(f=>(!q||normNome(f.nome).includes(normNome(q)))&&(!clienteFilter||f._cliente===clienteFilter));
+  const filtered=fichasCalc.filter(f=>(!q||normNome(f.nome).includes(normNome(q)))&&(!clienteFilter||f._cliente===clienteFilter||_subPraca(f._cliente,clienteFilter)));
   return(<div className="ft-page">
     <div className="ft-search"><input placeholder="🔍 Buscar ficha…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/><button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEditForm({})}>+ Nova</button></div>
     <div className="ft-pc"><div className="ft-card">
@@ -679,7 +680,7 @@ function TabFichas({fichasCalc,ingredientes,fichasRaw,onSave,onDelete,clienteFil
 // ── PRATOS TAB ────────────────────────────────────────────────────
 function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFilter,souCli,ehAdmin,token}){
   const[q,setQ]=useState('');const[detail,setDetail]=useState(null);const[editForm,setEditForm]=useState(null);const[fichaDet,setFichaDet]=useState(null);
-  const filtered=pratosCalc.filter(p=>(!q||normNome(p.nome).includes(normNome(q)))&&(!clienteFilter||p._cliente===clienteFilter));
+  const filtered=pratosCalc.filter(p=>(!q||normNome(p.nome).includes(normNome(q)))&&(!clienteFilter||p._cliente===clienteFilter||_subPraca(p._cliente,clienteFilter)));
   const categorias=[...new Set(filtered.map(p=>p.categoria||'Sem categoria'))];
   return(<div className="ft-page">
     <div className="ft-search"><input placeholder="🔍 Buscar prato…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/><button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEditForm({})}>+ Novo</button></div>
@@ -766,8 +767,8 @@ function TabProducao({pratosCalc,fichasCalc,ingredientes,meuCli,token,clienteAti
   // Mesmo que o RLS falhe, nada de outro cliente aparece aqui.
   const _cli=clienteAtivo||meuCli;
   if(_cli&&_cli!=='zeste'){
-    pratosCalc=pratosCalc.filter(p=>p._cliente===_cli);
-    fichasCalc=fichasCalc.filter(f=>f._cliente===_cli);
+    pratosCalc=pratosCalc.filter(p=>p._cliente===_cli||_subPraca(p._cliente,_cli));
+    fichasCalc=fichasCalc.filter(f=>f._cliente===_cli||_subPraca(f._cliente,_cli));
   }
   const[linhas,setLinhas]=useState([]);
   const[resultado,setResultado]=useState(null);
@@ -1018,7 +1019,7 @@ function QRLabels({ingredientes,onClose}){
 // ── ESTOQUE TAB ───────────────────────────────────────────────────
 function TabEstoque({ingredientes,onSave,clienteFilter}){
   const[q,setQ]=useState('');const[mov,setMov]=useState(null);
-  const filtered=ingredientes.filter(i=>(!q||normNome(i.nome).includes(normNome(q)))&&(!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente));
+  const filtered=ingredientes.filter(i=>(!q||normNome(i.nome).includes(normNome(q)))&&(!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente||_subPraca(i._cliente,clienteFilter)));
   const comEstoque=filtered.filter(i=>(i.estoque||0)>0||(i.estoqueMin||0)>0);
   const semEstoque=filtered.filter(i=>!i.estoque&&!i.estoqueMin);
   const baixos=ingredientes.filter(i=>i.estoqueMin>0&&(i.estoque||0)<i.estoqueMin);
@@ -1117,8 +1118,8 @@ function TabEstoque({ingredientes,onSave,clienteFilter}){
 
 // ── RESUMO TAB ────────────────────────────────────────────────────
 function TabResumo({ingredientes,fichasCalc,pratosCalc,clienteFilter}){
-  const pratosVis=clienteFilter?pratosCalc.filter(p=>p._cliente===clienteFilter):pratosCalc;
-  const fichasVis=clienteFilter?fichasCalc.filter(f=>f._cliente===clienteFilter):fichasCalc;
+  const pratosVis=clienteFilter?pratosCalc.filter(p=>p._cliente===clienteFilter||_subPraca(p._cliente,clienteFilter)):pratosCalc;
+  const fichasVis=clienteFilter?fichasCalc.filter(f=>f._cliente===clienteFilter||_subPraca(f._cliente,clienteFilter)):fichasCalc;
   const pratosComPreco=pratosVis.filter(p=>p.precoVenda>0);
   const cmvMedio=pratosComPreco.length>0?pratosComPreco.reduce((s,p)=>s+p.cmv,0)/pratosComPreco.length:0;
   const custoMedio=pratosComPreco.length>0?pratosComPreco.reduce((s,p)=>s+p.custoTotal,0)/pratosComPreco.length:0;
