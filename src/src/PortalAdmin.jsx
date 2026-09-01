@@ -25,6 +25,180 @@ const STYLE = `
 .pa-tab{flex:1;padding:11px 8px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:transparent;font-family:'Barlow Condensed',sans-serif;border-bottom:2px solid transparent}
 `;
 
+// ── POP-10 · Auditoria de Experiência Real ──────────────────────────────────
+const CRITERIOS_AUD = [["A", "Aparência e empratamento"], ["B", "Porcionamento"], ["C", "Sabor"], ["D", "Textura"], ["E", "Temperatura"], ["F", "Coerência operacional"], ["tempo", "Tempo de entrega"], ["exp", "Experiência geral"]];
+const STATUS_AUD = ["Aprovado", "Aprovado com ajuste fino", "Requer ajuste obrigatório", "Requer revalidação"];
+const TIPO_FALHA_AUD = ["", "Pontual", "Padronização", "Operacional", "Estratégica"];
+function mediaPrato(p) { const vs = CRITERIOS_AUD.map(([k]) => parseFloat(p.notas && p.notas[k])).filter(n => !isNaN(n)); return vs.length ? +(vs.reduce((a, b) => a + b, 0) / vs.length).toFixed(1) : null; }
+function statusAutoAud(media, falhaCrit) { if (media == null) return ""; if (falhaCrit || media < 3) return "Requer ajuste obrigatório"; if (media < 4) return "Aprovado com ajuste fino"; return "Aprovado"; }
+function coberturaAud(auditorias, totalPratos) { const set = new Set(); (auditorias || []).forEach(a => (a.pratos || []).forEach(p => { const n = (p.nome || "").trim().toLowerCase(); if (n) set.add(n); })); const aud = set.size; return { aud, total: totalPratos, pct: totalPratos > 0 ? Math.round(aud / totalPratos * 100) : 0 }; }
+function corStatusAud(s) { if (s === "Aprovado") return C.verde; if (s === "Aprovado com ajuste fino") return C.azul; if (s === "Requer revalidação") return "#B8860B"; if (s) return C.coral; return C.cinzaE; }
+
+function AuditoriaPOP10({ auditorias, pratosCliente, onSave, onDelete, clienteNome }) {
+  const [draft, setDraft] = useState(null);
+  const cob = coberturaAud(auditorias, (pratosCliente || []).length);
+  const inp = { width: "100%", boxSizing: "border-box", border: `1.5px solid ${C.cinzaM}`, borderRadius: 8, padding: "8px 10px", fontSize: 13, background: "#fff", fontFamily: "inherit" };
+  const lbl = { fontSize: 10, color: C.cinzaE, fontWeight: 700, letterSpacing: ".04em", display: "block", marginBottom: 3 };
+
+  const novaAuditoria = () => setDraft({ id: uid(), data: td(), horario: "", responsaveis: "", movimento: "", chegada: { espera: "", equipe: "", explicou: "", comunicacao: "", obs: "" }, pratos: [], resumo: { q1: "", q2: "", q3: "", q4: "", q5: "", q6: "" } });
+  const up = patch => setDraft(d => ({ ...d, ...patch }));
+  const upCheg = patch => setDraft(d => ({ ...d, chegada: { ...d.chegada, ...patch } }));
+  const upResumo = patch => setDraft(d => ({ ...d, resumo: { ...d.resumo, ...patch } }));
+  const addPrato = () => setDraft(d => ({ ...d, pratos: [...d.pratos, { id: uid(), nome: "", hPedido: "", hChegada: "", tempoTotal: "", tempoStatus: "", notas: {}, obs: {}, status: "", falhaCrit: false, tipoFalha: "", positivos: "", atencao: "", ajustes: "", responsavel: "", prazo: "" }] }));
+  const upPrato = (i, patch) => setDraft(d => ({ ...d, pratos: d.pratos.map((p, j) => j === i ? { ...p, ...patch } : p) }));
+  const upNota = (i, k, v) => setDraft(d => ({ ...d, pratos: d.pratos.map((p, j) => j === i ? { ...p, notas: { ...p.notas, [k]: v } } : p) }));
+  const upObs = (i, k, v) => setDraft(d => ({ ...d, pratos: d.pratos.map((p, j) => j === i ? { ...p, obs: { ...p.obs, [k]: v } } : p) }));
+  const delPrato = i => setDraft(d => ({ ...d, pratos: d.pratos.filter((_, j) => j !== i) }));
+  const salvar = () => { const out = { ...draft, pratos: draft.pratos.map(p => { const m = mediaPrato(p); return { ...p, media: m, status: p.status || statusAutoAud(m, p.falhaCrit) }; }) }; onSave(out); setDraft(null); };
+
+  // ─── LISTA ───
+  if (!draft) return (
+    <div style={{ padding: 16, maxWidth: 720, margin: "0 auto" }}>
+      <div className="pa-card" style={{ padding: 16, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 18, fontWeight: 700 }}>Implementação · Auditoria POP-10</div>
+          <div style={{ fontSize: 12.5, color: C.cinzaE, marginTop: 2 }}>Cobertura: <b style={{ color: cob.pct >= 70 ? C.verde : C.coral }}>{cob.aud} de {cob.total} pratos ({cob.pct}%)</b> · regra: ≥ 70%</div>
+        </div>
+        <button className="pa-btn" onClick={novaAuditoria} style={{ background: C.lima, color: C.preto, border: "none", padding: "10px 16px", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Nova auditoria</button>
+      </div>
+      {cob.total > 0 && cob.pct < 70 && <div style={{ fontSize: 12, color: C.coral, marginBottom: 12, padding: "8px 12px", background: "#FBEDE8", borderRadius: 8 }}>⚠ Amostragem abaixo de 70% — avalie mais pratos antes de concluir a implementação.</div>}
+      {auditorias.length === 0 ? <div className="pa-card" style={{ padding: 28, textAlign: "center", color: C.cinzaE, fontStyle: "italic" }}>Nenhuma auditoria ainda. Toque em “+ Nova auditoria” para registrar a primeira visita.</div> :
+        <div className="pa-card">
+          {auditorias.map((a, i) => {
+            const npr = (a.pratos || []).length;
+            const crit = (a.pratos || []).filter(p => (p.status || "").startsWith("Requer")).length;
+            return (
+              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", borderBottom: i < auditorias.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
+                <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setDraft(JSON.parse(JSON.stringify(a)))}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>Auditoria · {a.data || "sem data"}{a.horario ? " · " + a.horario : ""}</div>
+                  <div style={{ fontSize: 12, color: C.cinzaE }}>{npr} prato{npr !== 1 ? "s" : ""} avaliado{npr !== 1 ? "s" : ""}{crit ? ` · ${crit} requer ajuste` : ""}{a.movimento ? " · mov. " + a.movimento : ""}</div>
+                </div>
+                <button onClick={() => setDraft(JSON.parse(JSON.stringify(a)))} style={{ background: "none", border: `1px solid ${C.cinzaM}`, borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: C.azul }}>Abrir</button>
+                <button onClick={() => { if (window.confirm("Excluir esta auditoria?")) onDelete(a.id); }} style={{ background: "none", border: "none", color: C.coral, fontSize: 18, cursor: "pointer" }}>×</button>
+              </div>
+            );
+          })}
+        </div>}
+    </div>
+  );
+
+  // ─── EDITOR ───
+  const opcoesPratos = (pratosCliente || []).map(p => p.nome).filter(Boolean);
+  return (
+    <div style={{ padding: 16, maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <button onClick={() => setDraft(null)} style={{ background: "none", border: "none", color: C.azul, fontSize: 13, cursor: "pointer", fontWeight: 600 }}>‹ Voltar</button>
+        <button onClick={salvar} className="pa-btn" style={{ background: C.verde, color: "#fff", border: "none", padding: "9px 18px", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Salvar auditoria</button>
+      </div>
+
+      <div className="pa-card" style={{ padding: 14, marginBottom: 12 }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>📋 Cabeçalho</div>
+        <div style={{ fontSize: 11.5, color: C.cinzaE, marginBottom: 10 }}>Cliente: {clienteNome}. Postura: agir como cliente — não corrigir, não entrar na cozinha, não avisar que está avaliando.</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ flex: "1 1 120px" }}><label style={lbl}>DATA</label><input type="date" value={draft.data} onChange={e => up({ data: e.target.value })} style={inp} /></div>
+          <div style={{ flex: "1 1 100px" }}><label style={lbl}>HORÁRIO</label><input value={draft.horario} onChange={e => up({ horario: e.target.value })} placeholder="ex.: 12h30" style={inp} /></div>
+          <div style={{ flex: "1 1 160px" }}><label style={lbl}>RESPONSÁVEIS ZESTE</label><input value={draft.responsaveis} onChange={e => up({ responsaveis: e.target.value })} style={inp} /></div>
+          <div style={{ flex: "1 1 130px" }}><label style={lbl}>MOVIMENTO PERCEBIDO</label><select value={draft.movimento} onChange={e => up({ movimento: e.target.value })} style={inp}><option value="">—</option><option>Baixo</option><option>Médio</option><option>Alto</option></select></div>
+        </div>
+      </div>
+
+      <div className="pa-card" style={{ padding: 14, marginBottom: 12 }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 10 }}>🚪 Chegada</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ flex: "1 1 130px" }}><label style={lbl}>TEMPO DE ESPERA</label><input value={draft.chegada.espera} onChange={e => upCheg({ espera: e.target.value })} placeholder="p/ atendimento" style={inp} /></div>
+          <div style={{ flex: "1 1 130px" }}><label style={lbl}>EQUIPE PRESENTE</label><input value={draft.chegada.equipe} onChange={e => upCheg({ equipe: e.target.value })} style={inp} /></div>
+          <div style={{ flex: "1 1 150px" }}><label style={lbl}>ATENDIMENTO EXPLICOU O PRATO?</label><select value={draft.chegada.explicou} onChange={e => upCheg({ explicou: e.target.value })} style={inp}><option value="">—</option><option>Sim</option><option>Parcial</option><option>Não</option></select></div>
+          <div style={{ flex: "1 1 150px" }}><label style={lbl}>COMUNICAÇÃO SALÃO/COZINHA ORGANIZADA?</label><select value={draft.chegada.comunicacao} onChange={e => upCheg({ comunicacao: e.target.value })} style={inp}><option value="">—</option><option>Sim</option><option>Não</option></select></div>
+        </div>
+        <label style={{ ...lbl, marginTop: 10 }}>OBSERVAÇÕES DA CHEGADA</label>
+        <textarea value={draft.chegada.obs} onChange={e => upCheg({ obs: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} />
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "4px 2px 8px" }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>🍽️ Pratos avaliados ({draft.pratos.length})</div>
+        <button onClick={addPrato} style={{ background: C.lima, color: C.preto, border: "none", padding: "7px 14px", borderRadius: 7, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>+ Adicionar prato</button>
+      </div>
+
+      {draft.pratos.map((p, i) => {
+        const media = mediaPrato(p);
+        const stAuto = statusAutoAud(media, p.falhaCrit);
+        const stEfetivo = p.status || stAuto;
+        return (
+          <div key={p.id} className="pa-card" style={{ padding: 14, marginBottom: 12, borderLeft: `3px solid ${corStatusAud(stEfetivo)}` }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>PRATO</label>
+                {opcoesPratos.length ? (
+                  <select value={p.nome} onChange={e => upPrato(i, { nome: e.target.value })} style={inp}>
+                    <option value="">— selecione —</option>
+                    {opcoesPratos.map(n => <option key={n} value={n}>{n}</option>)}
+                    {p.nome && !opcoesPratos.includes(p.nome) && <option value={p.nome}>{p.nome}</option>}
+                  </select>
+                ) : <input value={p.nome} onChange={e => upPrato(i, { nome: e.target.value })} placeholder="nome do prato" style={inp} />}
+              </div>
+              <button onClick={() => delPrato(i)} style={{ background: "none", border: "none", color: C.coral, fontSize: 20, cursor: "pointer", marginTop: 16 }}>×</button>
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+              <div style={{ flex: "1 1 90px" }}><label style={lbl}>PEDIDO</label><input value={p.hPedido} onChange={e => upPrato(i, { hPedido: e.target.value })} placeholder="hora" style={inp} /></div>
+              <div style={{ flex: "1 1 90px" }}><label style={lbl}>CHEGADA</label><input value={p.hChegada} onChange={e => upPrato(i, { hChegada: e.target.value })} placeholder="hora" style={inp} /></div>
+              <div style={{ flex: "1 1 90px" }}><label style={lbl}>TEMPO TOTAL</label><input value={p.tempoTotal} onChange={e => upPrato(i, { tempoTotal: e.target.value })} placeholder="min" style={inp} /></div>
+              <div style={{ flex: "1 1 120px" }}><label style={lbl}>TEMPO</label><select value={p.tempoStatus} onChange={e => upPrato(i, { tempoStatus: e.target.value })} style={inp}><option value="">—</option><option>Aprovado</option><option>Atenção</option><option>Crítico</option></select></div>
+            </div>
+
+            <label style={lbl}>CRITÉRIOS (NOTA 1–5)</label>
+            <div style={{ border: `1px solid ${C.cinzaF}`, borderRadius: 8, overflow: "hidden", marginBottom: 10 }}>
+              {CRITERIOS_AUD.map(([k, nome], ci) => (
+                <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", background: ci % 2 ? "#fff" : C.cinzaF, borderBottom: ci < CRITERIOS_AUD.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
+                  <div style={{ flex: "1 1 auto", fontSize: 12.5 }}>{k.length === 1 ? k + " · " : ""}{nome}</div>
+                  <select value={(p.notas && p.notas[k]) || ""} onChange={e => upNota(i, k, e.target.value)} style={{ width: 56, border: `1.5px solid ${C.cinzaM}`, borderRadius: 6, padding: "5px", fontSize: 13, background: "#fff" }}>
+                    <option value="">–</option>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <input value={(p.obs && p.obs[k]) || ""} onChange={e => upObs(i, k, e.target.value)} placeholder="obs" style={{ flex: "1 1 110px", minWidth: 0, border: `1.5px solid ${C.cinzaM}`, borderRadius: 6, padding: "5px 7px", fontSize: 12, background: "#fff" }} />
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 13 }}>Média: <b style={{ fontSize: 16, color: corStatusAud(stEfetivo) }}>{media == null ? "—" : media.toFixed(1)}</b></div>
+              <div style={{ flex: "1 1 200px" }}>
+                <label style={lbl}>STATUS FINAL {p.status ? "" : (media != null ? "(auto)" : "")}</label>
+                <select value={stEfetivo} onChange={e => upPrato(i, { status: e.target.value })} style={{ ...inp, color: corStatusAud(stEfetivo), fontWeight: 600 }}>
+                  <option value="">—</option>{STATUS_AUD.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, cursor: "pointer", marginTop: 14 }}>
+                <input type="checkbox" checked={!!p.falhaCrit} onChange={e => upPrato(i, { falhaCrit: e.target.checked })} /> falha crítica
+              </label>
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ flex: "1 1 150px" }}><label style={lbl}>TIPO DE FALHA</label><select value={p.tipoFalha} onChange={e => upPrato(i, { tipoFalha: e.target.value })} style={inp}>{TIPO_FALHA_AUD.map(t => <option key={t} value={t}>{t || "—"}</option>)}</select></div>
+              <div style={{ flex: "1 1 100%" }}><label style={lbl}>PONTOS POSITIVOS</label><textarea value={p.positivos} onChange={e => upPrato(i, { positivos: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} /></div>
+              <div style={{ flex: "1 1 100%" }}><label style={lbl}>PONTOS DE ATENÇÃO</label><textarea value={p.atencao} onChange={e => upPrato(i, { atencao: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} /></div>
+              <div style={{ flex: "1 1 100%" }}><label style={lbl}>AJUSTES NECESSÁRIOS</label><textarea value={p.ajustes} onChange={e => upPrato(i, { ajustes: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} /></div>
+              <div style={{ flex: "1 1 160px" }}><label style={lbl}>RESPONSÁVEL</label><input value={p.responsavel} onChange={e => upPrato(i, { responsavel: e.target.value })} style={inp} /></div>
+              <div style={{ flex: "1 1 120px" }}><label style={lbl}>PRAZO</label><input value={p.prazo} onChange={e => upPrato(i, { prazo: e.target.value })} placeholder="ex.: 15/09" style={inp} /></div>
+            </div>
+          </div>
+        );
+      })}
+
+      {draft.pratos.length === 0 && <div className="pa-card" style={{ padding: 20, textAlign: "center", color: C.cinzaE, fontStyle: "italic", marginBottom: 12 }}>Nenhum prato ainda. Toque em “+ Adicionar prato”.</div>}
+
+      <div className="pa-card" style={{ padding: 14, marginBottom: 12 }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 4 }}>📊 Resumo geral</div>
+        <div style={{ fontSize: 11.5, color: C.cinzaE, marginBottom: 10 }}>Regra de ouro: 1) o prato sai como foi aprovado? 2) a equipe executa sem a Zeste? 3) o prato é viável na operação? Sim às três = implementado.</div>
+        {[["q1", "1. O cardápio está funcionando na prática?"], ["q2", "2. A equipe demonstra autonomia?"], ["q3", "3. Os pratos mantêm o padrão aprovado?"], ["q4", "4. A operação sustenta os pratos?"], ["q5", "5. Há gargalos relevantes?"], ["q6", "6. O que precisa ser ajustado antes do encerramento?"]].map(([k, q]) => (
+          <div key={k} style={{ marginBottom: 8 }}><label style={lbl}>{q}</label><textarea value={draft.resumo[k]} onChange={e => upResumo({ [k]: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} /></div>
+        ))}
+      </div>
+
+      <button onClick={salvar} className="pa-btn" style={{ width: "100%", background: C.verde, color: "#fff", border: "none", padding: "12px", borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 20 }}>Salvar auditoria</button>
+    </div>
+  );
+}
+
 export default function PortalAdmin({ onBack, token }) {
   const [clientes, setClientes] = useState([]);
   const [sel, setSel] = useState(null);
@@ -35,6 +209,7 @@ export default function PortalAdmin({ onBack, token }) {
   const [pratos, setPratos] = useState([]);
   const [fichasCount, setFichasCount] = useState(0);
   const [crm, setCrm] = useState(null); // contato do CRM vinculado (fase do 5E)
+  const [auditorias, setAuditorias] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,6 +225,7 @@ export default function PortalAdmin({ onBack, token }) {
     sbLoadRaw("docs_operacionais", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*&order=updated_at.desc`).then(r => setDocsOp(r.map(x => x.dados || x)));
     sbLoadRaw("fin_pratos", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*`).then(r => setPratos(r.map(x => x.dados || x)));
     sbLoadRaw("fin_fichas", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=id`).then(r => setFichasCount(r.length));
+    sbLoadRaw("portal_auditorias", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*&order=created_at.desc`).then(r => setAuditorias(r.map(x => x.dados || x)));
     sbLoadRaw("crm_contatos", token, `deleted_at=is.null&select=id,data`).then(rows => {
       const alvo = _n(sel.nome_display);
       const m = rows.map(r => ({ ...(r.data || {}), _rowId: r.id })).find(c =>
@@ -78,6 +254,8 @@ export default function PortalAdmin({ onBack, token }) {
   const delDoc = async id => { setDocs(p => p.filter(x => x.id !== id)); await sbDel("portal_documentos", id, token); };
   const saveEtapa = async e => { setEtapas(p => p.find(x => x.id === e.id) ? p.map(x => x.id === e.id ? e : x) : [...p, e]); await sbUpsert("portal_etapas", e, token, sel.cliente_id); };
   const delEtapa = async id => { setEtapas(p => p.filter(x => x.id !== id)); await sbDel("portal_etapas", id, token); };
+  const saveAuditoria = async a => { setAuditorias(p => p.find(x => x.id === a.id) ? p.map(x => x.id === a.id ? a : x) : [a, ...p]); await sbUpsert("portal_auditorias", a, token, sel.cliente_id); };
+  const delAuditoria = async id => { setAuditorias(p => p.filter(x => x.id !== id)); await sbDel("portal_auditorias", id, token); };
 
   // SELEÇÃO DE CLIENTE
   if (!sel) return (
@@ -121,7 +299,7 @@ export default function PortalAdmin({ onBack, token }) {
         </div>
       </div>
       <div style={{ display: "flex", background: C.preto, borderBottom: "1px solid #2A2A2A" }}>
-        {[["visao", "Visão geral"], ["projeto", "Projeto"], ["documentos", "Documentos"], ["pratos", "Pratos"]].map(([id, l]) => (
+        {[["visao", "Visão geral"], ["projeto", "Projeto"], ["documentos", "Documentos"], ["pratos", "Pratos"], ["implementacao", "Implementação"]].map(([id, l]) => (
           <button key={id} className="pa-tab" onClick={() => setAba(id)} style={{ color: aba === id ? C.lima : "#555", borderBottomColor: aba === id ? C.lima : "transparent" }}>{l}</button>
         ))}
       </div>
@@ -130,6 +308,7 @@ export default function PortalAdmin({ onBack, token }) {
       {aba === "projeto" && <EtapasAdmin etapas={etapas} onSave={saveEtapa} onDelete={delEtapa} />}
       {aba === "documentos" && <><CadernosAdmin docsOp={docsOp} onToggle={toggleVisibilidade} /><DocsAdmin docs={docs} onSave={saveDoc} onDelete={delDoc} /></>}
       {aba === "pratos" && <PratosResumo pratos={pratos} />}
+      {aba === "implementacao" && <AuditoriaPOP10 auditorias={auditorias} pratosCliente={pratos} onSave={saveAuditoria} onDelete={delAuditoria} clienteNome={sel.nome_display} />}
     </div>
   );
 }
