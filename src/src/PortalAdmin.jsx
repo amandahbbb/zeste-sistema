@@ -222,9 +222,9 @@ export default function PortalAdmin({ onBack, token }) {
     const cid = sel.cliente_id;
     sbLoadRaw("portal_documentos", token, `cliente_id=eq.${cid}&select=*&order=created_at.desc`).then(r => setDocs(r.map(x => x.dados || x)));
     sbLoadRaw("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
-    sbLoadRaw("docs_operacionais", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*&order=updated_at.desc`).then(r => setDocsOp(r.map(x => x.dados || x)));
+    sbLoadRaw("docs_operacionais", token, `or=(cliente_id.eq.${cid},cliente_id.like.${cid}-*)&deleted_at=is.null&select=*&order=updated_at.desc`).then(r => setDocsOp(r.map(x => x.dados || x)));
     sbLoadRaw("fin_pratos", token, `or=(cliente_id.eq.${cid},cliente_id.like.${cid}-*)&deleted_at=is.null&select=*`).then(r => setPratos(r.map(x => x.dados || x)));
-    sbLoadRaw("fin_fichas", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=id`).then(r => setFichasCount(r.length));
+    sbLoadRaw("fin_fichas", token, `or=(cliente_id.eq.${cid},cliente_id.like.${cid}-*)&deleted_at=is.null&select=id`).then(r => setFichasCount(r.length));
     sbLoadRaw("portal_auditorias", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=*&order=created_at.desc`).then(r => setAuditorias(r.map(x => x.dados || x)));
     sbLoadRaw("crm_contatos", token, `deleted_at=is.null&select=id,data`).then(rows => {
       const alvo = _n(sel.nome_display);
