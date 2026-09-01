@@ -10,9 +10,86 @@ async function sbUpsert(table, item, t, clienteId) { try { const r = await fetch
 async function sbDel(table, id, t) { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: sbH(t), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); if (!r.ok) { toast("Erro ao excluir", "erro"); return false; } toast("✓ Excluído"); return true; } catch { toast("Sem conexão — não foi excluído", "erro"); return false; } }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-async function loadIngsComp(clienteId, t) { try { let q = `${SB_URL}/rest/v1/fin_ingredientes?deleted_at=is.null&select=id,dados`; if (clienteId) q += `&cliente_id=in.(${clienteId},zeste)`; const r = await fetch(q, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
+async function loadIngsComp(clienteId, t) { try { let q = `${SB_URL}/rest/v1/fin_ingredientes?deleted_at=is.null&select=id,cliente_id,dados`; if (clienteId) q += `&cliente_id=in.(${clienteId},zeste)`; const r = await fetch(q, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id, _cli: x.cliente_id })) : []; } catch { return []; } }
 async function loadFornsComp(clienteId, t) { try { let q = `${SB_URL}/rest/v1/crm_fornecedores?deleted_at=is.null&select=id,dados`; if (clienteId) q += `&cliente_id=in.(${clienteId},zeste)`; const r = await fetch(q, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
 async function loadPrecosComp(clienteId, t) { try { let q = `${SB_URL}/rest/v1/fornecedor_precos?deleted_at=is.null&select=*`; if (clienteId) q += `&cliente_id=in.(${clienteId},zeste)`; const r = await fetch(q, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d : []; } catch { return []; } }
+async function loadFichasComp(clienteId, t) { try { let q = `${SB_URL}/rest/v1/fin_fichas?deleted_at=is.null&select=id,dados`; if (clienteId) q += `&cliente_id=in.(${clienteId},zeste)`; const r = await fetch(q, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
+async function loadPratosComp(clienteId, t) { try { let q = `${SB_URL}/rest/v1/fin_pratos?deleted_at=is.null&select=id,dados`; if (clienteId) q += `&cliente_id=in.(${clienteId},zeste)`; const r = await fetch(q, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d.map(x => ({ ...x.dados, id: x.id })) : []; } catch { return []; } }
+
+// ── NF-e (importar preços de compra) ────────────────────────────────────────
+const normN = s => (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+const soDigitos = s => (s || "").toString().replace(/\D/g, "");
+const _PESO = ["KG", "KILO", "KG.", "K", "QUILO", "QUILOGRAMA"];
+const _VOL = ["L", "LT", "LTR", "LITRO", "LTS", "LITROS"];
+const _UNI = ["UN", "UND", "UNID", "UNIDADE", "PC", "PÇ", "PECA", "PEÇA", "PÇA"];
+function classeUnid(u) { u = (u || "").toUpperCase().trim(); if (_PESO.includes(u)) return "peso"; if (_VOL.includes(u)) return "vol"; if (_UNI.includes(u)) return "un"; return "pack"; }
+// Extrai emitente + itens de um XML de NF-e (nfeProc/NFe). Robusto a namespace via getElementsByTagName.
+function parseNFe(xmlText) {
+  let doc; try { doc = new DOMParser().parseFromString(xmlText, "text/xml"); } catch { return { erro: "Não consegui ler o arquivo." }; }
+  if (!doc || doc.getElementsByTagName("parsererror").length) return { erro: "XML inválido — confira se é o arquivo da NF-e." };
+  const T = (el, tag) => { const n = el && el.getElementsByTagName(tag)[0]; return n ? n.textContent.trim() : ""; };
+  const emitEl = doc.getElementsByTagName("emit")[0];
+  const emit = emitEl ? { cnpj: (T(emitEl, "CNPJ") || T(emitEl, "CPF")), nome: (T(emitEl, "xNome") || T(emitEl, "xFant")) } : { cnpj: "", nome: "" };
+  const ideEl = doc.getElementsByTagName("ide")[0];
+  const nNF = ideEl ? T(ideEl, "nNF") : "";
+  const dhEmi = ideEl ? (T(ideEl, "dhEmi") || T(ideEl, "dEmi")) : "";
+  const num = v => parseFloat((v || "0").toString().replace(",", ".")) || 0;
+  const itens = Array.from(doc.getElementsByTagName("det")).map(det => {
+    const prod = det.getElementsByTagName("prod")[0]; if (!prod) return null;
+    return { cProd: T(prod, "cProd"), xProd: T(prod, "xProd"), ncm: T(prod, "NCM"), uCom: (T(prod, "uCom") || "").toUpperCase(), qCom: num(T(prod, "qCom")), vUnCom: num(T(prod, "vUnCom")), vProd: num(T(prod, "vProd")) };
+  }).filter(Boolean);
+  if (!itens.length) return { erro: "Nenhum item de produto encontrado na nota." };
+  return { emit, nNF, dhEmi, itens };
+}
+// Preço na unidade-base do insumo (KG/L/UN). override = g/un (KG), ml/un (L) ou un/emb (UN) quando a unidade da nota não bate.
+function precoBaseNFe(item, ing, override) {
+  const un = ((ing && ing.un) || "KG").toUpperCase();
+  const vUn = item.vUnCom > 0 ? item.vUnCom : (item.qCom > 0 ? item.vProd / item.qCom : 0);
+  if (!vUn) return { preco: null, precisa: false, tipo: un };
+  const cl = classeUnid(item.uCom);
+  if (un === "KG" && cl === "peso") return { preco: +vUn.toFixed(4), precisa: false };
+  if (un === "L" && cl === "vol") return { preco: +vUn.toFixed(4), precisa: false };
+  if (un === "UN" && cl === "un") return { preco: +vUn.toFixed(4), precisa: false };
+  const o = parseFloat(String(override).replace(",", ".")) || 0;
+  if (!o) return { preco: null, precisa: true, tipo: un };
+  if (un === "KG" || un === "L") return { preco: +(vUn / (o / 1000)).toFixed(4), precisa: false };
+  return { preco: +(vUn / o).toFixed(4), precisa: false };
+}
+function matchIngNFe(xProd, ings) {
+  const alvo = normN(xProd); if (!alvo) return null;
+  let best = null, bs = 0;
+  for (const ig of ings) {
+    const n = normN(ig.nome); if (!n) continue; let s = 0;
+    if (n === alvo) s = 100;
+    else if (alvo.includes(n)) s = 60 + n.length;
+    else if (n.includes(alvo)) s = 50 + alvo.length;
+    else { const ta = new Set(alvo.split(" ").filter(w => w.length > 2)); const ov = n.split(" ").filter(w => w.length > 2 && ta.has(w)).length; if (ov) s = 20 + ov * 5; }
+    if (s > bs) { bs = s; best = ig; }
+  }
+  return bs >= 20 ? best : null;
+}
+// Pratos que usam o ingrediente (direto no prato, ou via uma ficha usada no prato). Tolerante a comps/componentes.
+function pratosDoIngrediente(ing, fichas, pratos) {
+  if (!ing) return [];
+  const alvoId = ing.id, alvoNome = normN(ing.nome);
+  const usaIng = arr => (arr || []).some(x => x.tipo !== "ficha" && (x.ingId === alvoId || normN(x.nomeRef) === alvoNome));
+  const fichasComIng = new Set(fichas.filter(f => usaIng(f.itens)).map(f => normN(f.nome)));
+  const compsDe = p => p.comps || p.componentes || [];
+  const out = [];
+  for (const p of pratos) {
+    const cs = compsDe(p);
+    const direto = cs.some(c => c.tipo !== "ficha" && (c.ingId === alvoId || normN(c.nomeRef) === alvoNome));
+    const viaFicha = cs.some(c => c.tipo === "ficha" && fichasComIng.has(normN(c.nomeRef)));
+    if (direto || viaFicha) out.push(p.nome);
+  }
+  return [...new Set(out)];
+}
+async function precoUpsertComp(row, t) { return fetch(`${SB_URL}/rest/v1/fornecedor_precos`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(row) }); }
+async function saveIngPrecoComp(ing, novoP, t) {
+  const dados = { ...ing }; delete dados._cli; dados.p = novoP;
+  const r = await fetch(`${SB_URL}/rest/v1/fin_ingredientes`, { method: "POST", headers: { ...sbH(t), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: ing.id, cliente_id: ing._cli || "zeste", dados, updated_at: new Date().toISOString() }) });
+  return r.ok;
+}
 
 function NumBR({ value, onChange, placeholder, style, className }) {
   const fmt = v => (v === 0 || v === "" || v == null || isNaN(v)) ? "" : String(v).replace(".", ",");
@@ -355,6 +432,173 @@ function FormProduto({ catAtiva, onSave, onClose }) {
 }
 
 // ── ROOT ──
+function ImportarNFe({ token, clienteId, ingsComp, precosComp, fornsComp, onAplicado }) {
+  const [nota, setNota] = useState(null);       // { emit, nNF, dhEmi, itens } | { erro }
+  const [fornId, setFornId] = useState("");
+  const [linhas, setLinhas] = useState([]);      // { ...item, ingId, pesoG, aplicar }
+  const [marcarAtual, setMarcarAtual] = useState(true);
+  const [aplicando, setAplicando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  const [expandir, setExpandir] = useState(null); // índice da linha com "afeta N pratos" aberto
+  const [fichas, setFichas] = useState([]);
+  const [pratos, setPratos] = useState([]);
+
+  useEffect(() => { let vivo = true; Promise.all([loadFichasComp(clienteId, token), loadPratosComp(clienteId, token)]).then(([f, p]) => { if (vivo) { setFichas(f); setPratos(p); } }); return () => { vivo = false; }; }, []);
+
+  const fmt = (n, u) => (n == null ? "—" : "R$ " + (+n).toFixed(2).replace(".", ",") + (u ? "/" + u.toLowerCase() : ""));
+
+  function lerArquivo(file) {
+    setResultado(null); setExpandir(null);
+    const rd = new FileReader();
+    rd.onload = () => {
+      const res = parseNFe(String(rd.result || ""));
+      setNota(res);
+      if (res.erro) { setLinhas([]); setFornId(""); return; }
+      const alvo = soDigitos(res.emit.cnpj);
+      const fMatch = fornsComp.find(f => alvo && soDigitos(f.cnpj) === alvo) || fornsComp.find(f => normN(f.nome) && normN(res.emit.nome).includes(normN(f.nome)));
+      setFornId(fMatch ? fMatch.id : "");
+      setLinhas(res.itens.map(it => {
+        const ing = matchIngNFe(it.xProd, ingsComp);
+        const pb = ing ? precoBaseNFe(it, ing, "") : { preco: null, precisa: false };
+        return { ...it, ingId: ing ? ing.id : "", pesoG: "", aplicar: !!(ing && pb.preco != null) };
+      }));
+    };
+    rd.readAsText(file, "UTF-8");
+  }
+
+  function setLin(i, patch) { setLinhas(ls => ls.map((l, j) => j === i ? { ...l, ...patch } : l)); }
+
+  async function aplicar() {
+    if (!fornId) { toast("Selecione o fornecedor da nota", "erro"); return; }
+    const aplicaveis = linhas.filter(l => l.aplicar && l.ingId && precoBaseNFe(l, ingsComp.find(i => i.id === l.ingId), l.pesoG).preco != null);
+    if (!aplicaveis.length) { toast("Nenhuma linha pronta para aplicar", "erro"); return; }
+    if (!window.confirm(`Aplicar ${aplicaveis.length} preço(s)?` + (marcarAtual ? " Isso atualiza o custo (CMV) desses insumos." : " Só registra o preço deste fornecedor (não muda o CMV).")))
+      return;
+    setAplicando(true);
+    let okc = 0, ings = 0;
+    for (const lin of aplicaveis) {
+      const ing = ingsComp.find(i => i.id === lin.ingId); if (!ing) continue;
+      const pb = precoBaseNFe(lin, ing, lin.pesoG); if (pb.preco == null) continue;
+      const cliRow = ing._cli || clienteId || "zeste";
+      const existente = precosComp.find(r => r.fornecedor_id === fornId && r.ingrediente_id === ing.id);
+      if (marcarAtual) {
+        for (const r of precosComp.filter(r => r.ingrediente_id === ing.id && r.atual && r.fornecedor_id !== fornId))
+          await precoUpsertComp({ ...r, atual: false, atualizado_em: new Date().toISOString() }, token);
+      }
+      const r2 = await precoUpsertComp({ id: existente ? existente.id : uid(), cliente_id: cliRow, ingrediente_id: ing.id, fornecedor_id: fornId, preco: pb.preco, unidade: (ing.un || "KG"), atual: marcarAtual ? true : (existente ? !!existente.atual : false), atualizado_em: new Date().toISOString() }, token);
+      if (r2 && r2.ok) okc++;
+      if (marcarAtual) { const ok = await saveIngPrecoComp(ing, pb.preco, token); if (ok) ings++; }
+    }
+    setAplicando(false);
+    setResultado({ precos: okc, ings });
+    toast(`✓ ${okc} preço(s) atualizado(s)`);
+    onAplicado && onAplicado();
+  }
+
+  const box = { border: `1px solid ${C.border}`, borderRadius: 10, background: "#fff", padding: 12 };
+  const th = { textAlign: "left", fontSize: 10, color: C.cinzaE, fontWeight: 700, letterSpacing: ".04em", padding: "6px 8px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+  const td = { fontSize: 12.5, padding: "7px 8px", borderBottom: `1px solid ${C.cinzaF}`, verticalAlign: "top" };
+  const ingsOrd = [...ingsComp].sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
+
+  return (
+    <div style={{ padding: "14px", maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ ...box, marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.preto, marginBottom: 4 }}>📄 Importar preços de uma NF-e</div>
+        <div style={{ fontSize: 12, color: C.cinzaE, marginBottom: 10 }}>Suba o XML da nota de compra. O sistema lê os itens, casa com seus insumos e mostra o preço atual → novo. Nada é gravado até você conferir e clicar em aplicar.</div>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, background: C.lima, color: "#0E0E0C", fontWeight: 700, fontSize: 13, padding: "9px 16px", borderRadius: 8, cursor: "pointer" }}>
+          Escolher arquivo XML
+          <input type="file" accept=".xml,text/xml,application/xml" style={{ display: "none" }} onChange={e => { const f = e.target.files && e.target.files[0]; if (f) lerArquivo(f); e.target.value = ""; }} />
+        </label>
+      </div>
+
+      {nota && nota.erro && <div style={{ ...box, borderColor: C.coral, color: C.coral, fontSize: 13 }}>⚠ {nota.erro}</div>}
+
+      {nota && !nota.erro && <>
+        <div style={{ ...box, marginBottom: 12 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 220px" }}>
+              <div style={{ fontSize: 10, color: C.cinzaE, fontWeight: 700, marginBottom: 3 }}>FORNECEDOR (EMITENTE: {nota.emit.nome || "—"}{nota.emit.cnpj ? " · " + nota.emit.cnpj : ""})</div>
+              <select value={fornId} onChange={e => setFornId(e.target.value)} className="cmp-input" style={{ width: "100%" }}>
+                <option value="">— selecione o fornecedor cadastrado —</option>
+                {fornsComp.map(f => <option key={f.id} value={f.id}>{f.nome}{f.cnpj ? ` (${f.cnpj})` : ""}</option>)}
+              </select>
+              {!fornId && <div style={{ fontSize: 11, color: C.coral, marginTop: 4 }}>Fornecedor não reconhecido pelo CNPJ — selecione (ou cadastre na aba Fornecedores).</div>}
+            </div>
+            <div style={{ fontSize: 12, color: C.cinzaE }}>Nota nº {nota.nNF || "—"}{nota.dhEmi ? " · " + nota.dhEmi.slice(0, 10) : ""} · {nota.itens.length} itens</div>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12.5, color: C.preto, cursor: "pointer" }}>
+            <input type="checkbox" checked={marcarAtual} onChange={e => setMarcarAtual(e.target.checked)} />
+            Marcar como preço atual (atualiza o custo/CMV dos insumos). Desligue para só registrar o preço deste fornecedor.
+          </label>
+        </div>
+
+        <div style={{ ...box, padding: 0, overflowX: "auto" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 720 }}>
+            <thead><tr>
+              <th style={{ ...th, width: 34 }}></th>
+              <th style={th}>ITEM DA NOTA</th>
+              <th style={th}>INSUMO</th>
+              <th style={th}>QTD</th>
+              <th style={th}>ATUAL → NOVO</th>
+              <th style={th}>IMPACTO</th>
+            </tr></thead>
+            <tbody>
+              {linhas.map((l, i) => {
+                const ing = ingsComp.find(x => x.id === l.ingId);
+                const pb = precoBaseNFe(l, ing, l.pesoG);
+                const atual = ing ? (+ing.p || 0) : null;
+                const novo = pb.preco;
+                const delta = (atual > 0 && novo != null) ? (novo - atual) / atual * 100 : null;
+                const pronto = !!ing && novo != null;
+                const afet = ing ? pratosDoIngrediente(ing, fichas, pratos) : [];
+                const labelConv = (ing && (ing.un || "KG").toUpperCase() === "UN") ? "un/emb" : ((ing && (ing.un || "").toUpperCase() === "L") ? "ml/un" : "g/un");
+                return (
+                  <tr key={i} style={{ background: l.aplicar && pronto ? "#F7FAEE" : "transparent" }}>
+                    <td style={td}><input type="checkbox" disabled={!pronto} checked={!!l.aplicar && pronto} onChange={e => setLin(i, { aplicar: e.target.checked })} /></td>
+                    <td style={{ ...td, maxWidth: 220 }}>
+                      <div style={{ fontWeight: 600, color: C.preto }}>{l.xProd}</div>
+                      <div style={{ fontSize: 10.5, color: C.cinzaE }}>{l.uCom} · {fmt(l.vUnCom)}{l.cProd ? " · cód " + l.cProd : ""}</div>
+                    </td>
+                    <td style={{ ...td, minWidth: 170 }}>
+                      <select value={l.ingId} onChange={e => setLin(i, { ingId: e.target.value })} className="cmp-input" style={{ width: "100%", fontSize: 12 }}>
+                        <option value="">— não vincular —</option>
+                        {ingsOrd.map(ig => <option key={ig.id} value={ig.id}>{ig.nome}{ig._cli === "zeste" ? " · base" : ""}</option>)}
+                      </select>
+                      {pb.precisa && <div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ fontSize: 10.5, color: C.coral, fontWeight: 700 }}>⚠ informar {labelConv}:</span>
+                        <input type="text" inputMode="decimal" value={l.pesoG} onChange={e => setLin(i, { pesoG: e.target.value.replace(/[^0-9.,]/g, "") })} placeholder={labelConv} style={{ width: 66, border: `1.5px solid ${C.cinzaM}`, borderRadius: 6, padding: "4px 6px", fontSize: 12 }} />
+                      </div>}
+                    </td>
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>{(l.qCom || 0).toString().replace(".", ",")} {l.uCom}</td>
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>
+                      {!ing ? <span style={{ color: C.cinzaE }}>—</span> : novo == null ? <span style={{ color: C.coral, fontSize: 11 }}>informe {labelConv}</span> : <>
+                        <span style={{ color: C.cinzaE }}>{fmt(atual, ing.un)}</span>
+                        <span style={{ color: C.cinzaE }}> → </span>
+                        <b style={{ color: delta == null ? C.preto : (delta > 0 ? C.coral : C.verde) }}>{fmt(novo, ing.un)}</b>
+                        {delta != null && <span style={{ fontSize: 11, color: delta > 0 ? C.coral : C.verde }}> {delta > 0 ? "▲" : "▼"}{Math.abs(delta).toFixed(0)}%</span>}
+                      </>}
+                    </td>
+                    <td style={td}>
+                      {ing && afet.length ? <button onClick={() => setExpandir(expandir === i ? null : i)} style={{ background: "none", border: "none", color: C.azul, fontSize: 11.5, cursor: "pointer", padding: 0, textAlign: "left" }}>afeta {afet.length} prato{afet.length > 1 ? "s" : ""} {expandir === i ? "▾" : "▸"}</button> : <span style={{ color: C.cinzaM, fontSize: 11 }}>—</span>}
+                      {expandir === i && afet.length > 0 && <div style={{ fontSize: 11, color: C.cinzaE, marginTop: 3, lineHeight: 1.5 }}>{afet.join(" · ")}</div>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+          <button onClick={aplicar} disabled={aplicando || !fornId} style={{ background: aplicando || !fornId ? C.cinzaM : C.verde, color: "#fff", fontWeight: 700, fontSize: 14, padding: "11px 20px", borderRadius: 9, border: "none", cursor: aplicando || !fornId ? "default" : "pointer" }}>{aplicando ? "Aplicando…" : "Aplicar preços marcados"}</button>
+          <span style={{ fontSize: 12, color: C.cinzaE }}>{linhas.filter(l => l.aplicar && l.ingId).length} marcado(s) · {linhas.filter(l => !l.ingId).length} sem vínculo</span>
+          {resultado && <span style={{ fontSize: 12.5, color: C.verde, fontWeight: 600 }}>✓ {resultado.precos} preço(s){marcarAtual ? ` · ${resultado.ings} insumo(s) recustados` : ""}</span>}
+        </div>
+      </>}
+    </div>
+  );
+}
+
 export default function Compras({ onBack, token, clienteId }) {
   const [aba, setAba] = useState("fornecedores");
   const [fornecedores, setFornecedores] = useState([]);
@@ -380,7 +624,9 @@ export default function Compras({ onBack, token, clienteId }) {
   const saveProd = async p => { setProdutos(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [p, ...prev]); await sbUpsert("compras_produtos", p, token, clienteId); };
   const delProd = async id => { setProdutos(p => p.filter(x => x.id !== id)); await sbDel("compras_produtos", id, token); };
 
-  const ABAS = [["fornecedores", "🏪 Fornecedores"], ["cotacao", "📋 Cotações"], ["pedidos", "🛒 Pedidos"]];
+  const refreshCusto = async () => { const [ig, pr] = await Promise.all([loadIngsComp(clienteId, token), loadPrecosComp(clienteId, token)]); setIngsComp(ig); setPrecosComp(pr); };
+
+  const ABAS = [["fornecedores", "🏪 Fornecedores"], ["cotacao", "📋 Cotações"], ["pedidos", "🛒 Pedidos"], ["nfe", "📄 Importar NF-e"]];
 
   return (
     <div className="cmp-wrap">
@@ -405,6 +651,7 @@ export default function Compras({ onBack, token, clienteId }) {
         {aba === "fornecedores" && <Fornecedores fornecedores={fornecedores} onSave={saveForn} onDelete={delForn} />}
         {aba === "cotacao" && <Cotacao produtos={produtos} fornecedores={fornecedores} onSaveProd={saveProd} onDelProd={delProd} ingsComp={ingsComp} precosComp={precosComp} fornsComp={fornsComp} />}
         {aba === "pedidos" && <Pedidos pedidos={pedidos} fornecedores={fornecedores} onSave={savePed} onDelete={delPed} />}
+        {aba === "nfe" && <ImportarNFe token={token} clienteId={clienteId} ingsComp={ingsComp} precosComp={precosComp} fornsComp={fornsComp} onAplicado={refreshCusto} />}
       </>}
     </div>
   );
