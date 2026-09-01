@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Fichas from "./Fichas.jsx";
 import Compras from "./Compras.jsx";
+import FluxoCaixa from "./FluxoCaixa.jsx";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -105,6 +106,7 @@ function Dashboard({ clienteInfo, projeto, fichasCount, docs, etapas, setAba }) 
     { id: "projeto", n: "→", cor: "var(--coral)", t: "Projeto", d: "Agenda de encontros, o que será tratado em cada um e o que preparar. Transparência total do andamento." },
     { id: "documentos", n: docs.length, cor: "var(--azul)", t: "Documentos", d: "Cadernos, POPs e materiais entregues pela Zeste — sempre a versão mais atual, num lugar só." },
     { id: "compras", n: "→", cor: "var(--lima)", t: "Compras", d: "Fornecedores e cotações organizados para comprar melhor, sem depender da memória." },
+    { id: "fluxo", n: "→", cor: "var(--azul)", t: "Fluxo de caixa", d: "Registre entradas e saídas e acompanhe o saldo do mês. A base para enxergar a saúde financeira do negócio." },
   ];
 
   return (
@@ -364,7 +366,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     sbLoad("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
   }, []);
 
-  const ABAS = [["dashboard", "Início"], ["fichas", "Fichas"], ["compras", "Compras"], ["documentos", "Documentos"], ["projeto", "Projeto"]];
+  const ABAS = [["dashboard", "Início"], ["fichas", "Fichas"], ["compras", "Compras"], ["fluxo", "Fluxo de caixa"], ["documentos", "Documentos"], ["projeto", "Projeto"]];
 
   if (aba === "fichas") {
     return (<>
@@ -405,6 +407,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
       </div>
 
       {aba === "dashboard" && <Dashboard clienteInfo={clienteInfo} projeto={projeto} fichasCount={fichasCount} docs={docs} etapas={etapas} setAba={setAba} />}
+      {aba === "fluxo" && <FluxoCaixa token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} />}
       {aba === "documentos" && <Documentos docs={docs} docsOp={docsOp} />}
       {aba === "projeto" && <Acompanhamento projeto={projeto} etapas={etapas} />}
     </div>
