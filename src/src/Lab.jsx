@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import FluxoCaixa from "./FluxoCaixa.jsx";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -53,6 +54,7 @@ export default function Lab({ onBack, token }) {
   const [draft, setDraft] = useState(null);    // cópia editável
   const [addOpen, setAddOpen] = useState(false);
   const [salvo, setSalvo] = useState(false);
+  const [verFluxo, setVerFluxo] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -74,7 +76,7 @@ export default function Lab({ onBack, token }) {
   const ativos = parts.filter(p => p.status === "ativo").length;
   const disponiveis = clientes.filter(c => !parts.some(p => p.clienteId === c.cliente_id));
 
-  const abrir = (p) => { setSel(p.id); setDraft(JSON.parse(JSON.stringify(p))); };
+  const abrir = (p) => { setSel(p.id); setDraft(JSON.parse(JSON.stringify(p))); setVerFluxo(false); };
   const upDraft = patch => setDraft(d => ({ ...d, ...patch }));
 
   // ─────────── HEADER ───────────
@@ -135,6 +137,13 @@ export default function Lab({ onBack, token }) {
   const d = draft; const c = cicloAtual(d);
   const setCiclo = (patch) => setDraft(dr => { const cs = [...dr.ciclos]; cs[cs.length - 1] = { ...cs[cs.length - 1], ...patch }; return { ...dr, ciclos: cs }; });
   const addCiclo = (novo) => setDraft(dr => ({ ...dr, ciclos: [...(dr.ciclos || []), novo] }));
+
+  if (verFluxo) return (
+    <div style={{ background: C.cinzaF, minHeight: "100vh", fontFamily: "'Barlow',sans-serif" }}>
+      <Header titulo={`${d.clienteNome} · Fluxo de caixa`} voltar={() => setVerFluxo(false)} />
+      <FluxoCaixa token={token} clienteId={d.clienteId} clienteNome={d.clienteNome} podeEditar={true} />
+    </div>
+  );
 
   return (
     <div style={{ background: C.cinzaF, minHeight: "100vh", fontFamily: "'Barlow',sans-serif" }}>
@@ -230,9 +239,10 @@ export default function Lab({ onBack, token }) {
         </div>
 
         {/* MÓDULO 05 */}
-        <div style={{ ...card, borderStyle: "dashed", opacity: .9 }}>
+        <div style={card}>
           <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>Módulo 05 · Sistema</div>
-          <div style={{ fontSize: 12.5, color: C.cinzaE, marginTop: 4 }}>Fluxo de caixa do cliente + CMV real × teórico. <b>Em construção</b> (Entregas 2 e 3).</div>
+          <div style={{ fontSize: 12.5, color: C.cinzaE, margin: "4px 0 10px" }}>Fluxo de caixa do cliente <b style={{ color: C.verde }}>(ativo)</b> · CMV real × teórico <span style={{ fontStyle: "italic" }}>(em construção)</span>.</div>
+          <button onClick={() => setVerFluxo(true)} style={{ background: C.azul, color: "#fff", border: "none", padding: "9px 16px", borderRadius: 8, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Abrir fluxo de caixa</button>
         </div>
 
         <button onClick={() => { if (window.confirm("Remover este cliente do Lab? (não apaga dados do cliente, só a participação no Lab)")) remover(d); }} style={{ background: "none", border: "none", color: C.coral, fontSize: 12.5, cursor: "pointer", marginBottom: 24 }}>Remover do Lab</button>
