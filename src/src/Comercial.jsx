@@ -270,6 +270,7 @@ const STAGE_META = {
 const SEGMENTOS = ["Restaurante","Cafeteria","Padaria","Rotisserie","Dark Kitchen","Delivery","Franquia","Bar","Confeitaria","Catering","Outro"];
 const TEMPERATURAS = { quente: { l: "🔥 Quente", cor: "#E8614B" }, morno: { l: "🌤 Morno", cor: "#E8B04B" }, frio: { l: "❄ Frio", cor: "#6A9AC8" }, "sem-aderencia": { l: "— Sem aderência", cor: "#7A7A6E" }, "nao-retornar": { l: "🚫 Não retornar", cor: "#5A5A55" } };
 const ORIGENS = ["Prospecção digital","Prospecção presencial","Rota comercial","Lead passivo","Indicação","Parceria","Reativação"];
+const MOTIVOS_PERDA = ["Preço","Momento","Não enxergou necessidade","Não enxergou valor","Escopo não adequado","Precisava falar com sócio","Optou por outra solução","Sem retorno","Fora do perfil","Outro"];
 const PROXIMOS_OPTIONS = [
   {id:"pp1",emoji:"📄",label:"Enviar proposta"},
   {id:"pp2",emoji:"📅",label:"Agendar follow-up"},
@@ -295,6 +296,7 @@ const DIAG_BLOCKS = [
     items:[{id:"a1",label:"Padrão de atendimento",desc:"Script, treinamento, identidade"},{id:"a2",label:"Experiência no salão",desc:"Acolhimento, tempo, ambiente"},{id:"a3",label:"Experiência no delivery",desc:"Embalagem, temperatura, prazo"},{id:"a4",label:"Gestão de reclamações",desc:"Como problemas são tratados"},{id:"a5",label:"Presença digital",desc:"Google, iFood, Instagram"}]},
 ];
 const FICHA_FIELDS = [
+  {key:"pedidoLiteral",label:"O que a pessoa pediu (nas palavras dela)",big:true},
   {key:"decisor",label:"Decisor / Sócio responsável",big:false},
   {key:"orcamento",label:"Orçamento Estimado",big:false},
   {key:"prazo",label:"Prazo de Decisão",big:false},
@@ -303,7 +305,44 @@ const FICHA_FIELDS = [
   {key:"objetivo",label:"Objetivo com a Zeste",big:true},
   {key:"obs",label:"Observações Gerais",big:true},
 ];
-function makeEmpty(){return{id:Date.now(),name:"",company:"",stage:"Prospects",email:"",phone:"",segmento:"",endereco:"",bairro:"",regiao:"",proximaReuniao:"",tipoReuniao:"Reunião",horarioReuniao:"",diagChecklist:{},diagNotes:{},proximosPassos:{},ficha:{},historico:[]};}
+function nowISO(){const d=new Date();const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;}
+function exportarCSV(contatos){
+  const cols=[
+    ["Nome",c=>c.name],["Empresa",c=>c.company],["Etapa",c=>c.stage],
+    ["Temperatura",c=>(TEMPERATURAS[c.temperatura]?.l||"").replace(/[^\wÀ-ÿ ]/g,"").trim()],
+    ["Segmento",c=>c.segmento],["Origem",c=>c.origem],["Criativo",c=>c.criativo],
+    ["Entrada",c=>c.entradaEm],["1a resposta",c=>c.primeiraRespostaEm],
+    ["Tempo resposta",c=>tempoResposta(c)?.txt||""],
+    ["Telefone",c=>c.phone],["E-mail",c=>c.email],
+    ["Cidade/Regiao",c=>c.regiao],["Bairro",c=>c.bairro],
+    ["Proxima reuniao",c=>c.proximaReuniao],
+    ["Pediu (palavras dele)",c=>c.ficha?.pedidoLiteral],
+    ["Decisor",c=>c.ficha?.decisor],["Orcamento",c=>c.ficha?.orcamento],["Prazo",c=>c.ficha?.prazo],
+    ["Dores",c=>c.ficha?.dores],["Objetivo",c=>c.ficha?.objetivo],["Observacoes",c=>c.ficha?.obs],
+    ["Motivo da perda",c=>c.motivoPerda],["O que ele disse",c=>c.motivoPerdaTexto],
+    ["Interacoes",c=>(c.historico||[]).length],
+  ];
+  const esc=v=>{const t=(v==null?"":String(v)).replace(/"/g,'""').replace(/\r?\n/g," ");return `"${t}"`;};
+  const linhas=[cols.map(c=>esc(c[0])).join(";")];
+  (contatos||[]).forEach(ct=>linhas.push(cols.map(c=>esc(c[1](ct))).join(";")));
+  const blob=new Blob(["\uFEFF"+linhas.join("\r\n")],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  const d=new Date(), p2=n=>String(n).padStart(2,"0");
+  a.href=url; a.download=`zeste-crm-${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function tempoResposta(c){
+  if(!c||!c.entradaEm||!c.primeiraRespostaEm) return null;
+  const a=new Date(c.entradaEm), b=new Date(c.primeiraRespostaEm);
+  if(isNaN(a)||isNaN(b)) return null;
+  const min=Math.round((b-a)/60000); if(min<0) return null;
+  const txt = min<60 ? `${min} min` : (min<1440 ? `${(min/60).toFixed(1)}h` : `${Math.floor(min/1440)}d ${Math.round((min%1440)/60)}h`);
+  const cor = min<=120 ? "#8FA715" : (min<=1440 ? "#E8B04B" : "#E8614B");
+  return {min,txt,cor};
+}
+function makeEmpty(){return{id:Date.now(),name:"",company:"",stage:"Prospects",entradaEm:nowISO(),primeiraRespostaEm:"",criativo:"",motivoPerda:"",motivoPerdaTexto:"",email:"",phone:"",segmento:"",endereco:"",bairro:"",regiao:"",proximaReuniao:"",tipoReuniao:"Reunião",horarioReuniao:"",diagChecklist:{},diagNotes:{},proximosPassos:{},ficha:{},historico:[]};}
 const setaKanban=(lado)=>({position:"absolute",top:"50%",[lado]:-6,transform:"translateY(-50%)",zIndex:20,width:44,height:64,borderRadius:12,border:"none",background:"rgba(200,240,0,0.92)",color:"#0E0E0C",fontSize:30,fontWeight:800,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1});
 function getTotals(dc){const total=DIAG_BLOCKS.reduce((s,b)=>s+b.items.length,0);const done=DIAG_BLOCKS.reduce((s,b)=>s+b.items.filter(i=>dc?.[i.id]).length,0);return{total,done,pct:total===0?0:Math.round((done/total)*100)};}
 
@@ -459,6 +498,22 @@ function CRMModal({contact,onClose,onSave,onDelete,onFechar}){
             </div>
           </div>
           <div style={{background:C.card,borderRadius:10,padding:"14px 16px",border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>⏱ Origem &amp; Tempo de resposta</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label style={lbl}>Entrada do lead</label><input type="datetime-local" value={c.entradaEm||""} onChange={e=>set("entradaEm",e.target.value)} style={inp}/></div>
+              <div><label style={lbl}>1ª resposta nossa</label><input type="datetime-local" value={c.primeiraRespostaEm||""} onChange={e=>set("primeiraRespostaEm",e.target.value)} style={inp}/></div>
+              <div style={{gridColumn:"span 2"}}><label style={lbl}>Criativo / anúncio que trouxe</label><input value={c.criativo||""} onChange={e=>set("criativo",e.target.value)} placeholder="ex.: carrossel ficha técnica · set/26" style={inp}/></div>
+              {tempoResposta(c)&&<div style={{gridColumn:"span 2",fontSize:12,color:tempoResposta(c).cor,fontWeight:700}}>⏱ Respondido em {tempoResposta(c).txt}</div>}
+            </div>
+          </div>
+          {c.stage==="Portas Fechadas"&&<div style={{background:C.card,borderRadius:10,padding:"14px 16px",border:`1px solid #7A2E1E`}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#E8614B",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>✕ Por que não fechou</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10}}>
+              <div><label style={lbl}>O que ele disse (palavras dele)</label><textarea value={c.motivoPerdaTexto||""} onChange={e=>set("motivoPerdaTexto",e.target.value)} rows={3} placeholder='ex.: "Gostei muito, mas R$ 12 mil ficou acima do que eu imaginava."' style={{...inp,resize:"vertical"}}/></div>
+              <div><label style={lbl}>Motivo (marcar depois)</label><select value={c.motivoPerda||""} onChange={e=>set("motivoPerda",e.target.value)} style={{...inp,background:C.card}}><option value="">—</option>{MOTIVOS_PERDA.map(m=><option key={m}>{m}</option>)}</select></div>
+            </div>
+          </div>}
+          <div style={{background:C.card,borderRadius:10,padding:"14px 16px",border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>💼 Informações Comerciais</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
               {FICHA_FIELDS.map(f=><div key={f.key} style={{gridColumn:f.big?"span 2":"span 1"}}><label style={lbl}>{f.label}</label>{f.big?<textarea value={c.ficha?.[f.key]||""} onChange={e=>setFicha(f.key,e.target.value)} rows={3} style={{...inp,resize:"vertical"}}/>:<input value={c.ficha?.[f.key]||""} onChange={e=>setFicha(f.key,e.target.value)} style={inp}/>}</div>)}
@@ -498,6 +553,10 @@ function NewContactModal({onClose,onSave}){
         <div><label style={lbl}>Etapa</label><select value={c.stage} onChange={e=>set("stage",e.target.value)} style={{...inp,background:C.card}}>{STAGES.map(s=><option key={s}>{s}</option>)}</select></div>
         <div><label style={lbl}>Temperatura</label><select value={c.temperatura||""} onChange={e=>set("temperatura",e.target.value)} style={{...inp,background:C.card}}><option value="">—</option>{Object.entries(TEMPERATURAS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
         <div><label style={lbl}>Origem do lead</label><select value={c.origem||""} onChange={e=>set("origem",e.target.value)} style={{...inp,background:C.card}}><option value="">—</option>{ORIGENS.map(o=><option key={o}>{o}</option>)}</select></div>
+        <div><label style={lbl}>Criativo / anúncio</label><input value={c.criativo||""} onChange={e=>set("criativo",e.target.value)} placeholder="qual peça trouxe" style={inp}/></div>
+        <div><label style={lbl}>Entrada do lead</label><input type="datetime-local" value={c.entradaEm||""} onChange={e=>set("entradaEm",e.target.value)} style={inp}/></div>
+        <div><label style={lbl}>1ª resposta nossa</label><input type="datetime-local" value={c.primeiraRespostaEm||""} onChange={e=>set("primeiraRespostaEm",e.target.value)} style={inp}/></div>
+        <div style={{gridColumn:"span 2"}}><label style={lbl}>O que a pessoa pediu (palavras dela)</label><textarea value={c.ficha?.pedidoLiteral||""} onChange={e=>setC(p=>({...p,ficha:{...(p.ficha||{}),pedidoLiteral:e.target.value}}))} rows={2} placeholder='ex.: "Quero ajuda para montar um cardápio novo."' style={{...inp,resize:"vertical"}}/></div>
         <div style={{gridColumn:"span 2"}}><label style={lbl}>Endereço</label><input value={c.endereco} onChange={e=>set("endereco",e.target.value)} style={inp}/></div>
         {[["bairro","Bairro"],["regiao","Região"]].map(([k,l])=><div key={k}><label style={lbl}>{l}</label><input value={c[k]} onChange={e=>set(k,e.target.value)} style={inp}/></div>)}
         <div style={{gridColumn:"span 2",display:"flex",gap:9,justifyContent:"flex-end",marginTop:4}}>
@@ -555,6 +614,7 @@ function CRMView({modo="pipeline"}){
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar contato..." style={{...inp,flex:1,minWidth:120}}/>
       <select value={filterSeg} onChange={e=>setFilterSeg(e.target.value)} style={{...inp,width:"auto",padding:"8px 10px"}}><option value="">Todos</option>{SEGMENTOS.map(s=><option key={s}>{s}</option>)}</select>
       <button onClick={reload} disabled={syncing} title="Sincronizar" style={{padding:"8px 12px",background:syncing?"#2A2A2A":C.surface,color:syncing?C.muted:C.text,border:`1px solid ${C.border}`,borderRadius:7,cursor:syncing?"default":"pointer",fontSize:14,flexShrink:0}}>{syncing?"⟳":"↻"}</button>
+      <button onClick={()=>exportarCSV(filtered)} title="Baixar CSV (abre no Excel)" style={{padding:"8px 14px",background:"transparent",color:C.muted,border:`1px solid ${C.border}`,borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>⤓ Excel</button>
       <button onClick={()=>setShowNew(true)} style={{padding:"8px 14px",background:C.yellow,color:"#0E0E0C",border:"none",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0}}>+ Novo</button>
     </div>
     {modo==="rotas" ? (
