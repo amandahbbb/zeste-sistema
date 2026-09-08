@@ -255,6 +255,7 @@ export default function PortalAdmin({ onBack, token }) {
   const saveEtapa = async e => { setEtapas(p => p.find(x => x.id === e.id) ? p.map(x => x.id === e.id ? e : x) : [...p, e]); await sbUpsert("portal_etapas", e, token, sel.cliente_id); };
   const delEtapa = async id => { setEtapas(p => p.filter(x => x.id !== id)); await sbDel("portal_etapas", id, token); };
   const saveAuditoria = async a => { setAuditorias(p => p.find(x => x.id === a.id) ? p.map(x => x.id === a.id ? a : x) : [a, ...p]); await sbUpsert("portal_auditorias", a, token, sel.cliente_id); };
+  const saveBuffet = async (val) => { setSel(s => ({ ...s, buffet: val })); setClientes(cs => cs.map(c => c.cliente_id === sel.cliente_id ? { ...c, buffet: val } : c)); await fetch(`${SB_URL}/rest/v1/fin_portal_clientes?cliente_id=eq.${sel.cliente_id}`, { method: "PATCH", headers: sbH(token), body: JSON.stringify({ buffet: val }) }); };
   const delAuditoria = async id => { setAuditorias(p => p.filter(x => x.id !== id)); await sbDel("portal_auditorias", id, token); };
 
   // SELEÇÃO DE CLIENTE
@@ -298,6 +299,7 @@ export default function PortalAdmin({ onBack, token }) {
           <div style={{ fontSize: 10, color: "#777" }}>{sel.email}</div>
         </div>
       </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 16px", background: "#161613", borderBottom: "1px solid #2A2A2A" }}><span style={{ fontSize: 12, color: "#bbb" }}>Módulo Buffet (Produção × Sobra) no login do cliente</span><button onClick={() => saveBuffet(!sel.buffet)} style={{ background: sel.buffet ? C.verde : "transparent", color: sel.buffet ? "#fff" : "#999", border: `1.5px solid ${sel.buffet ? C.verde : "#555"}`, borderRadius: 20, padding: "4px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{sel.buffet ? "Ativado" : "Desativado"}</button></div>
       <div style={{ display: "flex", background: C.preto, borderBottom: "1px solid #2A2A2A" }}>
         {[["visao", "Visão geral"], ["projeto", "Projeto"], ["documentos", "Documentos"], ["pratos", "Pratos"], ["implementacao", "Implementação"]].map(([id, l]) => (
           <button key={id} className="pa-tab" onClick={() => setAba(id)} style={{ color: aba === id ? C.lima : "#555", borderBottomColor: aba === id ? C.lima : "transparent" }}>{l}</button>
