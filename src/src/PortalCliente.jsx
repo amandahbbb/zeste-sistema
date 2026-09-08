@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Fichas from "./Fichas.jsx";
 import Compras from "./Compras.jsx";
 import FluxoCaixa from "./FluxoCaixa.jsx";
+import Buffet from "./Buffet.jsx";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -366,7 +367,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     sbLoad("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
   }, []);
 
-  const ABAS = [["dashboard", "Início"], ["fichas", "Fichas"], ["compras", "Compras"], ["fluxo", "Fluxo de caixa"], ["documentos", "Documentos"], ["projeto", "Projeto"]];
+  const ABAS = [["dashboard", "Início"], ["fichas", "Fichas"], ["compras", "Compras"], ["fluxo", "Fluxo de caixa"], ...(clienteInfo.buffet ? [["buffet", "Buffet"]] : []), ["documentos", "Documentos"], ["projeto", "Projeto"]];
 
   if (aba === "fichas") {
     return (<>
@@ -408,6 +409,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
 
       {aba === "dashboard" && <Dashboard clienteInfo={clienteInfo} projeto={projeto} fichasCount={fichasCount} docs={docs} etapas={etapas} setAba={setAba} />}
       {aba === "fluxo" && <FluxoCaixa token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} />}
+      {aba === "buffet" && clienteInfo.buffet && <Buffet token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} />}
       {aba === "documentos" && <Documentos docs={docs} docsOp={docsOp} />}
       {aba === "projeto" && <Acompanhamento projeto={projeto} etapas={etapas} />}
     </div>
