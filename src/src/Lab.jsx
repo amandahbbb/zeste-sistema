@@ -201,7 +201,7 @@ export default function Lab({ onBack, token }) {
             {(v.acoes || []).length === 0 ? <div style={{ fontSize: 12, color: C.cinzaM, fontStyle: "italic" }}>Nenhuma ação registrada. Ações em aberto aparecem como pendência no painel do Lab.</div> :
               (v.acoes || []).map((a, i) => (
                 <div key={a.id} style={{ display: "flex", gap: 7, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
-                  <input type="checkbox" checked={!!a.feito} onChange={e => upAcao(i, { feito: e.target.checked })} />
+                  <input type="checkbox" checked={!!a.feito} onChange={e => upAcao(i, { feito: e.target.checked })} style={{ width: 18, height: 18, flexShrink: 0, margin: 0 }} />
                   <input value={a.oque} onChange={e => upAcao(i, { oque: e.target.value })} placeholder="o que precisa ser feito" style={{ ...inp, flex: "2 1 200px", textDecoration: a.feito ? "line-through" : "none", color: a.feito ? C.cinzaE : C.preto }} />
                   <input value={a.quem} onChange={e => upAcao(i, { quem: e.target.value })} placeholder="quem" style={{ ...inp, flex: "1 1 110px" }} />
                   <input type="date" value={a.prazo} onChange={e => upAcao(i, { prazo: e.target.value })} style={{ ...inp, width: 138 }} />
@@ -293,7 +293,7 @@ export default function Lab({ onBack, token }) {
             <div style={{ marginBottom: 12 }}>
               {c.etapas.map((et, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: i < c.etapas.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
-                  <input type="checkbox" checked={!!et.feito} onChange={e => setCiclo({ etapas: c.etapas.map((x, j) => j === i ? { ...x, feito: e.target.checked } : x) })} style={{ marginTop: 3 }} />
+                  <input type="checkbox" checked={!!et.feito} onChange={e => setCiclo({ etapas: c.etapas.map((x, j) => j === i ? { ...x, feito: e.target.checked } : x) })} style={{ width: 18, height: 18, flexShrink: 0, marginTop: 3 }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: 13.5, textDecoration: et.feito ? "line-through" : "none", color: et.feito ? C.cinzaE : C.preto }}>{et.rotulo} <span style={{ fontWeight: 400, color: C.cinzaE }}>— {et.foco}</span></div>
                     <input value={et.obs || ""} onChange={e => setCiclo({ etapas: c.etapas.map((x, j) => j === i ? { ...x, obs: e.target.value } : x) })} placeholder="observações da etapa" style={{ ...inp, marginTop: 5, fontSize: 12 }} />
@@ -333,7 +333,7 @@ export default function Lab({ onBack, token }) {
           <label style={lbl}>METAS / KPIS</label>
           {(c.metas || []).map((m, i) => (
             <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-              <input type="checkbox" checked={!!m.ok} onChange={e => setCiclo({ metas: c.metas.map((x, j) => j === i ? { ...x, ok: e.target.checked } : x) })} />
+              <input type="checkbox" checked={!!m.ok} onChange={e => setCiclo({ metas: c.metas.map((x, j) => j === i ? { ...x, ok: e.target.checked } : x) })} style={{ width: 18, height: 18, flexShrink: 0, margin: 0 }} />
               <span style={{ fontSize: 13, fontWeight: 600, width: 150, color: m.ok ? C.verde : C.preto }}>{m.rotulo}</span>
               <input value={m.obs || ""} onChange={e => setCiclo({ metas: c.metas.map((x, j) => j === i ? { ...x, obs: e.target.value } : x) })} placeholder="evidência / nota" style={{ ...inp, flex: 1, fontSize: 12 }} />
             </div>
@@ -381,7 +381,7 @@ function AddCliente({ clientes, inp, lbl, card, onCancel, onCriar }) {
         <div style={{ flex: "1 1 120px" }}><label style={lbl}>PREÇO/MÊS</label><input type="text" inputMode="decimal" value={preco} onChange={e => setPreco(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="a calibrar" style={inp} /></div>
         <div style={{ flex: "1 1 100%" }}><label style={lbl}>MODALIDADE</label><select value={modalidade} onChange={e => setModalidade(e.target.value)} style={inp}>{MODALIDADES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
       </div>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={comInaugural} onChange={e => setComInaugural(e.target.checked)} /> Já abrir o Ciclo Inaugural (4 semanas + abertura)</label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={comInaugural} onChange={e => setComInaugural(e.target.checked)} style={{ width: 18, height: 18, flexShrink: 0, margin: 0 }} /> Já abrir o Ciclo Inaugural (4 semanas + abertura)</label>
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
         <button onClick={criar} disabled={!cid} style={{ background: cid ? C.lima : C.cinzaM, color: C.preto, border: "none", padding: "9px 18px", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: cid ? "pointer" : "default" }}>Adicionar</button>
         <button onClick={onCancel} style={{ background: "none", border: `1px solid ${C.cinzaM}`, borderRadius: 8, padding: "9px 16px", fontSize: 13, cursor: "pointer", color: C.cinzaE }}>Cancelar</button>
