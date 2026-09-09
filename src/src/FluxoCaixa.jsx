@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import CMVPainel from "./CMVPainel.jsx";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -131,7 +132,7 @@ export default function FluxoCaixa({ token, clienteId, clienteNome, podeEditar =
   const [cfgId, setCfgId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mes, setMes] = useState(mesHoje());
-  const [vista, setVista] = useState("lancamentos"); // lancamentos | dre
+  const [vista, setVista] = useState("lancamentos"); // lancamentos | dre | cmv
   const [addOpen, setAddOpen] = useState(false);
   const [avancado, setAvancado] = useState(false);
   const [gerCat, setGerCat] = useState(false);
@@ -189,12 +190,15 @@ export default function FluxoCaixa({ token, clienteId, clienteNome, podeEditar =
 
         {/* toggle de vista */}
         <div style={{ display: "flex", gap: 4, marginBottom: 12, background: C.cinzaF, borderRadius: 10, padding: 4, width: "fit-content" }}>
-          {[["lancamentos", "Lançamentos"], ["dre", "DRE / Resultado"]].map(([id, l]) => (
+          {[["lancamentos", "Lançamentos"], ["dre", "DRE / Resultado"], ["cmv", "CMV"]].map(([id, l]) => (
             <button key={id} onClick={() => setVista(id)} style={{ border: "none", borderRadius: 7, padding: "7px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", background: vista === id ? "#fff" : "transparent", color: vista === id ? C.preto : C.cinzaE, boxShadow: vista === id ? "0 1px 3px rgba(0,0,0,.1)" : "none" }}>{l}</button>
           ))}
         </div>
 
         {loading ? <div style={{ padding: 30, textAlign: "center", color: C.cinzaE }}>Carregando…</div> :
+          vista === "cmv" ? (
+            <CMVPainel token={token} clienteId={clienteId} mes={mes} cmvCompras={dre.cmv + dre.cpv} faturamentoCaixa={dre.faturamento} podeEditar={podeEditar} />
+          ) :
           vista === "dre" ? (
             /* ═══════════ DRE ═══════════ */
             <div style={card}>
