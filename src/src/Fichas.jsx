@@ -503,6 +503,16 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLix
         <div className="ft-fld h"><label className="ft-flbl">Fator Correção</label><NumInput step="0.01" value={edit.fc} onChange={v=>setEdit(f=>({...f,fc:v}))}/></div>
         <div className="ft-fld h"><label className="ft-flbl">Fator Cocção</label><NumInput step="0.01" value={edit.fk} onChange={v=>setEdit(f=>({...f,fk:v}))}/></div>
       </div>
+      <div style={{marginTop:10,paddingTop:10,borderTop:'1px dashed var(--cinzaM)'}}>
+        <div style={{fontSize:11,fontWeight:700,color:'var(--cinzaE)',letterSpacing:'.04em',marginBottom:6}}>📦 CONTAGEM DE ESTOQUE (opcional)</div>
+        <div className="ft-fg" style={{alignItems:'flex-end'}}>
+          <div className="ft-fld h"><label className="ft-flbl">Onde fica</label><select value={edit.local||''} onChange={e=>setEdit(f=>({...f,local:e.target.value}))}><option value="">—</option><option>Freezer</option><option>Geladeira</option><option>Seco</option><option>Bancada</option><option>Bar</option></select></div>
+          <div className="ft-fld h"><label className="ft-flbl">Conta em</label><select value={(edit.emb&&edit.emb.unidade)||''} onChange={e=>setEdit(f=>({...f,emb:{...(f.emb||{}),unidade:e.target.value,fator:(f.emb&&f.emb.fator)||1}}))}><option value="">unidade-base ({edit.un||'?'})</option><option value="caixa">caixa</option><option value="fardo">fardo</option><option value="saco">saco</option><option value="pacote">pacote</option><option value="bandeja">bandeja</option><option value="un">unidade</option></select></div>
+          {edit.emb&&edit.emb.unidade&&<div className="ft-fld h"><label className="ft-flbl">1 {edit.emb.unidade} = quantos {edit.un==='UN'?'un':edit.un==='L'?'L':'kg'}</label><NumInput step="0.001" value={edit.emb.fator??1} onChange={v=>setEdit(f=>({...f,emb:{...(f.emb||{}),fator:v}}))}/></div>}
+        </div>
+        <div className="ft-fld" style={{marginTop:6}}><label className="ft-flbl">Nota pra quem conta (ex.: "contar só as fechadas")</label><input value={edit.notaContagem||''} onChange={e=>setEdit(f=>({...f,notaContagem:e.target.value}))} placeholder="opcional"/></div>
+        {edit.emb&&edit.emb.unidade&&(+((edit.emb&&edit.emb.fator))>0)&&<div style={{fontSize:11.5,color:'var(--cinzaE)',marginTop:5}}>Na contagem, quem digitar <b>“3 {edit.emb.unidade}”</b> registra <b>{num(3*(+edit.emb.fator||0),2)} {edit.un==='UN'?'un':edit.un==='L'?'L':'kg'}</b>.</div>}
+      </div>
       <div style={{marginTop:6}}>
         <button type="button" onClick={()=>setEdit(f=>{const nx={...f,_porPacote:!f._porPacote,_compraPeso:f._compraPeso||55};const pc=+nx._compraPreco||0,q=+nx._compraQtd||0,pu=+nx._compraPeso||0;if(nx._porPacote&&pc>0&&q>0&&pu>0)nx.p=+(pc/(q*pu/1000)).toFixed(2);return nx;})} style={{fontSize:11.5,fontWeight:700,padding:'6px 12px',borderRadius:20,border:'1.5px solid '+(edit._porPacote?'var(--verde)':'var(--cinzaM)'),background:edit._porPacote?'var(--verde)':'#fff',color:edit._porPacote?'#fff':'var(--cinzaE)',cursor:'pointer'}}>{edit._porPacote?'✓ Preço por pacote/unidade':'⚖ Calcular preço/kg a partir da compra'}</button>
         {edit._porPacote&&<div style={{marginTop:8}}>
