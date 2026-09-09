@@ -1,0 +1,7 @@
+# Assets com hash no nome nunca mudam de conteúdo → cache longo (retorno instantâneo)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# O HTML precisa ser sempre fresco, senão o usuário fica preso numa versão velha
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
