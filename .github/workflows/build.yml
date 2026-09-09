@@ -1,0 +1,21 @@
+name: Build
+
+# Roda a cada push na main e em cada Pull Request.
+# Se o build quebrar (ex.: import de arquivo que não existe, ou nome com
+# maiúscula/minúscula trocada), aparece um ✗ no commit — antes de virar
+# problema no site publicado.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest   # mesmo Linux do Netlify: pega erro de maiúscula/minúscula
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install     # (npm install, não "npm ci": o repo não versiona package-lock.json)
+      - run: npm run build
