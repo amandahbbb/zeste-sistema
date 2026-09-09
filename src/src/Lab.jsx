@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import FluxoCaixa from "./FluxoCaixa.jsx";
 import Buffet from "./Buffet.jsx";
+import { gerarRelatorioLabHTML } from "./relatorioLab.js";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -62,6 +63,7 @@ export default function Lab({ onBack, token }) {
   const [verFluxo, setVerFluxo] = useState(false);
   const [verBuffet, setVerBuffet] = useState(false);
   const [visitaSel, setVisitaSel] = useState(null); // id da visita aberta
+  const [relHTML, setRelHTML] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -144,6 +146,7 @@ export default function Lab({ onBack, token }) {
   const d = draft; const c = cicloAtual(d);
   const setCiclo = (patch) => setDraft(dr => { const cs = [...dr.ciclos]; cs[cs.length - 1] = { ...cs[cs.length - 1], ...patch }; return { ...dr, ciclos: cs }; });
   const addCiclo = (novo) => setDraft(dr => ({ ...dr, ciclos: [...(dr.ciclos || []), novo] }));
+  const gerarRelatorio = () => { if (!c) return; setRelHTML(gerarRelatorioLabHTML({ participacao: d, ciclo: c, clienteNome: d.clienteNome })); };
   const criarAuditoria = async (visita) => {
     const aud = { id: uid(), data: visita.data || td(), horario: "", responsaveis: d.clienteNome ? "" : "", movimento: "", origem: "lab", labVisitaId: visita.id,
       chegada: { espera: "", equipe: "", explicou: "", comunicacao: "", obs: "" }, pratos: [], resumo: { q1: "", q2: "", q3: "", q4: "", q5: "", q6: "" } };
@@ -221,6 +224,17 @@ export default function Lab({ onBack, token }) {
     );
   }
 
+  if (relHTML) return (
+    <div style={{ background: C.cinzaF, minHeight: "100vh", fontFamily: "'Barlow',sans-serif", display: "flex", flexDirection: "column" }}>
+      <Header titulo={`${d.clienteNome} · Relatório do ciclo`} voltar={() => setRelHTML(null)} />
+      <div style={{ padding: "10px 16px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", background: "#fff", borderBottom: `1px solid ${C.border}` }}>
+        <button onClick={() => { const f = document.getElementById("lab-rel-frame"); try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { } }} style={{ background: C.azul, color: "#fff", border: "none", padding: "9px 18px", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🖨 Imprimir / Salvar PDF</button>
+        <span style={{ fontSize: 12, color: C.cinzaE }}>Na janela de impressão, escolha <b>Salvar como PDF</b> para enviar ao cliente.</span>
+      </div>
+      <iframe id="lab-rel-frame" title="Relatório" srcDoc={relHTML} style={{ flex: 1, width: "100%", border: "none", background: "#888" }} />
+    </div>
+  );
+
   if (verBuffet) return (
     <div style={{ background: C.cinzaF, minHeight: "100vh", fontFamily: "'Barlow',sans-serif" }}>
       <Header titulo={`${d.clienteNome} · Produção × Sobra`} voltar={() => setVerBuffet(false)} />
@@ -267,7 +281,9 @@ export default function Lab({ onBack, token }) {
         {c && <div style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
             <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700 }}>{c.rotulo} <span style={{ fontSize: 11, color: C.cinzaE, fontWeight: 400 }}>· início {(c.inicio || "").split("-").reverse().join("/")}</span></div>
-            <div><label style={{ ...lbl, display: "inline", marginRight: 6 }}>FASE</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={gerarRelatorio} style={{ background: "#fff", color: C.azul, border: `1.5px solid ${C.azul}`, padding: "6px 13px", borderRadius: 7, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📄 Relatório do ciclo</button>
+              <label style={{ ...lbl, display: "inline", marginRight: 6 }}>FASE</label>
               <select value={c.fase} onChange={e => setCiclo({ fase: e.target.value })} style={{ ...inp, width: "auto", display: "inline-block" }}>{FASES.map(f => <option key={f} value={f}>{f}</option>)}</select></div>
           </div>
 
