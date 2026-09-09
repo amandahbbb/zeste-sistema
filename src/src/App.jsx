@@ -1,15 +1,15 @@
-import { useState, useEffect, createContext, useContext, useCallback, Component } from "react";
-import Financeiro from "./Financeiro.jsx";
-import Fichas from "./Fichas.jsx";
-import Comercial from "./Comercial.jsx";
-import RedesSociais from "./Marketing.jsx";
-import PortalCliente from "./PortalCliente.jsx";
-import BreakEven from "./BreakEven.jsx";
-import Compras from "./Compras.jsx";
-import Engenharia from "./Engenharia.jsx";
-import PortalAdmin from "./PortalAdmin.jsx";
-import Lab from "./Lab.jsx";
-import Studio from "./Studio.jsx";
+import { useState, useEffect, createContext, useContext, useCallback, Component, lazy, Suspense } from "react";
+const Financeiro = lazy(() => import("./Financeiro.jsx"));
+const Fichas = lazy(() => import("./Fichas.jsx"));
+const Comercial = lazy(() => import("./Comercial.jsx"));
+const RedesSociais = lazy(() => import("./Marketing.jsx"));
+const PortalCliente = lazy(() => import("./PortalCliente.jsx"));
+const BreakEven = lazy(() => import("./BreakEven.jsx"));
+const Compras = lazy(() => import("./Compras.jsx"));
+const Engenharia = lazy(() => import("./Engenharia.jsx"));
+const PortalAdmin = lazy(() => import("./PortalAdmin.jsx"));
+const Lab = lazy(() => import("./Lab.jsx"));
+const Studio = lazy(() => import("./Studio.jsx"));
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SUPABASE_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -756,7 +756,9 @@ function ZesteSistemaInner() {
   if (session.role === "cliente") return (
     <>
       <style>{GLOBAL_STYLE}</style>
-      <PortalCliente clienteInfo={session.clienteInfo} token={session.token} onLogout={() => setSession(null)} />
+      <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+        <PortalCliente clienteInfo={session.clienteInfo} token={session.token} onLogout={() => setSession(null)} />
+      </Suspense>
     </>
   );
 
@@ -764,7 +766,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user }}>
-        <Financeiro onBack={() => setModulo("dashboard")} token={session.token} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <Financeiro onBack={() => setModulo("dashboard")} token={session.token} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
@@ -773,7 +777,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user }}>
-        <Fichas onBack={() => setModulo("dashboard")} token={session.token} userInfo={{email:session.user?.email,nome:"Admin"}} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <Fichas onBack={() => setModulo("dashboard")} token={session.token} userInfo={{email:session.user?.email,nome:"Admin"}} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
@@ -782,7 +788,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user }}>
-        <Comercial onBack={() => setModulo("dashboard")} token={session.token} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <Comercial onBack={() => setModulo("dashboard")} token={session.token} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
@@ -791,7 +799,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
-        <BreakEven onBack={() => setModulo("dashboard")} token={session.token} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <BreakEven onBack={() => setModulo("dashboard")} token={session.token} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
@@ -800,7 +810,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
-        <Compras onBack={() => setModulo("dashboard")} token={session.token} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <Compras onBack={() => setModulo("dashboard")} token={session.token} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
@@ -809,7 +821,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
-        <Engenharia onBack={() => setModulo("dashboard")} token={session.token} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <Engenharia onBack={() => setModulo("dashboard")} token={session.token} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
@@ -818,7 +832,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
-        <PortalAdmin onBack={() => setModulo("dashboard")} token={session.token} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <PortalAdmin onBack={() => setModulo("dashboard")} token={session.token} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
@@ -827,7 +843,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
-        <Lab onBack={() => setModulo("dashboard")} token={session.token} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <Lab onBack={() => setModulo("dashboard")} token={session.token} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
@@ -836,7 +854,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user, setModulo }}>
-        <Studio onBack={() => setModulo("dashboard")} token={session.token} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <Studio onBack={() => setModulo("dashboard")} token={session.token} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
@@ -845,7 +865,9 @@ function ZesteSistemaInner() {
     <>
       <style>{GLOBAL_STYLE}</style>
       <AppCtx.Provider value={{ token: session.token, user: session.user }}>
-        <RedesSociais onBack={() => setModulo("dashboard")} token={session.token} />
+        <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F0EEE8",color:"#6B6B5E",fontSize:14}}>Carregando…</div>}>
+          <RedesSociais onBack={() => setModulo("dashboard")} token={session.token} />
+        </Suspense>
       </AppCtx.Provider>
     </>
   );
