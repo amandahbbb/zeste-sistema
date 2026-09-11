@@ -5,7 +5,7 @@ const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
 const sbH = t => ({ apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" });
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const C = { preto: "#0E0E0C", branco: "#fff", lima: "#8FA715", verde: "#497A5D", azul: "#1A4F71", coral: "#C4502B", cinzaF: "#F0EEE8", cinzaM: "#D9D5C8", cinzaE: "#6B6B5E", border: "#E3E1D9" };
+const C = { preto: "#0E0E0C", branco: "#fff", lima: "#8FA715", verde: "#497A5D", azul: "#1A4F71", coral: "#C4502B", cinzaF: "#F0EEE8", cinzaM: "#B0AC9E", cinzaE: "#4A4A42", border: "#E3E1D9" };
 
 const brl = n => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct1 = n => (Math.round((Number(n) || 0) * 10) / 10).toLocaleString("pt-BR") + "%";
@@ -156,13 +156,17 @@ export default function FluxoCaixa({ token, clienteId, clienteNome, podeEditar =
 
   const salvar = async () => {
     const valor = num(nv.valor); if (valor <= 0 || !nv.categoria) return;
-    const item = { id: uid(), data: nv.data, competencia: nv.competencia || mesKey(nv.data), tipo: nv.tipo, categoria: nv.categoria, subcategoria: nv.subcategoria, descricao: nv.descricao, valor, previsto: nv.previsto, pago: !!nv.pago };
-    setLs(p => [{ ...item, _row: item.id }, ...p]); setAddOpen(false);
+    const editId = nv._editId;
+    const item = { id: editId || uid(), data: nv.data, competencia: nv.competencia || mesKey(nv.data), tipo: nv.tipo, categoria: nv.categoria, subcategoria: nv.subcategoria, descricao: nv.descricao, valor, previsto: nv.previsto, pago: !!nv.pago };
+    if (editId) setLs(p => p.map(x => x.id === editId ? { ...item, _row: item.id } : x));
+    else setLs(p => [{ ...item, _row: item.id }, ...p]);
+    setAddOpen(false);
     setNv({ data: hojeStr(), competencia: mesHoje(), tipo: "entrada", categoria: "", subcategoria: "", descricao: "", valor: "", previsto: "", pago: true });
     await upsert(item, clienteId, token);
   };
   const togglePago = async (l) => { const upd = { ...l, pago: !l.pago }; setLs(p => p.map(x => x.id === l.id ? upd : x)); await upsert(upd, clienteId, token); };
   const remover = async (l) => { setLs(p => p.filter(x => x.id !== l.id)); await excluir(l.id, token); };
+  const editar = (l) => { setNv({ _editId: l.id, data: l.data, competencia: compDe(l), tipo: l.tipo, categoria: l.categoria, subcategoria: l.subcategoria || "", descricao: l.descricao || "", valor: String(l.valor).replace(".", ","), previsto: l.previsto || "", pago: !!l.pago }); setAddOpen(true); if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   const lerArquivo = (file) => { const rd = new FileReader(); rd.onload = () => setImp({ ...parseCSVFluxo(String(rd.result || ""), arvore), nome: file.name }); rd.readAsText(file, "UTF-8"); };
   const confirmarImport = async () => { if (!imp || !imp.rows.length) return; setImportando(true); if (imp.novas && imp.novas.length) await salvarArvore(aplicarNovas(arvore, imp.novas)); const novos = imp.rows.map(r => ({ ...r, id: uid() })); setLs(p => [...novos.map(n => ({ ...n, _row: n.id })), ...p]); for (const n of novos) await upsert(n, clienteId, token); setImportando(false); setImp(null); };
@@ -284,7 +288,7 @@ export default function FluxoCaixa({ token, clienteId, clienteNome, podeEditar =
               </div>}
 
               {podeEditar && addOpen && <div style={{ ...card, borderColor: C.lima }}>
-                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Novo lançamento</div>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{nv._editId ? "Editar lançamento" : "Novo lançamento"}</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   <div style={{ flex: "1 1 120px" }}><label style={lbl}>DATA</label><input type="date" value={nv.data} onChange={e => setNv(v => ({ ...v, data: e.target.value, competencia: v.competencia || mesKey(e.target.value) }))} style={inp} /></div>
                   <div style={{ flex: "1 1 110px" }}><label style={lbl}>TIPO</label><select value={nv.tipo} onChange={e => setNv(v => ({ ...v, tipo: e.target.value, categoria: "", subcategoria: "" }))} style={inp}><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
@@ -301,7 +305,7 @@ export default function FluxoCaixa({ token, clienteId, clienteNome, podeEditar =
                 </div>}
                 <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                   <button onClick={salvar} disabled={!nv.categoria} style={{ background: nv.categoria ? C.lima : C.cinzaM, color: C.preto, border: "none", padding: "10px 18px", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Salvar</button>
-                  <button onClick={() => setAddOpen(false)} style={{ background: "none", border: `1px solid ${C.cinzaM}`, borderRadius: 8, padding: "10px 16px", fontSize: 14, cursor: "pointer", color: C.cinzaE }}>Cancelar</button>
+                  <button onClick={() => { setAddOpen(false); setNv({ data: hojeStr(), competencia: mesHoje(), tipo: "entrada", categoria: "", subcategoria: "", descricao: "", valor: "", previsto: "", pago: true }); }} style={{ background: "none", border: `1px solid ${C.cinzaM}`, borderRadius: 8, padding: "10px 16px", fontSize: 14, cursor: "pointer", color: C.cinzaE }}>Cancelar</button>
                 </div>
               </div>}
 
@@ -314,6 +318,7 @@ export default function FluxoCaixa({ token, clienteId, clienteNome, podeEditar =
                       <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13.5 }}>{l.categoria}{l.subcategoria ? <span style={{ color: C.cinzaE, fontWeight: 400 }}> › {l.subcategoria}</span> : ""}</div>{l.descricao && <div style={{ fontSize: 12, color: C.cinzaE }}>{l.descricao}</div>}</div>
                       {podeEditar ? <button onClick={() => togglePago(l)} title="marcar pago/pendente">{chipStatus(st)}</button> : chipStatus(st)}
                       <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 16, color: l.tipo === "entrada" ? C.verde : C.coral, whiteSpace: "nowrap" }}>{l.tipo === "entrada" ? "+" : "−"} {brl(l.valor)}</div>
+                      {podeEditar && <button onClick={() => editar(l)} title="editar" style={{ background: "none", border: "none", color: C.azul, fontSize: 14, cursor: "pointer" }}>✎</button>}
                       {podeEditar && <button onClick={() => { if (window.confirm("Excluir?")) remover(l); }} style={{ background: "none", border: "none", color: C.cinzaM, fontSize: 16, cursor: "pointer" }}>×</button>}
                     </div>
                   ); })}
