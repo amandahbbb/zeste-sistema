@@ -34,7 +34,7 @@ button{cursor:pointer;border:none;background:none;font-family:var(--fb)}
 @media(max-width:360px){.pcl-grid{grid-template-columns:1fr}}
 `;
 
-const STATUS_COR = { "PROPOSTA": "#8FA715", "EM ANDAMENTO": "#1A4F71", "ATIVO": "#1A4F71", "CONCLUÍDO": "#497A5D", "PAUSADO": "#6B6B5E", "NEGOCIAÇÃO": "#C4502B" };
+const STATUS_COR = { "PROPOSTA": "#8FA715", "EM ANDAMENTO": "#1A4F71", "ATIVO": "#1A4F71", "CONCLUÍDO": "#497A5D", "PAUSADO": "#4A4A42", "NEGOCIAÇÃO": "#C4502B" };
 
 /* ── Agenda: separa a próxima reunião, o que vem depois e o que já foi ── */
 function organizarEtapas(etapas) {
