@@ -1,4 +1,5 @@
 import Inventario from './Inventario.jsx';
+import { saldoEsperado, resumoPeriodo, novoMov, gravarMovimentos, carregarMovimentos, carregarContagens, TIPOS_MOV } from './estoque.js';
 import { useState, useEffect, useCallback, useRef } from "react";
 import Documentos from "./Documentos.jsx";
 import { toast } from "./toast.js";
@@ -1028,6 +1029,100 @@ function QRLabels({ingredientes,onClose}){
 }
 
 // ── ESTOQUE TAB ───────────────────────────────────────────────────
+function SaldoRazao({ingredientes,clienteFilter,token,clienteId}){
+  const cli=clienteId||clienteFilter||'zeste';
+  const[movs,setMovs]=useState([]);const[contagens,setContagens]=useState([]);
+  const[loading,setLoading]=useState(true);const[q,setQ]=useState('');
+  const[form,setForm]=useState(null); // {ingId,ingNome,tipo,qtd,preco}
+  const brl=n=>'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const nkg=n=>(Math.round((Number(n)||0)*1000)/1000).toLocaleString('pt-BR');
+  const recarregar=()=>{setLoading(true);Promise.all([carregarMovimentos(cli,token),carregarContagens(cli,token)]).then(([m,c])=>{setMovs(m);setContagens(c);setLoading(false);});};
+  useEffect(recarregar,[cli]);
+
+  const ingMap={};(ingredientes||[]).forEach(i=>{ingMap[i.id]=i;});
+  // conjunto de insumos com histórico (movimento ou contagem)
+  const ids=new Set();movs.forEach(m=>ids.add(m.ingId));contagens.filter(c=>c.status==='fechada').forEach(c=>Object.keys(c.itens||{}).forEach(id=>ids.add(id)));
+  const fechadas=contagens.filter(c=>c.status==='fechada');
+  const linhas=[...ids].map(id=>{
+    const nome=(ingMap[id]&&ingMap[id].nome)||(movs.find(m=>m.ingId===id)||{}).ingNome||id;
+    const preco=(ingMap[id]&&+ingMap[id].p)||((movs.find(m=>m.ingId===id)||{}).custoUnit)||0;
+    const saldo=saldoEsperado(movs,fechadas,id);
+    return{id,nome,preco,saldo,valor:saldo*preco};
+  }).filter(l=>!q||normNome(l.nome).includes(normNome(q))).sort((a,b)=>b.valor-a.valor);
+  const totalEstoque=linhas.reduce((a,l)=>a+l.valor,0);
+  const mesAtual=new Date().toISOString().slice(0,7);
+  const resumo=resumoPeriodo(movs,mesAtual);
+  const extrato=[...movs].sort((a,b)=>(b.data||'').localeCompare(a.data||'')).slice(0,40);
+
+  const salvarManual=async()=>{
+    if(!form||!form.ingId||!(+form.qtd>0))return;
+    const mv=novoMov({ingId:form.ingId,ingNome:form.ingNome,tipo:form.tipo,qtdBase:+form.qtd,custoUnit:form.preco||0,origem:'manual'});
+    await gravarMovimentos([mv],cli,token);setForm(null);recarregar();
+  };
+
+  const chip=(tipo)=>{const t=TIPOS_MOV[tipo]||{rot:tipo,cor:'#6B6B5E'};return <span style={{fontSize:10,fontWeight:700,color:t.cor,border:`1px solid ${t.cor}`,borderRadius:10,padding:'1px 7px',whiteSpace:'nowrap'}}>{t.rot}</span>;};
+  const card={border:'1px solid var(--border)',borderRadius:10,background:'#fff',padding:14,marginBottom:12};
+
+  if(loading)return <div style={{padding:30,textAlign:'center',color:'var(--cinzaE)'}}>Carregando o razão…</div>;
+
+  return(<div className="ft-page">
+    <div style={{display:'flex',flexWrap:'wrap',gap:10,marginBottom:12}}>
+      <div style={{...card,flex:'1 1 150px',marginBottom:0,borderTop:'3px solid var(--azul)'}}><div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700}}>VALOR EM ESTOQUE</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:800,color:'var(--azul)'}}>{brl(totalEstoque)}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{linhas.length} insumo(s) com histórico</div></div>
+      <div style={{...card,flex:'1 1 150px',marginBottom:0,borderTop:'3px solid var(--verde)'}}><div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700}}>ENTRADAS DO MÊS</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:800,color:'var(--verde)'}}>{brl((resumo.entrada_nfe?.valor||0)+(resumo.entrada_manual?.valor||0))}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>NF-e + manuais</div></div>
+      {(resumo.ajuste_contagem||resumo.perda)&&<div style={{...card,flex:'1 1 150px',marginBottom:0,borderTop:'3px solid var(--coral)'}}><div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700}}>PERDAS/AJUSTES DO MÊS</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:800,color:'var(--coral)'}}>{brl((resumo.perda?.valor||0)+(resumo.ajuste_contagem?.valor||0))}</div></div>}
+    </div>
+
+    <div className="ft-search" style={{flexWrap:'wrap'}}>
+      <input placeholder="🔍 Buscar insumo…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:'1 1 150px'}}/>
+      <button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setForm({ingId:'',ingNome:'',tipo:'entrada_manual',qtd:'',preco:0})}>+ Movimento manual</button>
+    </div>
+
+    {form&&<div style={{...card,borderColor:'var(--lima)'}}>
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,marginBottom:8}}>Movimento manual</div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'flex-end'}}>
+        <div style={{flex:'2 1 180px'}}><label style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700}}>INSUMO</label>
+          <select value={form.ingId} onChange={e=>{const ing=ingMap[e.target.value];setForm(f=>({...f,ingId:e.target.value,ingNome:ing?ing.nome:'',preco:ing?+ing.p||0:0}));}} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px'}}>
+            <option value="">— selecione —</option>
+            {(ingredientes||[]).filter(i=>!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente).sort((a,b)=>a.nome.localeCompare(b.nome)).map(i=><option key={i.id} value={i.id}>{i.nome}</option>)}
+          </select></div>
+        <div style={{flex:'1 1 120px'}}><label style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700}}>TIPO</label>
+          <select value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px'}}>
+            <option value="entrada_manual">Entrada</option><option value="saida_manual">Saída</option><option value="perda">Perda</option>
+          </select></div>
+        <div style={{flex:'1 1 90px'}}><label style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700}}>QTD (kg/L/un)</label>
+          <input type="text" inputMode="decimal" value={form.qtd} onChange={e=>setForm(f=>({...f,qtd:e.target.value.replace(/[^0-9.,]/g,'').replace(',','.')}))} placeholder="0" style={{width:'100%',border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px'}}/></div>
+      </div>
+      <div style={{display:'flex',gap:10,marginTop:10}}>
+        <button className="ft-btn ft-btn-p" onClick={salvarManual} disabled={!form.ingId||!(+form.qtd>0)} style={{padding:'9px 16px'}}>Registrar</button>
+        <button className="ft-btn" onClick={()=>setForm(null)} style={{padding:'9px 16px'}}>Cancelar</button>
+      </div>
+    </div>}
+
+    {/* SALDO por insumo */}
+    <div style={{...card,padding:0}}>
+      <div style={{padding:'11px 14px',borderBottom:'1px solid var(--border)',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>Saldo atual (derivado do razão)</div>
+      {linhas.length===0?<div style={{padding:24,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Sem movimentos ainda. Importe uma NF-e (vira entrada), feche uma contagem, ou registre um movimento manual.</div>:
+        linhas.map((l,i)=>(<div key={l.id} style={{display:'flex',gap:8,alignItems:'center',padding:'8px 14px',borderBottom:i<linhas.length-1?'1px solid var(--cinzaF)':'none'}}>
+          <span style={{flex:1,fontSize:13,fontWeight:600}}>{l.nome}</span>
+          <span style={{width:90,textAlign:'right',fontSize:13,fontWeight:700,color:l.saldo<0?'var(--coral)':'inherit'}}>{nkg(l.saldo)}</span>
+          <span style={{width:90,textAlign:'right',fontSize:12.5,color:'var(--cinzaE)'}}>{brl(l.valor)}</span>
+        </div>))}
+    </div>
+
+    {/* EXTRATO */}
+    <div style={{...card,padding:0}}>
+      <div style={{padding:'11px 14px',borderBottom:'1px solid var(--border)',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>Extrato de movimentos</div>
+      {extrato.length===0?<div style={{padding:24,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhum movimento registrado.</div>:
+        extrato.map((m,i)=>{const sinal=(TIPOS_MOV[m.tipo]||{}).sinal||0;return(<div key={m._row||i} style={{display:'flex',gap:8,alignItems:'center',padding:'8px 14px',borderBottom:i<extrato.length-1?'1px solid var(--cinzaF)':'none'}}>
+          <span style={{width:44,fontSize:11,color:'var(--cinzaE)'}}>{(m.data||'').slice(8,10)}/{(m.data||'').slice(5,7)}</span>
+          <span style={{flex:1,minWidth:0,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.ingNome}</span>
+          {chip(m.tipo)}
+          <span style={{width:80,textAlign:'right',fontSize:13,fontWeight:700,color:sinal<0?'var(--coral)':sinal>0?'var(--verde)':'var(--cinzaE)'}}>{sinal>0?'+':sinal<0?'−':''}{nkg(Math.abs(m.qtdBase))}</span>
+        </div>);})}
+    </div>
+    <div style={{fontSize:11,color:'var(--cinzaE)',fontStyle:'italic',marginTop:6}}>Saldo = última contagem fechada + entradas − consumos − perdas. Entradas de NF-e e ajustes de contagem entram aqui automaticamente.</div>
+  </div>);
+}
 function TabEstoqueWrap({ingredientes,onSave,clienteFilter,token,clienteId}){
   const[sub,setSub]=useState('inventario');
   const mesAtual=new Date().toISOString().slice(0,7);
@@ -1039,7 +1134,7 @@ function TabEstoqueWrap({ingredientes,onSave,clienteFilter,token,clienteId}){
     </div>
     {sub==='inventario'
       ? <Inventario token={token} clienteId={clienteId||clienteFilter||'zeste'} mes={mesAtual} ingredientes={ingredientes.filter(i=>!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente||_subPraca(i._cliente,clienteFilter))} podeEditar={true}/>
-      : <><Dica id="estoque">Controle de <b>estoque dos ingredientes</b>: registre entradas e saídas para saber o que tem e o que falta.</Dica><TabEstoque ingredientes={ingredientes} onSave={onSave} clienteFilter={clienteFilter}/></>}
+      : <SaldoRazao ingredientes={ingredientes} clienteFilter={clienteFilter} token={token} clienteId={clienteId}/>}
   </>);
 }
 function TabEstoque({ingredientes,onSave,clienteFilter}){
