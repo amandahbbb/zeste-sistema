@@ -75,6 +75,9 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
 .passo-txt .q{background:#EEF3D8;border:1px solid #cdd79a;border-radius:20px;padding:1px 9px;font-weight:800;color:#556018;white-space:nowrap;font-variant-numeric:tabular-nums}
 .passo-txt strong,.passo-alerta strong{font-weight:700;color:#1A4F71}
 .passo-alerta .q{background:#f6ddd6;border-color:#e0b3a8;color:#8E2F21}
+.bloco-prod{margin-bottom:8px}
+.receitas-do-prod{margin:0 0 8px}
+.receitas-lbl{margin:14px 24px 6px;color:#8FA715}
 .receita{background:#fff;border-radius:14px;margin-bottom:20px;overflow:hidden;box-shadow:0 3px 16px rgba(0,0,0,.06);page-break-inside:avoid}
 .receita-head{display:flex;justify-content:space-between;align-items:center;padding:15px 26px;border-bottom:2px solid #8FA715;gap:12px}
 .receita-nome{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;text-transform:uppercase;letter-spacing:.01em}
@@ -128,8 +131,9 @@ body{font-family:'Barlow',sans-serif;color:#1C1D1B;background:#F0EEE8;line-heigh
   .comp,.passo,.passo-alerta,.tbl-pp tr,.loc-item,.pill,.prato-head,.receita-head,.grp{page-break-inside:avoid;break-inside:avoid}
   /* CONTAINERS — podem continuar na pagina seguinte (a quebra cai entre atomos) */
   .card-prato,.receita,.bloco,.mopwrap,.comps,.mop,.utens,.estoque,.tbl-pp,.receita-body{page-break-inside:auto;break-inside:auto}
-  /* cada prato/receita comeca em pagina nova (o 1o segue logo apos o titulo da PARTE) */
-  .card-prato ~ .card-prato,.receita ~ .receita{page-break-before:always;break-before:page}
+  /* cada BLOCO DE PRODUTO (montagem + suas receitas) comeca em pagina nova; dentro do bloco, receitas fluem apos a montagem */
+  .bloco-prod ~ .bloco-prod{page-break-before:always;break-before:page}
+  .receitas-do-prod .receita{page-break-before:auto;break-before:auto}
   /* COLA — titulo nunca se separa do primeiro conteudo da secao */
   .secao-lbl,.prato-head,.receita-head,.parte-head{page-break-after:avoid;break-after:avoid}
   .mop .passo:first-child,.tbl-pp thead,.comps .comp:first-child,.utens .pill:first-child{page-break-before:avoid;break-before:avoid}
@@ -400,6 +404,52 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
   const ehConf = (praca || "").toLowerCase().includes("conf"); // confeitaria: bruta≈líquida → só quantidade (exceto FC real, ex. suco de limão)
   const fichaMap = {};
   (fichas || []).forEach(f => { fichaMap[f.nome] = f; });
+
+  // ── uma ficha renderizada (bloco de receita base) ──
+  const renderFicha = (f) => {
+    const itens = (f.itens || []).map(it => {
+      const liq = it.qtdLiquida ? _g((it.qtdLiquida || 0) * 1000) : "QB";
+      const bru = it.qtdBruta ? _g((it.qtdBruta || 0) * 1000) : "QB";
+      if (ehConf) {
+        const difere = it.qtdBruta && it.qtdLiquida && it.qtdBruta > it.qtdLiquida * 1.02;
+        const nota = difere ? ` <span class="comp-cru" style="display:inline">· ⚖ comprar ~${bru} cru</span>` : "";
+        return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${_qtdOper(it, liq)}${nota}</td></tr>`;
+      }
+      return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${_qtdOper(it, liq)}</td><td class="bruta">${bru}</td></tr>`;
+    }).join("");
+    const preparo = _renderPassos(f.modoPreparo);
+    const _rend = Number(f.rendReal) || 0;
+    const _rUn = f.rendUnidade || "kg";
+    const _rendN = Number.isInteger(_rend) ? String(_rend) : String(_rend).replace(".", ",");
+    const _rendTxt = _rend > 0 ? `RENDE ${_rendN} ${_rUn === "un" ? (_rend === 1 ? "UNIDADE" : "UNIDADES") : _rUn.toUpperCase()}` : "";
+    const cons = _fichaConserv(f);
+    const consBadge = (cons.freq || cons.val || cons.local) ? `<div class="receita-cons">${_bFreq(cons.freq)}${cons.val ? _bVal(cons.val) : ""}${cons.local ? `<span class="loc-pill">${_esc(cons.local)}</span>` : ""}${cons.deriv ? `<span class="deriv-tag">auto</span>` : ""}</div>` : "";
+    return `<div class="receita">
+      <div class="receita-head"><div><div class="receita-nome">${_esc(f.nome)}</div>${_rendTxt ? `<div class="receita-rende">${_rendTxt}</div>` : ""}</div>${consBadge}</div>
+      <div class="receita-body">
+        <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th>${ehConf ? "<th>QUANTIDADE</th>" : "<th>LÍQUIDA</th><th>BRUTA</th>"}</tr></thead><tbody>${itens}</tbody></table></div>
+        ${preparo ? `<div class="receita-mop"><div class="secao-lbl">♨ MODO DE PREPARO</div>${preparo}</div>` : ""}
+      </div>
+      ${_utensilios(f)}
+    </div>`;
+  };
+
+  // ── fichas que UM prato usa, incl. aninhadas (ficha dentro de ficha), sem repetir dentro do mesmo bloco ──
+  // ordem pedida: esponja → farofa → massa → resto
+  const pesoOrdem = (nome) => { const n = (nome || "").toLowerCase(); if (n.includes("esponja")) return 0; if (n.includes("farofa")) return 1; if (n.includes("massa")) return 2; return 3; };
+  const fichasDoPrato = (p) => {
+    const vistos = new Set(); const ordem = [];
+    const visita = (nomeRef) => {
+      if (!nomeRef || vistos.has(nomeRef)) return; vistos.add(nomeRef);
+      const f = fichaMap[nomeRef]; if (!f) return;
+      (f.itens || []).forEach(it => { if (it.tipo === "ficha") visita(it.nomeRef); }); // aninhadas primeiro
+      ordem.push(f);
+    };
+    (p.comps || []).forEach(c => { if (c.tipo === "ficha") visita(c.nomeRef); });
+    return ordem.sort((a, b) => pesoOrdem(a.nome) - pesoOrdem(b.nome) || 0);
+  };
+
+  // ── PARTE 01: cada montagem seguida das suas receitas ──
   let parte1 = "";
   pratos.forEach((p, idx) => {
     const num = String(idx + 1).padStart(2, "0");
@@ -420,7 +470,9 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
     const mop = _renderPassos(p.modoPreparo);
     const catLbl = ehConf ? "PRODUTO" : "PRATO PRINCIPAL";
     const porcaoLbl = (p.modoRend === "inteiro" && Number(p.rendFatias) > 0) ? `Receita inteira · rende ${Number(p.rendFatias)} fatias` : "1 porção";
-    parte1 += `<div class="card-prato">
+    const receitasDoBloco = fichasDoPrato(p).map(renderFicha).join("");
+    parte1 += `<div class="bloco-prod">
+      <div class="card-prato">
       <div class="prato-head"><div class="prato-num">${num}</div><div><div class="prato-cat">${catLbl} · ${(p.comps||[]).length} componentes</div><div class="prato-nome">${_esc(p.nome)}</div><div class="prato-porcao">${porcaoLbl}</div></div></div>
       ${_fotoBox(p.foto, p.foto2)}
       <div class="bloco"><div class="secao-lbl">⚖ COMPOSIÇÃO &amp; GRAMATURAS</div>
@@ -428,48 +480,17 @@ export function gerarCadernoOperacionalHTML({ titulo, clienteNome, pratos, ficha
       ${mop ? `<div class="mopwrap"><div class="secao-lbl">☰ MOP · MODO OPERACIONAL PADRÃO</div><div class="mop">${mop}</div></div>` : ""}
       ${_checklistPP(p.comps, fichaMap)}
       ${_utensilios(p)}
-    </div>`;
-  });
-
-  const fichasUsadas = new Set();
-  pratos.forEach(p => (p.comps || []).forEach(c => { if (c.tipo === "ficha") fichasUsadas.add(c.nomeRef); }));
-  const fichasBase = fichas.filter(f => fichasUsadas.has(f.nome));
-  let parte2 = "";
-  fichasBase.forEach(f => {
-    const itens = (f.itens || []).map(it => {
-      const liq = it.qtdLiquida ? _g((it.qtdLiquida || 0) * 1000) : "QB";
-      const bru = it.qtdBruta ? _g((it.qtdBruta || 0) * 1000) : "QB";
-      if (ehConf) {
-        const difere = it.qtdBruta && it.qtdLiquida && it.qtdBruta > it.qtdLiquida * 1.02;
-        const nota = difere ? ` <span class="comp-cru" style="display:inline">· ⚖ comprar ~${bru} cru</span>` : "";
-        return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${_qtdOper(it, liq)}${nota}</td></tr>`;
-      }
-      return `<tr><td>${_esc(it.nomeRef)}</td><td class="liq">${_qtdOper(it, liq)}</td><td class="bruta">${bru}</td></tr>`;
-    }).join("");
-    const preparo = _renderPassos(f.modoPreparo);
-    const _rend = Number(f.rendReal) || 0;
-    const _rUn = f.rendUnidade || "kg";
-    const _rendN = Number.isInteger(_rend) ? String(_rend) : String(_rend).replace(".", ",");
-    const _rendTxt = _rend > 0 ? `RENDE ${_rendN} ${_rUn === "un" ? (_rend === 1 ? "UNIDADE" : "UNIDADES") : _rUn.toUpperCase()}` : "";
-    const cons = _fichaConserv(f);
-    const consBadge = (cons.freq || cons.val || cons.local) ? `<div class="receita-cons">${_bFreq(cons.freq)}${cons.val ? _bVal(cons.val) : ""}${cons.local ? `<span class="loc-pill">${_esc(cons.local)}</span>` : ""}${cons.deriv ? `<span class="deriv-tag">auto</span>` : ""}</div>` : "";
-    parte2 += `<div class="receita">
-      <div class="receita-head"><div><div class="receita-nome">${_esc(f.nome)}</div>${_rendTxt ? `<div class="receita-rende">${_rendTxt}</div>` : ""}</div>${consBadge}</div>
-      <div class="receita-body">
-        <div class="receita-ing"><div class="secao-lbl">— INGREDIENTES</div><table class="tbl-ing"><thead><tr><th>INGREDIENTE</th>${ehConf ? "<th>QUANTIDADE</th>" : "<th>LÍQUIDA</th><th>BRUTA</th>"}</tr></thead><tbody>${itens}</tbody></table></div>
-        ${preparo ? `<div class="receita-mop"><div class="secao-lbl">♨ MODO DE PREPARO</div>${preparo}</div>` : ""}
       </div>
-      ${_utensilios(f)}
+      ${receitasDoBloco ? `<div class="receitas-do-prod"><div class="secao-lbl receitas-lbl">↳ RECEITAS BASE DESTE PRODUTO</div>${receitasDoBloco}</div>` : ""}
     </div>`;
   });
 
   const estoque = _estoquePorLocal(pratos, fichaMap, ehConf);
   const consolidado = _checklistConsolidado(pratos, fichaMap);
   const corpo = `
-  ${parte1 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 01</div><div class="parte-tit">Fichas de Empratamento</div></div><div class="parte-num">01</div></div>${parte1}</div>` : ""}
-  ${parte2 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Receitas Base & Pré-Preparos</div></div><div class="parte-num">02</div></div>${parte2}</div>` : ""}
-  ${estoque ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 03</div><div class="parte-tit">Locais de Estoque</div></div><div class="parte-num">03</div></div>${estoque}</div>` : ""}
-  ${consolidado ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 04</div><div class="parte-tit">Checklist de Pré-Preparo Consolidado</div></div><div class="parte-num">04</div></div>${consolidado}</div>` : ""}`;
+  ${parte1 ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 01</div><div class="parte-tit">Produtos & Receitas</div></div><div class="parte-num">01</div></div>${parte1}</div>` : ""}
+  ${estoque ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 02</div><div class="parte-tit">Locais de Estoque</div></div><div class="parte-num">02</div></div>${estoque}</div>` : ""}
+  ${consolidado ? `<div class="parte"><div class="parte-head"><div class="parte-bar"></div><div><div class="parte-lbl">PARTE 03</div><div class="parte-tit">Checklist de Pré-Preparo Consolidado</div></div><div class="parte-num">03</div></div>${consolidado}</div>` : ""}`;
 
   return _shell({ titulo, clienteNome, sub: "Caderno Operacional · Uso da Cozinha", corpo, variante: ehConf ? "conf" : "" });
 }
