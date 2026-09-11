@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Fichas from "./Fichas.jsx";
 import Compras from "./Compras.jsx";
 import FluxoCaixa from "./FluxoCaixa.jsx";
+import Pedidos from "./Pedidos.jsx";
 import Buffet from "./Buffet.jsx";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -367,7 +368,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     sbLoad("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
   }, []);
 
-  const ABAS = [["dashboard", "Início"], ["fichas", "Fichas"], ["compras", "Compras"], ["fluxo", "Fluxo de caixa"], ...(clienteInfo.buffet ? [["buffet", "Buffet"]] : []), ["documentos", "Documentos"], ["projeto", "Projeto"]];
+  const ABAS = [["dashboard", "Início"], ["fichas", "Fichas"], ["compras", "Compras"], ["fluxo", "Fluxo de caixa"], ...(clienteInfo.pedidos ? [["pedidos", "Pedidos"]] : []), ...(clienteInfo.buffet ? [["buffet", "Buffet"]] : []), ["documentos", "Documentos"], ["projeto", "Projeto"]];
 
   if (aba === "fichas") {
     return (<>
@@ -409,6 +410,7 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
 
       {aba === "dashboard" && <Dashboard clienteInfo={clienteInfo} projeto={projeto} fichasCount={fichasCount} docs={docs} etapas={etapas} setAba={setAba} />}
       {aba === "fluxo" && <FluxoCaixa token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} />}
+      {aba === "pedidos" && <Pedidos token={token} clienteId={clienteInfo.cliente_id} clienteNome={clienteInfo.nome_display} podeEditar={true} />}
       {aba === "buffet" && clienteInfo.buffet && <Buffet token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} />}
       {aba === "documentos" && <Documentos docs={docs} docsOp={docsOp} />}
       {aba === "projeto" && <Acompanhamento projeto={projeto} etapas={etapas} />}
