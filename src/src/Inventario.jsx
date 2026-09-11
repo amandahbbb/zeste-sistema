@@ -15,10 +15,20 @@ const LOCAIS = ["Freezer", "Geladeira", "Seco", "Bancada", "Bar", "Sem local"];
 function jwtEmail(token) { try { const p = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); return p.email || p.user_metadata?.email || "usuário"; } catch { return "usuário"; } }
 
 // ── Número falado em português → valor ──────────────────────────────────────
-const NUM_PT = { zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, meia: 0.5, meio: 0.5, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, dezesseis: 16, dezessete: 17, dezoito: 18, dezenove: 19, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60, setenta: 70, oitenta: 80, noventa: 90, cem: 100, cento: 100 };
+const NUM_PT = { zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, meia: 0.5, meio: 0.5, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, dezesseis: 16, dezessete: 17, dezoito: 18, dezenove: 19, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60, setenta: 70, oitenta: 80, noventa: 90, cem: 100, cento: 100, duzentos: 200, duzentas: 200, trezentos: 300, trezentas: 300, quatrocentos: 400, quatrocentas: 400, quinhentos: 500, quinhentas: 500, seiscentos: 600, seiscentas: 600, setecentos: 700, setecentas: 700, oitocentos: 800, oitocentas: 800, novecentos: 900, novecentas: 900, mil: 1000 };
 export function parseNumeroPt(texto) {
   const t = normN(texto);
   if (!t) return null;
+  let uni = null;
+  if (/\bgramas?\b/.test(t)) uni = "g";
+  else if (/\b(quilos?|kg|kilos?|quilogramas?)\b/.test(t)) uni = "kg";
+  else if (/\blitros?\b/.test(t)) uni = "l";
+  else if (/\bunidades?\b/.test(t)) uni = "un";
+  const val = _extrairNumero(t);
+  if (val == null) return null;
+  return { valor: val, unidade: uni };
+}
+function _extrairNumero(t) {
   // 1) dígitos com vírgula/ponto: "12,5" "12.5" "12"
   const mNum = t.replace(/(\d)\s+(\d)/g, "$1$2").match(/(\d+(?:[.,]\d+)?)/);
   let base = mNum ? parseFloat(mNum[1].replace(",", ".")) : null;
@@ -118,15 +128,36 @@ export default function Inventario({ token, clienteId, mes, ingredientes, podeEd
   const retomar = (r) => { setReg(r); setFase("contando"); };
   const setValor = (ingId, v) => { const r = { ...reg, itens: { ...reg.itens, [ingId]: { ...reg.itens[ingId], valor: v } } }; persistir(r); };
 
+  // converte o valor falado (na unidade dita) para a unidade em que o ITEM é contado
+  const aplicarFala = (it, res) => {
+    let v = res.valor; const uDita = res.unidade;         // uDita: g|kg|l|un|null
+    const uItem = (it.embUn || it.un || "kg").toLowerCase(); // como o item é contado
+    if (uDita === "g" && (uItem === "kg" || uItem === "l")) v = v / 1000;       // 500 g → 0,5 kg
+    else if ((uDita === "kg" || uDita === "l") && uItem === "g") v = v * 1000;  // 2 kg → 2000 g
+    // se não disse unidade, ou a unidade dita já bate com a do item, usa o número como está
+    const s = (Math.round(v * 1000) / 1000).toString().replace(".", ",");
+    setValor(it.ingId, s);
+  };
+
   const ouvir = (ingId) => {
     if (!temVoz) return;
+    if (ouvindo) { try { recRef.current && recRef.current.abort(); } catch { } setOuvindo(null); return; } // toque de novo cancela
     const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    try { if (recRef.current) recRef.current.abort(); } catch { }
-    const rec = new Rec(); recRef.current = rec; rec.lang = "pt-BR"; rec.interimResults = false; rec.maxAlternatives = 3;
+    let rec; try { rec = new Rec(); } catch { setOuvindo(null); return; }
+    recRef.current = rec; rec.lang = "pt-BR"; rec.interimResults = false; rec.maxAlternatives = 5; rec.continuous = false;
+    let feito = false;
+    const encerra = () => { setOuvindo(null); recRef.current = null; };
+    rec.onresult = e => {
+      feito = true; let res = null;
+      try { const alts = e.results[0]; for (let i = 0; i < alts.length && !res; i++) res = parseNumeroPt(alts[i].transcript); } catch { }
+      const it = reg && reg.itens ? reg.itens[ingId] : null;
+      if (res && it) aplicarFala(it, res);
+      encerra();
+    };
+    rec.onerror = () => encerra();
+    rec.onend = () => { if (!feito) encerra(); };
     setOuvindo(ingId);
-    rec.onresult = e => { let n = null; for (let i = 0; i < e.results[0].length && n == null; i++) n = parseNumeroPt(e.results[0][i].transcript); if (n != null) setValor(ingId, String(n).replace(".", ",")); setOuvindo(null); };
-    rec.onerror = () => setOuvindo(null); rec.onend = () => setOuvindo(null);
-    try { rec.start(); } catch { setOuvindo(null); }
+    try { rec.start(); } catch { encerra(); }
   };
 
   const onScan = (val) => { setScanOpen(false); const id = (val || "").replace("ZESTE:ING:", ""); const el = focoRef.current[id]; if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus(); } };
