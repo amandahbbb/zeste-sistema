@@ -7,7 +7,7 @@ const sbH = t => ({ apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}`, "Con
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const td = () => new Date().toISOString().slice(0, 10);
 const agora = () => new Date().toISOString();
-const C = { preto: "#0E0E0C", lima: "#8FA715", verde: "#497A5D", azul: "#1A4F71", coral: "#C4502B", cinzaF: "#F0EEE8", cinzaM: "#D9D5C8", cinzaE: "#6B6B5E", border: "#E3E1D9" };
+const C = { preto: "#0E0E0C", lima: "#8FA715", verde: "#497A5D", azul: "#1A4F71", coral: "#C4502B", cinzaF: "#F0EEE8", cinzaM: "#B0AC9E", cinzaE: "#4A4A42", border: "#E3E1D9" };
 const brl = n => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const nkg = n => (Math.round((Number(n) || 0) * 1000) / 1000).toLocaleString("pt-BR");
 const normN = s => (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
