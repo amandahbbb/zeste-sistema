@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { calcAllFichas, calcPrato, calcFicha } from "./cmv.js";
+import { novoMov, gravarMovimentos, apagarMovimentosPorRef } from "./estoque.js";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -163,7 +164,23 @@ export default function CMVPainel({ token, clienteId, mes, cmvCompras, faturamen
   const difPP = (cmvComprasPct || 0) - (r.cmvPct || 0);
 
   const setQtd = (nome, v) => setVendas(q => ({ ...q, [nome]: v }));
-  const salvar = async () => { setSalvando(true); await salvarVendas({ id: `vendas_${clienteId}_${mes}`, tipo: "vendas", competencia: mes, qtds: vendas }, clienteId, token); setSalvando(false); setSalvo(true); setTimeout(() => setSalvo(false), 1800); };
+  const salvar = async () => {
+    setSalvando(true);
+    await salvarVendas({ id: `vendas_${clienteId}_${mes}`, tipo: "vendas", competencia: mes, qtds: vendas }, clienteId, token);
+    // gera consumo_teorico no razão: explode vendas → insumo (kg), 1 movimento por insumo na competência
+    try {
+      const consumo = consumoPorInsumo(pratosCalc, vendas, fichasCalc); // { nomeInsumo: kg }
+      const byNome = {}; (base.ingredientes || []).forEach(i => { byNome[normN(i.nome)] = i; });
+      const dataMov = `${mes}-15`; // meio do mês de competência
+      const movs = Object.entries(consumo).filter(([, kg]) => kg > 0).map(([nome, kg]) => {
+        const ing = byNome[normN(nome)] || {};
+        return novoMov({ ingId: ing.id || nome, ingNome: nome, tipo: "consumo_teorico", qtdBase: kg, custoUnit: +ing.p || 0, origem: "vendas", origemRef: mes, data: dataMov });
+      });
+      await apagarMovimentosPorRef(clienteId, token, "vendas", mes); // não duplica se salvar de novo
+      if (movs.length) await gravarMovimentos(movs, clienteId, token);
+    } catch (e) { /* consumo é derivado; se falhar, as vendas já foram salvas */ }
+    setSalvando(false); setSalvo(true); setTimeout(() => setSalvo(false), 1800);
+  };
   const salvarContagem = async () => { setSalvando(true); await salvarVendas({ id: `contagem_${clienteId}_${mes}`, tipo: "contagem", competencia: mes, itens: cont }, clienteId, token); setSalvando(false); setSalvo(true); setTimeout(() => setSalvo(false), 1800); };
   const setC = (nome, campo, v) => setCont(c => ({ ...c, [nome]: { ...(c[nome] || {}), [campo]: v } }));
   const lerArquivo = f => { const rd = new FileReader(); rd.onload = () => setImp({ ...parseVendasCSV(String(rd.result || ""), nomes), nome: f.name }); rd.readAsText(f, "UTF-8"); };
