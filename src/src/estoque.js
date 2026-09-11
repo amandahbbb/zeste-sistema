@@ -80,6 +80,13 @@ export async function carregarMovimentos(clienteId, token, { desde } = {}) {
     return arr;
   } catch { return []; }
 }
+export async function carregarContagens(clienteId, token) {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/est_contagens?cliente_id=eq.${clienteId}&deleted_at=is.null&select=*&order=created_at.desc`, { headers: sbH(token) });
+    const d = await r.json();
+    return Array.isArray(d) ? d.map(x => ({ ...(x.dados || {}), _row: x.id })) : [];
+  } catch { return []; }
+}
 export async function gravarMovimentos(movs, clienteId, token) {
   if (!movs || !movs.length) return true;
   const body = movs.map(m => ({ id: m.id, cliente_id: clienteId, dados: m, updated_at: new Date().toISOString() }));
