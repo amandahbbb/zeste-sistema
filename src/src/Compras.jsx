@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "./toast.js";
+import { novoMov, gravarMovimentos, apagarMovimentosPorRef } from "./estoque.js";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -476,6 +477,10 @@ function ImportarNFe({ token, clienteId, ingsComp, precosComp, fornsComp, onApli
       return;
     setAplicando(true);
     let okc = 0, ings = 0;
+    const refNota = (nota && nota.nNF) ? String(nota.nNF) : ("nota_" + Date.now());
+    const dataNota = (nota && nota.dhEmi) ? nota.dhEmi.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const cliMov = clienteId && clienteId !== "zeste" ? clienteId : "zeste";
+    const movs = [];
     for (const lin of aplicaveis) {
       const ing = ingsComp.find(i => i.id === lin.ingId); if (!ing) continue;
       const pb = precoBaseNFe(lin, ing, lin.pesoG); if (pb.preco == null) continue;
@@ -488,10 +493,16 @@ function ImportarNFe({ token, clienteId, ingsComp, precosComp, fornsComp, onApli
       const r2 = await precoUpsertComp({ id: existente ? existente.id : uid(), cliente_id: cliRow, ingrediente_id: ing.id, fornecedor_id: fornId, preco: pb.preco, unidade: (ing.un || "KG"), atual: marcarAtual ? true : (existente ? !!existente.atual : false), atualizado_em: new Date().toISOString() }, token);
       if (r2 && r2.ok) okc++;
       if (marcarAtual) { const ok = await saveIngPrecoComp(ing, pb.preco, token); if (ok) ings++; }
+      // entrada de estoque: quantidade na unidade-base = valor da linha ÷ preço/base (consistente com o custo calculado)
+      const valorLinha = lin.vProd > 0 ? lin.vProd : (lin.qCom || 0) * (lin.vUnCom || 0);
+      const qtdBase = pb.preco > 0 ? valorLinha / pb.preco : 0;
+      if (qtdBase > 0) movs.push(novoMov({ ingId: ing.id, ingNome: ing.nome, tipo: "entrada_nfe", qtdBase, custoUnit: pb.preco, origem: "nfe", origemRef: refNota, data: dataNota, obs: (nota && nota.emit) || "" }));
     }
+    // grava as entradas no razão (reaplicar a mesma nota substitui, não duplica)
+    if (movs.length) { await apagarMovimentosPorRef(cliMov, token, "nfe", refNota); await gravarMovimentos(movs, cliMov, token); }
     setAplicando(false);
-    setResultado({ precos: okc, ings });
-    toast(`✓ ${okc} preço(s) atualizado(s)`);
+    setResultado({ precos: okc, ings, estoque: movs.length });
+    toast(`✓ ${okc} preço(s) atualizado(s)` + (movs.length ? ` · ${movs.length} entrada(s) no estoque` : ""));
     onAplicado && onAplicado();
   }
 
@@ -592,7 +603,7 @@ function ImportarNFe({ token, clienteId, ingsComp, precosComp, fornsComp, onApli
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
           <button onClick={aplicar} disabled={aplicando || !fornId} style={{ background: aplicando || !fornId ? C.cinzaM : C.verde, color: "#fff", fontWeight: 700, fontSize: 14, padding: "11px 20px", borderRadius: 9, border: "none", cursor: aplicando || !fornId ? "default" : "pointer" }}>{aplicando ? "Aplicando…" : "Aplicar preços marcados"}</button>
           <span style={{ fontSize: 12, color: C.cinzaE }}>{linhas.filter(l => l.aplicar && l.ingId).length} marcado(s) · {linhas.filter(l => !l.ingId).length} sem vínculo</span>
-          {resultado && <span style={{ fontSize: 12.5, color: C.verde, fontWeight: 600 }}>✓ {resultado.precos} preço(s){marcarAtual ? ` · ${resultado.ings} insumo(s) recustados` : ""}</span>}
+          {resultado && <span style={{ fontSize: 12.5, color: C.verde, fontWeight: 600 }}>✓ {resultado.precos} preço(s){marcarAtual ? ` · ${resultado.ings} insumo(s) recustados` : ""}{resultado.estoque ? ` · ${resultado.estoque} entrada(s) no estoque` : ""}</span>}
         </div>
       </>}
     </div>
