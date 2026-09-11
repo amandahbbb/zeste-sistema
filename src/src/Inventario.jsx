@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { saldoEsperado, novoMov, gravarMovimentos, carregarMovimentos } from "./estoque.js";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -100,6 +101,7 @@ function ScannerQR({ onScan, onClose }) {
 
 export default function Inventario({ token, clienteId, mes, ingredientes, podeEditar = true }) {
   const [regs, setRegs] = useState([]);
+  const [movs, setMovs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fase, setFase] = useState("inicio"); // inicio | contando | revisao
   const [reg, setReg] = useState(null);        // contagem em andamento
@@ -112,7 +114,7 @@ export default function Inventario({ token, clienteId, mes, ingredientes, podeEd
   const temVoz = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
   const temQR = typeof window !== "undefined" && "BarcodeDetector" in window;
 
-  useEffect(() => { carregar(clienteId, token).then(r => { setRegs(r); setLoading(false); }); }, [clienteId]);
+  useEffect(() => { Promise.all([carregar(clienteId, token), carregarMovimentos(clienteId, token)]).then(([r, m]) => { setRegs(r); setMovs(m); setLoading(false); }); }, [clienteId]);
 
   const inp = { boxSizing: "border-box", border: `1.5px solid ${C.cinzaM}`, borderRadius: 8, padding: "9px 11px", fontSize: 15, background: "#fff", fontFamily: "inherit" };
   const card = { border: `1px solid ${C.border}`, borderRadius: 10, background: "#fff", padding: 14, marginBottom: 12 };
@@ -164,8 +166,21 @@ export default function Inventario({ token, clienteId, mes, ingredientes, podeEd
 
   const fechar = async () => {
     if (!window.confirm("Fechar esta contagem? Depois de fechada ela não pode mais ser alterada — vira a base do CMV real do período.")) return;
-    const r = { ...reg, status: "fechada", usuarioFechou: usuario, fechadaEm: agora() };
-    await salvar(r, clienteId, token); setRegs(rs => [r, ...rs.filter(x => x.id !== r.id)]); setReg(null); setFase("inicio");
+    // normaliza itens: guarda contadoBase por ingId (âncora do próximo período)
+    const itensFechados = {};
+    Object.values(reg.itens || {}).forEach(it => { if (String(it.valor).trim() !== "") itensFechados[it.ingId] = { nome: it.nome, contadoBase: contadoBase(it, it.valor), preco: it.preco }; });
+    const fechadas = regs.filter(x => x.status === "fechada");
+    // gera ajuste_contagem = contado - esperado (antes desta contagem entrar como âncora)
+    const ajustes = [];
+    Object.entries(itensFechados).forEach(([ingId, v]) => {
+      const esp = saldoEsperado(movs, fechadas, ingId);
+      const dif = v.contadoBase - esp;
+      if (Math.abs(dif) > 0.0001) ajustes.push(novoMov({ ingId, ingNome: v.nome, tipo: "ajuste_contagem", qtdBase: dif, custoUnit: v.preco || 0, origem: "contagem", origemRef: reg.id, usuario, data: (reg.data || td()), obs: dif < 0 ? "perda apurada" : "sobra apurada" }));
+    });
+    const r = { ...reg, status: "fechada", usuarioFechou: usuario, fechadaEm: agora(), itens: reg.itens, itensFechados };
+    await salvar(r, clienteId, token);
+    if (ajustes.length) { await gravarMovimentos(ajustes, clienteId, token); setMovs(m => [...ajustes, ...m]); }
+    setRegs(rs => [r, ...rs.filter(x => x.id !== r.id)]); setReg(null); setFase("inicio");
   };
 
   if (loading) return <div style={{ padding: 30, textAlign: "center", color: C.cinzaE }}>Carregando…</div>;
@@ -261,8 +276,17 @@ export default function Inventario({ token, clienteId, mes, ingredientes, podeEd
 
   // ══════════ REVISÃO ══════════
   if (fase === "revisao" && reg) {
-    const its = Object.values(reg.itens || {}).map(it => ({ ...it, base: contadoBase(it, it.valor), valorRS: contadoBase(it, it.valor) * (it.preco || 0), feito: String(it.valor).trim() !== "" })).sort((a, b) => b.valorRS - a.valorRS);
+    const fechadasPrev = regs.filter(x => x.status === "fechada");
+    const its = Object.values(reg.itens || {}).map(it => {
+      const base = contadoBase(it, it.valor);
+      const feito = String(it.valor).trim() !== "";
+      const esperado = saldoEsperado(movs, fechadasPrev, it.ingId);
+      const dif = feito ? base - esperado : null;                 // <0 = sumiu (perda)
+      return { ...it, base, valorRS: base * (it.preco || 0), feito, esperado, dif, difRS: dif == null ? null : dif * (it.preco || 0) };
+    }).sort((a, b) => (Math.abs(b.difRS || 0)) - (Math.abs(a.difRS || 0)) || b.valorRS - a.valorRS);
     const total = its.reduce((a, it) => a + it.valorRS, 0); const naoContados = its.filter(it => !it.feito);
+    const temEsperado = movs.length > 0 || fechadasPrev.length > 0;
+    const perdaRS = its.filter(it => it.feito && it.difRS < 0).reduce((a, it) => a + it.difRS, 0);
     return (
       <div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -274,20 +298,27 @@ export default function Inventario({ token, clienteId, mes, ingredientes, podeEd
           <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 26, fontWeight: 800, color: C.azul }}>{brl(total)}</div>
           <div style={{ fontSize: 12, color: C.cinzaE }}>{its.length - naoContados.length} de {its.length} itens contados · contando como {usuario}</div>
         </div>
+        {temEsperado && perdaRS < 0 && <div style={{ ...card, borderTop: `3px solid ${C.coral}` }}>
+          <div style={{ fontSize: 10, color: C.cinzaE, fontWeight: 700 }}>PERDA APURADA (CONTADO &lt; ESPERADO)</div>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 26, fontWeight: 800, color: C.coral }}>{brl(perdaRS)}</div>
+          <div style={{ fontSize: 12, color: C.cinzaE }}>diferença entre o que o sistema esperava e o que você contou</div>
+        </div>}
         {naoContados.length > 0 && <div style={{ ...card, borderColor: "#B8860B", background: "#FBF3E0", fontSize: 12.5, color: "#7a5a00" }}>
           ⚠ {naoContados.length} item(ns) sem contagem — ficam como zero se você fechar agora: {naoContados.slice(0, 6).map(i => i.nome).join(" · ")}{naoContados.length > 6 ? "…" : ""}
         </div>}
         <div style={{ ...card, padding: 0 }}>
-          <div style={{ display: "flex", gap: 8, padding: "6px 14px", background: C.cinzaF, fontSize: 10, fontWeight: 700, color: C.cinzaE }}><span style={{ flex: 1 }}>INSUMO</span><span style={{ width: 90, textAlign: "right" }}>CONTADO</span><span style={{ width: 88, textAlign: "right" }}>VALOR</span></div>
+          <div style={{ display: "flex", gap: 8, padding: "6px 14px", background: C.cinzaF, fontSize: 10, fontWeight: 700, color: C.cinzaE }}><span style={{ flex: 1 }}>INSUMO</span><span style={{ width: 66, textAlign: "right" }}>CONTADO</span>{temEsperado && <span style={{ width: 66, textAlign: "right" }}>ESPERADO</span>}{temEsperado && <span style={{ width: 78, textAlign: "right" }}>DIFERENÇA</span>}<span style={{ width: 78, textAlign: "right" }}>VALOR</span></div>
           {its.map((it, i) => (
             <div key={it.ingId} style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 14px", borderBottom: i < its.length - 1 ? `1px solid ${C.cinzaF}` : "none", opacity: it.feito ? 1 : .5 }}>
               <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{it.nome}</span>
-              <span style={{ width: 90, textAlign: "right", fontSize: 12.5 }}>{it.feito ? `${it.valor} ${it.embUn || it.un.toLowerCase()}` : "—"}</span>
-              <span style={{ width: 88, textAlign: "right", fontSize: 13, fontWeight: 700 }}>{it.feito ? brl(it.valorRS) : "—"}</span>
+              <span style={{ width: 66, textAlign: "right", fontSize: 12.5 }}>{it.feito ? nkg(it.base) : "—"}</span>
+              {temEsperado && <span style={{ width: 66, textAlign: "right", fontSize: 12, color: C.cinzaE }}>{it.feito ? nkg(it.esperado) : "—"}</span>}
+              {temEsperado && <span style={{ width: 78, textAlign: "right", fontSize: 12.5, fontWeight: 700, color: it.dif == null ? C.cinzaM : (it.dif < -0.0001 ? C.coral : it.dif > 0.0001 ? C.verde : C.cinzaE) }}>{it.dif == null ? "—" : (it.dif > 0 ? "+" : "") + nkg(it.dif)}</span>}
+              <span style={{ width: 78, textAlign: "right", fontSize: 13, fontWeight: 700 }}>{it.feito ? brl(it.valorRS) : "—"}</span>
             </div>
           ))}
         </div>
-        <div style={{ fontSize: 11, color: C.cinzaE, fontStyle: "italic", margin: "6px 0 20px" }}>Ao fechar, esta contagem vira a base do CMV real deste período e não pode mais ser editada. Fica registrado quem contou e quando.</div>
+        <div style={{ fontSize: 11, color: C.cinzaE, fontStyle: "italic", margin: "6px 0 20px" }}>{temEsperado ? "Diferença = contado − esperado (esperado = última contagem + compras − consumo − perdas). Ao fechar, a diferença vira um ajuste no razão e esta contagem passa a ser a nova base." : "Primeira contagem: sem histórico para comparar ainda. Ao fechar, ela vira a base para as próximas."}</div>
       </div>
     );
   }
