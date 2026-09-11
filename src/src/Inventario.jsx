@@ -45,15 +45,14 @@ export function parseNumeroPt(texto) {
 }
 
 // ── Estrutura da contagem ────────────────────────────────────────────────────
-function itensParaContar(curva, ingredientes, escopo) {
-  const byNome = {}; (ingredientes || []).forEach(i => { byNome[normN(i.nome)] = i; });
-  const base = escopo === "completa" ? (ingredientes || []).map(i => ({ nome: i.nome, preco: +i.p || 0 })) : (curva || []).filter(l => l.curvaA);
-  return base.map(l => {
-    const ing = byNome[normN(l.nome)] || {};
-    const emb = ing.emb && ing.emb.unidade ? ing.emb : null;
-    return { ingId: ing.id || l.nome, nome: l.nome, preco: l.preco != null ? l.preco : (+ing.p || 0), un: ing.un || "KG",
-      local: ing.local || "Sem local", embUn: emb ? emb.unidade : "", fator: emb ? (+emb.fator || 1) : 1, nota: ing.notaContagem || "" };
-  });
+function itensParaContar(ingredientes, escopo) {
+  const marcado = i => (i.local && i.local.trim()) || (i.emb && i.emb.unidade);
+  const base = (ingredientes || []).filter(i => escopo === "completa" ? true : marcado(i));
+  return base.map(i => {
+    const emb = i.emb && i.emb.unidade ? i.emb : null;
+    return { ingId: i.id || i.nome, nome: i.nome, preco: +i.p || 0, un: i.un || "KG",
+      local: i.local || "Sem local", embUn: emb ? emb.unidade : "", fator: emb ? (+emb.fator || 1) : 1, nota: i.notaContagem || "" };
+  }).sort((a, b) => a.nome.localeCompare(b.nome));
 }
 const contadoBase = (it, valorDigitado) => { const v = parseFloat(String(valorDigitado).replace(",", ".")) || 0; return it.embUn ? v * it.fator : v; };
 
@@ -89,7 +88,7 @@ function ScannerQR({ onScan, onClose }) {
   );
 }
 
-export default function Inventario({ token, clienteId, mes, curva, ingredientes, podeEditar = true }) {
+export default function Inventario({ token, clienteId, mes, ingredientes, podeEditar = true }) {
   const [regs, setRegs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fase, setFase] = useState("inicio"); // inicio | contando | revisao
@@ -111,7 +110,7 @@ export default function Inventario({ token, clienteId, mes, curva, ingredientes,
   const persistir = async (r) => { setReg(r); await salvar(r, clienteId, token); setSalvo(true); setTimeout(() => setSalvo(false), 1200); };
 
   const iniciar = (escopo) => {
-    const its = itensParaContar(curva, ingredientes, escopo);
+    const its = itensParaContar(ingredientes, escopo);
     const itensMap = {}; its.forEach(it => { itensMap[it.ingId] = { ...it, valor: "" }; });
     const novo = { id: `cont_${clienteId}_${Date.now()}`, data: td(), competencia: mes, escopo, status: "aberta", usuarioAbriu: usuario, abertaEm: agora(), itens: itensMap };
     setReg(novo); setFase("contando"); salvar(novo, clienteId, token);
@@ -144,7 +143,7 @@ export default function Inventario({ token, clienteId, mes, curva, ingredientes,
   if (fase === "inicio") {
     const ultima = regs.find(r => r.status === "fechada");
     const aberta = regs.find(r => r.status === "aberta");
-    const nCurva = (curva || []).filter(l => l.curvaA).length;
+    const nMarcados = (ingredientes || []).filter(i => (i.local && i.local.trim()) || (i.emb && i.emb.unidade)).length;
     const diasDesde = ultima ? Math.round((Date.now() - new Date(ultima.fechadaEm || ultima.data).getTime()) / 864e5) : null;
     return (
       <div>
@@ -156,7 +155,8 @@ export default function Inventario({ token, clienteId, mes, curva, ingredientes,
           <div style={{ fontSize: 12, color: C.cinzaE, marginBottom: 12, background: C.cinzaF, borderRadius: 8, padding: "8px 11px" }}>💡 Conte com o estoque parado — antes de receber entrega, fora do serviço.</div>
           {podeEditar && <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {aberta && <button onClick={() => retomar(aberta)} style={{ background: "#B8860B", color: "#fff", border: "none", padding: "11px 18px", borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>↩ Retomar contagem de {aberta.data.split("-").reverse().join("/")}</button>}
-            <button onClick={() => iniciar("curvaA")} style={{ background: C.lima, color: C.preto, border: "none", padding: "11px 18px", borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Contar curva A ({nCurva} itens)</button>
+            {nMarcados === 0 && <div style={{ fontSize: 12.5, color: C.coral, marginBottom: 10, background: "#FBEDE8", borderRadius: 8, padding: "8px 11px" }}>⚠ Nenhum insumo marcado para contagem. No cadastro do ingrediente (Operação → Ingredientes), preencha <b>onde fica</b> e/ou <b>como conta</b> — só os marcados entram aqui. Ou use “Contagem completa”.</div>}
+            <button onClick={() => iniciar("marcados")} disabled={nMarcados === 0} style={{ background: nMarcados === 0 ? C.cinzaM : C.lima, color: C.preto, border: "none", padding: "11px 18px", borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: nMarcados === 0 ? "default" : "pointer" }}>Contar marcados ({nMarcados} itens)</button>
             <button onClick={() => iniciar("completa")} style={{ background: "#fff", color: C.azul, border: `1.5px solid ${C.azul}`, padding: "11px 18px", borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Contagem completa</button>
           </div>}
         </div>
@@ -167,7 +167,7 @@ export default function Inventario({ token, clienteId, mes, curva, ingredientes,
             const its = Object.values(r.itens || {}); const tot = its.reduce((a, it) => a + contadoBase(it, it.valor) * (it.preco || 0), 0); const contados = its.filter(it => String(it.valor).trim() !== "").length;
             return <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderBottom: i < arr.length - 1 ? `1px solid ${C.cinzaF}` : "none" }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 13.5 }}>{r.data.split("-").reverse().join("/")} · {r.escopo === "completa" ? "completa" : "curva A"}</div>
+                <div style={{ fontWeight: 700, fontSize: 13.5 }}>{r.data.split("-").reverse().join("/")} · {r.escopo === "completa" ? "completa" : "marcados"}</div>
                 <div style={{ fontSize: 11.5, color: C.cinzaE }}>{contados} itens · valor em estoque {brl(tot)} · por {r.usuarioFechou || r.usuarioAbriu}</div>
               </div>
             </div>;
