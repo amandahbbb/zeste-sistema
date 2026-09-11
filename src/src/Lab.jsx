@@ -12,7 +12,7 @@ async function sbDel(table, id, t) { await fetch(`${SB_URL}/rest/v1/${table}?id=
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const td = () => new Date().toISOString().slice(0, 10);
-const C = { preto: "#0E0E0C", branco: "#fff", lima: "#8FA715", verde: "#497A5D", azul: "#1A4F71", coral: "#C4502B", cinzaF: "#F0EEE8", cinzaM: "#D9D5C8", cinzaE: "#6B6B5E", border: "#E3E1D9" };
+const C = { preto: "#0E0E0C", branco: "#fff", lima: "#8FA715", verde: "#497A5D", azul: "#1A4F71", coral: "#C4502B", cinzaF: "#F0EEE8", cinzaM: "#B0AC9E", cinzaE: "#4A4A42", border: "#E3E1D9" };
 
 // ── POP-08 · Zeste Lab ───────────────────────────────────────────────────────
 const MODULOS_LAB = [["01", "Estoque e Compras"], ["02", "Operacional e Equipe"], ["03", "Custos e Documentação"], ["04", "Produto e Performance"], ["05", "Sistema"], ["06", "Treinamento e Gestão"]];
