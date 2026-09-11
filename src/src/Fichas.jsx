@@ -1,3 +1,4 @@
+import Inventario from './Inventario.jsx';
 import { useState, useEffect, useCallback, useRef } from "react";
 import Documentos from "./Documentos.jsx";
 import { toast } from "./toast.js";
@@ -1027,6 +1028,20 @@ function QRLabels({ingredientes,onClose}){
 }
 
 // ── ESTOQUE TAB ───────────────────────────────────────────────────
+function TabEstoqueWrap({ingredientes,onSave,clienteFilter,token,clienteId}){
+  const[sub,setSub]=useState('inventario');
+  const mesAtual=new Date().toISOString().slice(0,7);
+  return (<>
+    <div style={{display:'flex',gap:4,margin:'6px 0 12px',background:'var(--cinzaF)',borderRadius:10,padding:4,width:'fit-content'}}>
+      {[['inventario','📱 Modo Inventário'],['saldo','Saldo & Movimentos']].map(([id,l])=>(
+        <button key={id} onClick={()=>setSub(id)} style={{border:'none',borderRadius:7,padding:'7px 14px',fontSize:13,fontWeight:700,cursor:'pointer',background:sub===id?'#fff':'transparent',color:sub===id?'#14130F':'var(--cinzaE)'}}>{l}</button>
+      ))}
+    </div>
+    {sub==='inventario'
+      ? <Inventario token={token} clienteId={clienteId||clienteFilter||'zeste'} mes={mesAtual} ingredientes={ingredientes.filter(i=>!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente||_subPraca(i._cliente,clienteFilter))} podeEditar={true}/>
+      : <><Dica id="estoque">Controle de <b>estoque dos ingredientes</b>: registre entradas e saídas para saber o que tem e o que falta.</Dica><TabEstoque ingredientes={ingredientes} onSave={onSave} clienteFilter={clienteFilter}/></>}
+  </>);
+}
 function TabEstoque({ingredientes,onSave,clienteFilter}){
   const[q,setQ]=useState('');const[mov,setMov]=useState(null);
   const filtered=ingredientes.filter(i=>(!q||normNome(i.nome).includes(normNome(q)))&&(!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente||_subPraca(i._cliente,clienteFilter)));
@@ -1362,7 +1377,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
     {aba==='fichas'&&<><Dica id="fichas">Fichas são as <b>receitas base e pré-preparos</b> (um molho, uma polenta). Monte com os ingredientes e as quantidades — o custo por kg da receita pronta sai sozinho. Uma ficha pode entrar em vários pratos.</Dica><TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin} token={token}/></>}
     {aba==='pratos'&&<><Dica id="pratos">Pratos são o que vai <b>pro cardápio</b>: combine fichas e ingredientes com as gramaturas do empratamento. Preencha o <b>preço de venda</b> (vira CMV e matriz) e o <b>modo de preparo</b> (vira o caderno da cozinha — linhas começando com ⚠ viram alerta).</Dica><TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin} token={token}/></>}
     {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes} meuCli={meuCli} token={token} clienteAtivo={clienteFilter&&clienteFilter!=='zeste'?clienteFilter:meuCli}/></>}
-    {aba==='estoque'&&<><Dica id="estoque">Controle de <b>estoque dos ingredientes</b>: registre entradas e saídas para saber o que tem e o que falta. O histórico das últimas movimentações fica guardado em cada item.</Dica><TabEstoque ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter}/></>}
+    {aba==='estoque'&&<TabEstoqueWrap ingredientes={ingredientes} onSave={saveIngrediente} clienteFilter={clienteFilter} token={token} clienteId={clienteIdProp}/>}
     {aba==='documentos'&&ehAdmin&&<><Dica id="cadernos">"⚡ Gerar Caderno" monta <b>2 documentos</b> a partir dos pratos e fichas do cliente: o <b>Operacional</b> (cozinha, sem custos) e o <b>Gerencial</b> (custos e CMV, confidencial). Quem controla o que o cliente vê é o botão Publicar/Ocultar em <b>Clientes → Documentos</b>.</Dica><Documentos token={token} clientes={clientesList}/></>}
     {histItem&&<HistoricoModal item={histItem} onClose={()=>setHistItem(null)} onRevert={async(v)=>{
       const clean={...v,_historico:undefined,_editadoPor:undefined,_editadoEm:undefined};
