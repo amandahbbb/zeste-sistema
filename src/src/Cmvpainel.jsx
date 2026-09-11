@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { calcAllFichas, calcPrato, calcFicha } from "./cmv.js";
-import Inventario from "./Inventario.jsx";
 
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
@@ -214,14 +213,12 @@ export default function CMVPainel({ token, clienteId, mes, cmvCompras, faturamen
 
       {/* SUB-ABAS */}
       <div style={{ display: "flex", gap: 4, marginBottom: 12, background: C.cinzaF, borderRadius: 9, padding: 3, width: "fit-content" }}>
-        {[["vendas", "Vendas por prato"], ["inventario", "Inventário 📱"], ["estoque", "Contagem (antiga)"]].map(([id, l]) => (
+        {[["vendas", "Vendas por prato"], ["estoque", "Contagem de estoque"]].map(([id, l]) => (
           <button key={id} onClick={() => setAba(id)} style={{ border: "none", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", background: aba === id ? "#fff" : "transparent", color: aba === id ? C.preto : C.cinzaE }}>{l}</button>
         ))}
       </div>
 
-      {aba === "inventario" ? (
-        <Inventario token={token} clienteId={clienteId} mes={mes} curva={ca} ingredientes={base.ingredientes} podeEditar={podeEditar} />
-      ) : aba === "estoque" ? (
+      {aba === "estoque" ? (
         <>
           {varres.comContagem.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
             <div style={{ ...card, flex: "1 1 140px", marginBottom: 0, borderTop: `3px solid ${C.coral}` }}><div style={{ fontSize: 10, color: C.cinzaE, fontWeight: 700 }}>CMV REAL (CONTAGEM)</div><div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 22, fontWeight: 800, color: C.coral }}>{r.receita > 0 ? pct1(varres.realPct) : "—"}</div><div style={{ fontSize: 11, color: C.cinzaE }}>{brl(varres.realRS)}</div></div>
