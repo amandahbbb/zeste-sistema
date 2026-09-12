@@ -8,6 +8,9 @@ import Buffet from "./Buffet.jsx";
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZheXlzeG10emRxdHBseW9lb3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NzA4NDUsImV4cCI6MjA5NTU0Njg0NX0.K9zKHu7StPynJw5sTyn6MEGG2_K3eTSYSw1R9fqIGrE";
 const sbH = t => ({ apikey: SB_KEY, Authorization: `Bearer ${t || SB_KEY}`, "Content-Type": "application/json" });
+const _brl = n => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const _hoje = () => new Date().toISOString().slice(0, 10);
+const _mes = () => _hoje().slice(0, 7);
 async function sbLoad(table, t, query = "") { try { const r = await fetch(`${SB_URL}/rest/v1/${table}?${query}`, { headers: sbH(t) }); const d = await r.json(); return Array.isArray(d) ? d : []; } catch { return []; } }
 
 const dbr = d => d ? new Date(d + (d.length <= 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR") : "";
@@ -22,6 +25,35 @@ html,body{height:100%;font-family:var(--fb);font-size:16px;background:var(--cinz
 button{cursor:pointer;border:none;background:none;font-family:var(--fb)}
 .pcl-header{background:var(--preto);position:sticky;top:0;z-index:300;border-bottom:1px solid #2A2A2A}
 .pcl-tabs{display:flex;background:var(--preto);border-bottom:1px solid #2A2A2A;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.pcl-shell{display:flex;min-height:100vh}
+.pcl-side{width:236px;flex-shrink:0;background:var(--preto);color:#fff;padding:14px 12px 24px;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid #2A2A2A}
+.pcl-main{flex:1;min-width:0}
+.pcl-grp{font-size:10px;font-weight:800;letter-spacing:.14em;color:#8A8A80;text-transform:uppercase;margin:16px 10px 6px}
+.pcl-nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;border-radius:9px;font-size:14px;font-weight:600;color:#D8D6CC;background:none;border:none;cursor:pointer;min-height:44px}
+.pcl-nav:hover{background:#1E1E1B;color:#fff}
+.pcl-nav.on{background:var(--lima);color:var(--preto)}
+.pcl-nav .ic{width:22px;text-align:center;font-size:15px}
+.pcl-burger{display:none;background:none;border:1px solid #333;border-radius:8px;color:#fff;padding:8px 10px;font-size:18px;line-height:1;cursor:pointer;min-height:40px}
+.pcl-backdrop{display:none}
+@media(max-width:900px){
+  .pcl-side{position:fixed;left:-260px;top:0;bottom:0;z-index:500;transition:left .2s;height:100vh}
+  .pcl-side.open{left:0;box-shadow:4px 0 24px rgba(0,0,0,.4)}
+  .pcl-burger{display:inline-flex}
+  .pcl-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:400}
+}
+.ck-kpi{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+.ck-kpi .l{font-size:10px;font-weight:800;letter-spacing:.1em;color:#4A4A42;text-transform:uppercase}
+.ck-kpi .v{font-family:var(--ff);font-size:26px;font-weight:800;margin-top:4px}
+.ck-kpi .s{font-size:12px;color:#4A4A42;margin-top:2px}
+.ck-alert{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--border);border-left:4px solid var(--coral);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;text-align:left;width:100%}
+.ck-alert.ok{border-left-color:var(--verde)}
+.ck-alert.warn{border-left-color:#B8860B}
+.ck-alert .t{font-size:15px;font-weight:700;color:var(--preto)}
+.ck-alert .d{font-size:13px;color:#4A4A42}
+.ck-alert .go{margin-left:auto;color:var(--azul);font-weight:700;font-size:13px;white-space:nowrap}
+.ck-atalho{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-align:left;cursor:pointer;width:100%}
+.ck-atalho .t{font-size:15px;font-weight:700;color:var(--preto)}
+.ck-atalho .d{font-size:12.5px;color:#4A4A42;margin-top:2px}
 .pcl-tab{flex:1;padding:15px 10px;font-size:14px;font-weight:700;white-space:nowrap;letter-spacing:.05em;font-family:var(--ff);border-bottom:3px solid transparent;color:#666;min-width:96px;min-height:48px}
 .pcl-card{background:#fff;border:1px solid var(--border);border-radius:16px;overflow:hidden}
 .pcl-stat{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px;transition:border-color .15s}
@@ -343,9 +375,97 @@ function Acompanhamento({ projeto, etapas }) {
   );
 }
 
+/* ── Cockpit: a home operacional (o que fazer hoje + como está o mês) ── */
+function Cockpit({ clienteInfo, token, projeto, etapas, ir }) {
+  const cid = clienteInfo.cliente_id;
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    const mk = _mes(), hj = _hoje();
+    Promise.all([
+      sbLoad("pedidos_cliente", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=dados`),
+      sbLoad("est_contagens", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=dados`),
+      sbLoad("est_movimentos", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=dados`),
+      sbLoad("fin_cliente_fluxo", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=dados`),
+      sbLoad("fin_ingredientes", token, `or=(cliente_id.eq.${cid},cliente_id.like.${cid}-*)&deleted_at=is.null&select=dados`),
+    ]).then(([peds, conts, movs, fluxo, ings]) => {
+      const P = peds.map(x => x.dados || {}), Cn = conts.map(x => x.dados || {}), M = movs.map(x => x.dados || {}), F = fluxo.map(x => x.dados || {}).filter(l => l.tipo === "entrada" || l.tipo === "saida"), I = ings.map(x => x.dados || {});
+      // pedidos
+      const aProduzir = P.filter(p => p.status === "aberto").length, prontos = P.filter(p => p.status === "pronto").length;
+      const atrasados = P.filter(p => (p.status === "aberto" || p.status === "pronto") && p.entrega && p.entrega < hj).length;
+      // contagem
+      const fech = Cn.filter(c => c.status === "fechada").sort((a, b) => (b.fechadaEm || b.data || "").localeCompare(a.fechadaEm || a.data || ""));
+      const ultima = fech[0]; const diasCont = ultima ? Math.round((Date.now() - new Date(ultima.fechadaEm || ultima.data).getTime()) / 864e5) : null;
+      const aberta = Cn.find(c => c.status === "aberta");
+      // estoque: valor = saldo derivado × preço (simplificado: último contado + movs posteriores)
+      const preco = {}; I.forEach(i => { preco[i.id] = +i.p || 0; });
+      const saldo = {}; const anc = {}; if (ultima) Object.entries(ultima.itensFechados || {}).forEach(([id, it]) => { anc[id] = { q: +it.contadoBase || 0, d: (ultima.fechadaEm || ultima.data || "").slice(0, 10) }; saldo[id] = anc[id].q; });
+      const sinal = { entrada_nfe: 1, entrada_manual: 1, consumo_teorico: -1, perda: -1, saida_manual: -1 };
+      M.forEach(m => { const sg = sinal[m.tipo]; if (!sg) return; if (anc[m.ingId] && (m.data || "") < anc[m.ingId].d) return; saldo[m.ingId] = (saldo[m.ingId] || 0) + sg * (+m.qtdBase || 0); });
+      const valorEstoque = Object.entries(saldo).reduce((a, [id, q]) => a + Math.max(0, q) * (preco[id] || 0), 0);
+      const negativos = Object.values(saldo).filter(q => q < -0.01).length;
+      // financeiro do mês
+      const doMes = F.filter(l => (l.competencia || (l.data || "").slice(0, 7)) === mk);
+      const ent = doMes.filter(l => l.tipo === "entrada").reduce((a, l) => a + (+l.valor || 0), 0);
+      const sai = doMes.filter(l => l.tipo === "saida").reduce((a, l) => a + (+l.valor || 0), 0);
+      const vencidos = F.filter(l => !l.pago && l.previsto && l.previsto < hj).length;
+      const temFluxoMes = doMes.length > 0;
+      setD({ aProduzir, prontos, atrasados, temPedidos: P.length > 0, ultima, diasCont, aberta, valorEstoque, negativos, temEstoque: M.length > 0 || fech.length > 0, ent, sai, vencidos, temFluxoMes });
+    });
+  }, [cid]);
+
+  const nome = clienteInfo.nome_display || "Cliente";
+  const etapaAtual = (etapas || []).find(e => e.status === "em_andamento" || e.status === "andamento") || null;
+  const mesLbl = (() => { const [y, m] = _mes().split("-"); return ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][+m - 1] + "/" + y; })();
+
+  return (
+    <div className="pcl-wrap">
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ fontSize: 12, color: "#4A4A42", letterSpacing: ".08em", fontWeight: 700 }}>OLÁ,</div>
+        <div style={{ fontFamily: "var(--ff)", fontSize: 30, fontWeight: 800, lineHeight: 1.05 }}>{nome}</div>
+      </div>
+
+      {!d ? <div style={{ padding: 24, color: "#4A4A42" }}>Carregando seu painel…</div> : <>
+        {/* ── HOJE: só o que exige ação ── */}
+        <div className="pcl-sec" style={{ color: "#4A4A42" }}>Hoje</div>
+        {(() => {
+          const itens = [];
+          if (clienteInfo.pedidos && (d.atrasados > 0)) itens.push(<button key="p1" className="ck-alert" onClick={() => ir("pedidos")}><span style={{ fontSize: 22 }}>🧾</span><div><div className="t">{d.atrasados} pedido(s) atrasado(s)</div><div className="d">Entrega já passou e ainda não foi entregue</div></div><span className="go">Ver →</span></button>);
+          if (clienteInfo.pedidos && (d.aProduzir > 0 || d.prontos > 0)) itens.push(<button key="p2" className="ck-alert warn" onClick={() => ir("pedidos")}><span style={{ fontSize: 22 }}>🧾</span><div><div className="t">{d.aProduzir} a produzir · {d.prontos} pronto(s)</div><div className="d">Pedidos em andamento</div></div><span className="go">Abrir →</span></button>);
+          if (d.vencidos > 0) itens.push(<button key="f1" className="ck-alert" onClick={() => ir("fluxo")}><span style={{ fontSize: 22 }}>💰</span><div><div className="t">{d.vencidos} lançamento(s) vencido(s)</div><div className="d">Contas a pagar/receber com data passada</div></div><span className="go">Ver →</span></button>);
+          if (d.aberta) itens.push(<button key="c1" className="ck-alert warn" onClick={() => ir("estoque")}><span style={{ fontSize: 22 }}>📦</span><div><div className="t">Contagem de estoque em andamento</div><div className="d">Retome de onde parou e feche</div></div><span className="go">Retomar →</span></button>);
+          else if (d.temEstoque && d.diasCont != null && d.diasCont >= 30) itens.push(<button key="c2" className="ck-alert warn" onClick={() => ir("estoque")}><span style={{ fontSize: 22 }}>📦</span><div><div className="t">Última contagem há {d.diasCont} dias</div><div className="d">Sem contagem recente o CMV real fica desatualizado</div></div><span className="go">Contar →</span></button>);
+          if (d.negativos > 0) itens.push(<button key="c3" className="ck-alert" onClick={() => ir("estoque")}><span style={{ fontSize: 22 }}>📦</span><div><div className="t">{d.negativos} insumo(s) com saldo negativo</div><div className="d">Consumo maior que o estoque registrado — revisar compras ou contagem</div></div><span className="go">Ver →</span></button>);
+          if (!itens.length) itens.push(<div key="ok" className="ck-alert ok" style={{ cursor: "default" }}><span style={{ fontSize: 22 }}>✓</span><div><div className="t">Nada pendente por hoje</div><div className="d">Sem pedidos atrasados, contas vencidas ou contagem aberta</div></div></div>);
+          return itens;
+        })()}
+
+        {/* ── ESTE MÊS: os números ── */}
+        <div className="pcl-sec" style={{ color: "#4A4A42" }}>Este mês · {mesLbl}</div>
+        <div className="pcl-grid">
+          <button className="ck-kpi" style={{ textAlign: "left", cursor: "pointer", borderTop: "3px solid var(--verde)" }} onClick={() => ir("fluxo")}><div className="l">Faturamento</div><div className="v" style={{ color: "var(--verde)" }}>{d.temFluxoMes ? _brl(d.ent) : "—"}</div><div className="s">entradas lançadas</div></button>
+          <button className="ck-kpi" style={{ textAlign: "left", cursor: "pointer", borderTop: `3px solid ${d.ent - d.sai >= 0 ? "var(--azul)" : "var(--coral)"}` }} onClick={() => ir("dre")}><div className="l">Resultado</div><div className="v" style={{ color: d.ent - d.sai >= 0 ? "var(--azul)" : "var(--coral)" }}>{d.temFluxoMes ? _brl(d.ent - d.sai) : "—"}</div><div className="s">entradas − saídas · ver DRE</div></button>
+          <button className="ck-kpi" style={{ textAlign: "left", cursor: "pointer", borderTop: "3px solid var(--coral)" }} onClick={() => ir("cmv")}><div className="l">CMV</div><div className="v" style={{ color: "var(--coral)" }}>{d.temFluxoMes && d.ent > 0 ? "ver →" : "—"}</div><div className="s">real × teórico</div></button>
+          <button className="ck-kpi" style={{ textAlign: "left", cursor: "pointer", borderTop: "3px solid #B8860B" }} onClick={() => ir("estoque")}><div className="l">Em estoque</div><div className="v" style={{ color: "#B8860B" }}>{d.temEstoque ? _brl(d.valorEstoque) : "—"}</div><div className="s">{d.ultima ? `contado há ${d.diasCont}d` : "sem contagem ainda"}</div></button>
+        </div>
+
+        {/* ── Projeto Zeste (compacto) ── */}
+        {(projeto || etapaAtual) && <>
+          <div className="pcl-sec" style={{ color: "#4A4A42" }}>Projeto com a Zeste</div>
+          <button className="ck-atalho" onClick={() => ir("projeto")}>
+            <div className="t">{projeto && projeto.status ? projeto.status : "Em andamento"}{etapaAtual ? ` · ${etapaAtual.nome || etapaAtual.titulo || "etapa atual"}` : ""}</div>
+            <div className="d">Ver agenda, etapas e o que preparar →</div>
+          </button>
+        </>}
+      </>}
+    </div>
+  );
+}
+
 /* ── Componente principal ── */
 export default function PortalCliente({ clienteInfo, token, onLogout }) {
   const [aba, setAba] = useState("dashboard");
+  const [menu, setMenu] = useState(false);
+  const ir = (id) => { setAba(id); setMenu(false); window.scrollTo({ top: 0 }); };
   const [projeto, setProjeto] = useState(null);
   const [fichasCount, setFichasCount] = useState(0);
   const [docs, setDocs] = useState([]);
@@ -368,15 +488,21 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     sbLoad("portal_etapas", token, `cliente_id=eq.${cid}&select=*&order=created_at.asc`).then(r => setEtapas(r.map(x => x.dados || x)));
   }, []);
 
-  const ABAS = [["dashboard", "Início"], ["fichas", "Fichas"], ["compras", "Compras"], ["fluxo", "Fluxo de caixa"], ...(clienteInfo.pedidos ? [["pedidos", "Pedidos"]] : []), ...(clienteInfo.buffet ? [["buffet", "Buffet"]] : []), ["documentos", "Documentos"], ["projeto", "Projeto"]];
+  const GRUPOS = [
+    { t: "", itens: [["dashboard", "🏠", "Início"]] },
+    { t: "Operação", itens: [["fichas", "📋", "Fichas técnicas"], ["estoque", "📦", "Estoque & Inventário"], ...(clienteInfo.pedidos ? [["pedidos", "🧾", "Pedidos"]] : []), ...(clienteInfo.buffet ? [["buffet", "🍳", "Buffet"]] : []), ["compras", "🛒", "Compras"]] },
+    { t: "Financeiro", itens: [["fluxo", "💰", "Fluxo de caixa"], ["dre", "📊", "DRE / Resultado"], ["cmv", "📉", "CMV"]] },
+    { t: "Zeste", itens: [["documentos", "📁", "Documentos"], ["projeto", "🗓️", "Projeto"]] },
+  ];
+  const ativo = (id) => aba === id || (id === "fichas" && aba === "fichas") ;
 
-  if (aba === "fichas") {
+  if (aba === "fichas" || aba === "estoque") {
     return (<>
       <style>{STYLE}</style>
       <div style={{ background: "var(--preto)", padding: "10px 14px", display: "flex", gap: 8, position: "sticky", top: 0, zIndex: 400 }}>
         <button onClick={() => setAba("dashboard")} style={{ color: "var(--lima)", fontSize: 14, fontWeight: 700, padding: "8px 16px", border: "1px solid var(--lima)", borderRadius: 8, minHeight: 44 }}>‹ Voltar ao início</button>
       </div>
-      <Fichas onBack={() => setAba("dashboard")} token={token} clienteId={clienteInfo.cliente_id} clienteNome={clienteInfo.nome_display} userInfo={{ email: clienteInfo.email, nome: clienteInfo.nome_display }} onLogout={onLogout} />
+      <Fichas key={aba} onBack={() => setAba("dashboard")} token={token} clienteId={clienteInfo.cliente_id} clienteNome={clienteInfo.nome_display} userInfo={{ email: clienteInfo.email, nome: clienteInfo.nome_display }} onLogout={onLogout} abaInicial={aba === "estoque" ? "estoque" : undefined} />
     </>);
   }
 
@@ -394,26 +520,38 @@ export default function PortalCliente({ clienteInfo, token, onLogout }) {
     <div style={{ minHeight: "100vh", background: "var(--cinzaF)" }}>
       <style>{STYLE}</style>
       <div className="pcl-header">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px" }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button className="pcl-burger" onClick={() => setMenu(m => !m)} aria-label="menu">☰</button>
             <span style={{ fontFamily: "var(--ff)", fontSize: 22, fontWeight: 800, color: "var(--lima)", letterSpacing: ".06em" }}>ZESTE</span>
-            <span style={{ fontSize: 10, color: "#666", letterSpacing: ".14em" }}>{(clienteInfo.nome_display || "ÁREA DE MEMBROS").toUpperCase()}</span>
+            <span style={{ fontSize: 10, color: "#9A9A90", letterSpacing: ".14em" }}>{(clienteInfo.nome_display || "ÁREA DE MEMBROS").toUpperCase()}</span>
           </div>
-          {onLogout && <button onClick={onLogout} style={{ color: "#999", fontSize: 12, padding: "8px 14px", border: "1px solid #333", borderRadius: 8, letterSpacing: ".06em", fontWeight: 600, minHeight: 40 }}>SAIR</button>}
-        </div>
-        <div className="pcl-tabs">
-          {ABAS.map(([id, l]) => (
-            <button key={id} className="pcl-tab" onClick={() => setAba(id)} style={{ color: aba === id ? "var(--lima)" : "#666", borderBottomColor: aba === id ? "var(--lima)" : "transparent" }}>{l}</button>
-          ))}
+          {onLogout && <button onClick={onLogout} style={{ color: "#BBB", fontSize: 12, padding: "8px 14px", border: "1px solid #333", borderRadius: 8, letterSpacing: ".06em", fontWeight: 600, minHeight: 40, background: "none", cursor: "pointer" }}>SAIR</button>}
         </div>
       </div>
-
-      {aba === "dashboard" && <Dashboard clienteInfo={clienteInfo} projeto={projeto} fichasCount={fichasCount} docs={docs} etapas={etapas} setAba={setAba} />}
-      {aba === "fluxo" && <FluxoCaixa token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} />}
+      {menu && <div className="pcl-backdrop" onClick={() => setMenu(false)} />}
+      <div className="pcl-shell">
+        <nav className={"pcl-side" + (menu ? " open" : "")}>
+          {GRUPOS.map((g, gi) => (
+            <div key={gi}>
+              {g.t && <div className="pcl-grp">{g.t}</div>}
+              {g.itens.map(([id, ic, l]) => (
+                <button key={id} className={"pcl-nav" + (aba === id ? " on" : "")} onClick={() => ir(id)}><span className="ic">{ic}</span>{l}</button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="pcl-main">
+      {aba === "dashboard" && <Cockpit clienteInfo={clienteInfo} token={token} projeto={projeto} etapas={etapas} ir={ir} />}
+      {aba === "fluxo" && <FluxoCaixa key="fluxo" token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} />}
+      {aba === "dre" && <FluxoCaixa key="dre" token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} vistaInicial="dre" />}
+      {aba === "cmv" && <FluxoCaixa key="cmv" token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} vistaInicial="cmv" />}
       {aba === "pedidos" && <Pedidos token={token} clienteId={clienteInfo.cliente_id} clienteNome={clienteInfo.nome_display} podeEditar={true} />}
       {aba === "buffet" && clienteInfo.buffet && <Buffet token={token} clienteId={clienteInfo.cliente_id} podeEditar={true} />}
       {aba === "documentos" && <Documentos docs={docs} docsOp={docsOp} />}
       {aba === "projeto" && <Acompanhamento projeto={projeto} etapas={etapas} />}
+        </div>
+      </div>
     </div>
   );
 }
