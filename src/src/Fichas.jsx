@@ -1323,13 +1323,13 @@ function Dica({id,children}){
 const TABS=[{id:'resumo',l:'RESUMO'},{id:'ingredientes',l:'INGREDIENTES'},{id:'fichas',l:'FICHAS'},{id:'pratos',l:'PRATOS'},{id:'producao',l:'PRODUÇÃO'},{id:'estoque',l:'ESTOQUE'}];
 const TABS_ADMIN=[...TABS,{id:'documentos',l:'CADERNOS'}];
 
-export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome,onLogout,userInfo}){
+export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome,onLogout,userInfo,abaInicial}){
   const[ingredientes,setIngredientes]=useState([]);
   const[fichasRaw,setFichasRaw]=useState([]);
   const[pratosRaw,setPratosRaw]=useState([]);
   const[loading,setLoading]=useState(true);
   const[syncing,setSyncing]=useState(false);
-  const[aba,setAba]=useState('resumo');const[histItem,setHistItem]=useState(null);
+  const[aba,setAba]=useState(abaInicial||'resumo');const[histItem,setHistItem]=useState(null);
   const[clientesList,setClientesList]=useState([]);
   const ehAdmin=!clienteIdProp||clienteIdProp==='zeste';
   useEffect(()=>{if(ehAdmin){fetch(`${SB_URL}/rest/v1/fin_portal_clientes?select=*&order=nome_display.asc`,{headers:sbH(token)}).then(r=>r.json()).then(d=>Array.isArray(d)&&setClientesList(d)).catch(()=>{});}},[]);
