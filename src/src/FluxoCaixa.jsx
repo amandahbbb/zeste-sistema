@@ -126,13 +126,13 @@ async function carregar(clienteId, token) { try { const r = await fetch(`${SB_UR
 async function upsert(item, clienteId, token) { const r = await fetch(`${SB_URL}/rest/v1/fin_cliente_fluxo`, { method: "POST", headers: { ...sbH(token), Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: item.id, cliente_id: clienteId, dados: item, updated_at: new Date().toISOString() }) }); return r.ok; }
 async function excluir(id, token) { const r = await fetch(`${SB_URL}/rest/v1/fin_cliente_fluxo?id=eq.${id}`, { method: "PATCH", headers: sbH(token), body: JSON.stringify({ deleted_at: new Date().toISOString() }) }); return r.ok; }
 
-export default function FluxoCaixa({ token, clienteId, clienteNome, podeEditar = true, onBack }) {
+export default function FluxoCaixa({ token, clienteId, clienteNome, podeEditar = true, onBack, vistaInicial }) {
   const [ls, setLs] = useState([]);
   const [arvore, setArvore] = useState({ entrada: {}, saida: {} });
   const [cfgId, setCfgId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mes, setMes] = useState(mesHoje());
-  const [vista, setVista] = useState("lancamentos"); // lancamentos | dre | cmv
+  const [vista, setVista] = useState(vistaInicial || "lancamentos"); // lancamentos | dre | cmv
   const [addOpen, setAddOpen] = useState(false);
   const [avancado, setAvancado] = useState(false);
   const [gerCat, setGerCat] = useState(false);
