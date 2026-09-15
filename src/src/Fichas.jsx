@@ -522,19 +522,19 @@ function TabIngredientes({ingredientes,fichasRaw,pratosRaw,onSave,onDelete,clien
     {edit&&<Modal title={edit.nome?'Editar Ingrediente':'Novo Ingrediente'} onClose={()=>setEdit(null)}>
       <div className="ft-fg">
         <div className="ft-fld"><label className="ft-flbl">Nome</label><input value={edit.nome} onChange={e=>setEdit(f=>({...f,nome:e.target.value.toUpperCase()}))}/></div>
-        {(()=>{const evs=histPreco.filter(e=>e.ingId===edit.id&&e.pct!=null).sort((a,b)=>(b.data||'').localeCompare(a.data||''));const ult=evs[0];if(!ult)return null;const sobe=ult.pct>0;const afet=pratosAfetados(edit.nome,pratosRaw||[],fichasRaw||[]);return(
+        {(()=>{try{const evs=histPreco.filter(e=>e&&e.ingId===edit.id&&e.pct!=null&&!isNaN(+e.pct)).sort((a,b)=>(b.data||'').localeCompare(a.data||''));const ult=evs[0];if(!ult)return null;const _pct=+ult.pct,_de=+ult.de||0,_para=+ult.para||0;const sobe=_pct>0;const afet=pratosAfetados(edit.nome||'',pratosRaw||[],fichasRaw||[]);return(
           <div style={{background:sobe?'#FBE9E3':'#E6F2EA',border:`1px solid ${sobe?'#E8B4A3':'#B5D9C2'}`,borderRadius:10,padding:'11px 13px',marginBottom:10}}>
             <div style={{fontSize:10,fontWeight:800,letterSpacing:'.06em',color:'#4A4A42'}}>{sobe?'PREÇO SUBIU':'PREÇO CAIU'} · {(ult.data||'').split('-').reverse().join('/')}{ult.origem==='nfe'?' · NF-e':''}</div>
             <div style={{display:'flex',alignItems:'baseline',gap:8,marginTop:4,flexWrap:'wrap'}}>
-              <span style={{fontSize:15,color:'#4A4A42',textDecoration:'line-through'}}>{brl(ult.de)}</span>
+              <span style={{fontSize:15,color:'#4A4A42',textDecoration:'line-through'}}>{brl(_de)}</span>
               <span style={{fontSize:15,color:'#4A4A42'}}>→</span>
-              <span style={{fontFamily:'var(--ff)',fontSize:22,fontWeight:800,color:sobe?'#B54A2B':'#2D6E47'}}>{brl(ult.para)}</span>
-              <span style={{fontSize:14,fontWeight:800,color:sobe?'#B54A2B':'#2D6E47'}}>{sobe?'+':''}{ult.pct.toFixed(1).replace('.',',')}%</span>
+              <span style={{fontFamily:'var(--ff)',fontSize:22,fontWeight:800,color:sobe?'#B54A2B':'#2D6E47'}}>{brl(_para)}</span>
+              <span style={{fontSize:14,fontWeight:800,color:sobe?'#B54A2B':'#2D6E47'}}>{sobe?'+':''}{_pct.toFixed(1).replace('.',',')}%</span>
             </div>
             {afet.length>0&&<div style={{fontSize:12.5,color:'#4A4A42',marginTop:6}}><b>{afet.length} prato(s) afetado(s):</b> {afet.slice(0,5).join(' · ')}{afet.length>5?` +${afet.length-5}`:''}</div>}
             {evs.length>1&&<div style={{fontSize:11,color:'#4A4A42',marginTop:4,opacity:.8}}>{evs.length} mudanças registradas</div>}
           </div>
-        );})()}
+        );}catch(err){return null;}})()}
         <div className="ft-fld h"><label className="ft-flbl">Categoria</label><select value={edit.categoria||''} onChange={e=>setEdit(f=>({...f,categoria:e.target.value}))}><option value="">—</option>{CATEGORIAS_INSUMO.map(c=><option key={c}>{c}</option>)}</select></div>
         <div className="ft-fld h"><label className="ft-flbl">Unidade</label><select value={edit.un} onChange={e=>setEdit(f=>({...f,un:e.target.value}))}><option>KG</option><option>L</option><option>UN</option></select></div>
         <div className="ft-fld h"><label className="ft-flbl">Preço/KG (R$)</label><NumInput step="0.01" value={edit.p} onChange={v=>setEdit(f=>({...f,p:v}))}/></div>
