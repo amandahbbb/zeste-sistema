@@ -44,9 +44,30 @@ const STYLE = `
 `;
 
 // ── ABA 1 · DADOS DE VENDA ──
-function AbaVendas({ pratos, vendas, periodo, setPeriodo, onSaveVendas }) {
+function AbaVendas({ pratos, vendas, periodo, setPeriodo, onSaveVendas, token }) {
   const [local, setLocal] = useState({});
   const [salvando, setSalvando] = useState(false);
+  const [puxando, setPuxando] = useState(false);
+  const [mesCMV, setMesCMV] = useState(() => new Date().toISOString().slice(0, 7));
+  const [aviso, setAviso] = useState("");
+  const normNm = x => (x || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const puxarDoCMV = async () => {
+    setPuxando(true); setAviso("");
+    try {
+      const cid = (pratos.find(p => p._cliente) || {})._cliente || "zeste";
+      const r = await fetch(`${SB_URL}/rest/v1/fin_cmv?cliente_id=eq.${cid}&deleted_at=is.null&select=dados`, { headers: sbH(token) });
+      const d = await r.json();
+      const reg = (Array.isArray(d) ? d.map(x => x.dados || {}) : []).find(x => x.tipo === "vendas" && x.competencia === mesCMV);
+      if (!reg || !reg.qtds) { setAviso("Não há vendas lançadas no CMV para " + mesCMV + "."); setPuxando(false); return; }
+      const porNome = {}; Object.entries(reg.qtds).forEach(([nome, q]) => { porNome[normNm(nome)] = +q || 0; });
+      const novo = { ...local }; let n = 0, naoAchou = [];
+      pratos.forEach(p => { const q = porNome[normNm(p.nome)]; if (q != null && q > 0) { novo[p._id] = q; n++; } });
+      Object.keys(porNome).forEach(k => { if (!pratos.find(p => normNm(p.nome) === k)) naoAchou.push(k); });
+      setLocal(novo);
+      setAviso(`✓ ${n} prato(s) preenchido(s) com as vendas de ${mesCMV}.` + (naoAchou.length ? ` ${naoAchou.length} venda(s) do CMV sem prato correspondente.` : "") + " Confira e toque em Salvar.");
+    } catch (e) { setAviso("Erro ao buscar as vendas do CMV."); }
+    setPuxando(false);
+  };
 
   useEffect(() => {
     const init = {};
@@ -71,6 +92,14 @@ function AbaVendas({ pratos, vendas, periodo, setPeriodo, onSaveVendas }) {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 130 }}><div style={{ fontSize: 10, color: C.cinzaE, marginBottom: 4 }}>Início</div><input className="eng-input" type="date" style={{ width: "100%" }} value={periodo.inicio} onChange={e => setPeriodo(p => ({ ...p, inicio: e.target.value }))} /></div>
           <div style={{ flex: 1, minWidth: 130 }}><div style={{ fontSize: 10, color: C.cinzaE, marginBottom: 4 }}>Fim</div><input className="eng-input" type="date" style={{ width: "100%" }} value={periodo.fim} onChange={e => setPeriodo(p => ({ ...p, fim: e.target.value }))} /></div>
+        </div>
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.cinzaF}` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".08em", color: C.cinzaE, marginBottom: 6 }}>⚡ PREENCHER COM AS VENDAS JÁ LANÇADAS NO CMV</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input className="eng-input" type="month" value={mesCMV} onChange={e => setMesCMV(e.target.value)} style={{ width: 150 }} />
+            <button onClick={puxarDoCMV} disabled={puxando} style={{ background: C.azul, color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{puxando ? "Buscando…" : "Puxar vendas do CMV"}</button>
+          </div>
+          {aviso && <div style={{ fontSize: 12.5, color: aviso.startsWith("✓") ? C.verde : C.coral, marginTop: 8 }}>{aviso}</div>}
         </div>
       </div>
 
@@ -143,6 +172,15 @@ function AbaMatriz({ analise, onUpdateAnalise }) {
 
   return (
     <div style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
+      {(() => {
+        const atencao = (grupos.cavalo.length + grupos.enigma.length + grupos.cachorro.length);
+        return (<div style={{ marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 800, color: C.preto }}>Quais pratos merecem minha atenção?</div>
+          {atencao > 0
+            ? <div style={{ fontSize: 13, color: "#4A4A42", marginTop: 2 }}><b style={{ color: C.coral }}>{atencao} prato(s) merecem atenção</b> — {grupos.estrela.length} estrela(s) a proteger, {grupos.cavalo.length} cavalo(s) a rentabilizar, {grupos.enigma.length} enigma(s) a promover, {grupos.cachorro.length} candidato(s) a sair.</div>
+            : <div style={{ fontSize: 13, color: "#4A4A42", marginTop: 2 }}>{classificados.length} prato(s) classificado(s).</div>}
+        </div>);
+      })()}
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, fontSize: 11, color: C.cinzaE, padding: "0 4px" }}>
         <span>↑ Mais popular</span><span>Mais rentável →</span>
       </div>
@@ -571,7 +609,7 @@ export default function Engenharia({ onBack, token }) {
         ))}
       </div>
       {loading ? <div style={{ padding: 40, textAlign: "center", color: C.cinzaE }}>Carregando pratos…</div> : <>
-        {aba === "vendas" && <AbaVendas pratos={pratos} vendas={vendas} periodo={periodo} setPeriodo={setPeriodo} onSaveVendas={saveVendas} />}
+        {aba === "vendas" && <AbaVendas pratos={pratos} vendas={vendas} periodo={periodo} setPeriodo={setPeriodo} onSaveVendas={saveVendas} token={token} />}
         {aba === "matriz" && <AbaMatriz analise={analise} onUpdateAnalise={updateAnalise} />}
         {aba === "primecost" && <AbaPrimeCost pratos={pratos} vendas={vendas} periodo={periodo} folha={folha} onSaveFolha={saveFolha} />}
         {aba === "relatorio" && <AbaRelatorio analise={analise} />}
