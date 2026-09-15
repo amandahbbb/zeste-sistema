@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "./toast.js";
 import { novoMov, gravarMovimentos, apagarMovimentosPorRef } from "./estoque.js";
+import { novoEventoPreco, variacaoPct, gravarEventosPreco } from "./precoHist.js";
 
 // ── SUPABASE ──────────────────────────────────────────────────────
 const SB_URL = "https://fayysxmtzdqtplyoeowk.supabase.co";
@@ -92,15 +93,15 @@ async function saveIngPrecoComp(ing, novoP, t) {
   return r.ok;
 }
 
-function NumBR({ value, onChange, placeholder, style, className }) {
+function NumBR({ value, onChange, onBlur, placeholder, style, className }) {
   const fmt = v => (v === 0 || v === "" || v == null || isNaN(v)) ? "" : String(v).replace(".", ",");
   const [txt, setTxt] = useState(fmt(value));
   const [foco, setFoco] = useState(false);
   useEffect(() => { if (!foco) setTxt(fmt(value)); }, [value, foco]);
   return <input type="text" inputMode="decimal" className={className} style={style} placeholder={placeholder || "0,00"} value={txt}
     onFocus={() => setFoco(true)}
-    onChange={e => { const v = e.target.value.replace(/[^0-9.,]/g, ""); setTxt(v); const n = parseFloat(v.replace(",", ".")); onChange(isNaN(n) ? "" : n); }}
-    onBlur={() => { setFoco(false); setTxt(fmt(value)); }} />;
+    onChange={e => { const v = e.target.value.replace(/[^0-9.,]/g, ""); setTxt(v); if (onChange) { const n = parseFloat(v.replace(",", ".")); onChange(isNaN(n) ? "" : n); } }}
+    onBlur={() => { setFoco(false); const n = parseFloat(txt.replace(",", ".")); if (onBlur) onBlur(isNaN(n) ? "" : n); setTxt(fmt(value)); }} />;
 }
 const brl = v => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const td = () => new Date().toISOString().slice(0, 10);
@@ -306,7 +307,17 @@ function Pedidos({ pedidos, fornecedores, onSave, onDelete }) {
 // ── COTAÇÕES ──
 const EProd = () => ({ id: uid(), nome: "", categoria: "Hortifruti", qtdPedir: 0, precos: {} });
 
-function Cotacao({ produtos, fornecedores, onSaveProd, onDelProd, ingsComp = [], precosComp = [], fornsComp = [] }) {
+function Cotacao({ produtos, fornecedores, onSaveProd, onDelProd, ingsComp = [], precosComp = [], fornsComp = [], token, clienteId, onReloadPrecos }) {
+  const [salvandoPreco, setSalvandoPreco] = useState(null);
+  const gravarPreco = async (ingId, fornId, valor) => {
+    const v = +String(valor).replace(",", ".") || 0;
+    setSalvandoPreco(ingId + fornId);
+    const existente = precosComp.find(x => x.ingrediente_id === ingId && x.fornecedor_id === fornId);
+    const cliRow = (ingsComp.find(i => i.id === ingId) || {})._cli || clienteId || "zeste";
+    await precoUpsertComp({ id: existente ? existente.id : uid(), cliente_id: cliRow, ingrediente_id: ingId, fornecedor_id: fornId, preco: v, unidade: (ingsComp.find(i => i.id === ingId) || {}).un || "KG", atual: existente ? !!existente.atual : false, atualizado_em: new Date().toISOString() }, token);
+    setSalvandoPreco(null);
+    if (onReloadPrecos) await onReloadPrecos();
+  };
   const [modal, setModal] = useState(null);
   const [catAtiva, setCatAtiva] = useState(CAT_FORN[0]);
   const fornsAtivos = fornecedores.filter(f => f.status === "Ativo");
@@ -324,6 +335,10 @@ function Cotacao({ produtos, fornecedores, onSaveProd, onDelProd, ingsComp = [],
 
   return (
     <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 20, fontWeight: 800, color: C.preto }}>O que preciso comprar e onde está melhor?</div>
+        <div style={{ fontSize: 12.5, color: "#4A4A42" }}>Compare o preço de cada fornecedor — o menor fica em verde. Edite direto na tabela: o preço é salvo no fornecedor.</div>
+      </div>
       <div className="cmp-grid4" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
         <div className="cmp-stat"><div className="cmp-stat-label">ITENS A PEDIR</div><div className="cmp-stat-val" style={{ color: C.lima }}>{itensPedir}</div></div>
         <div className="cmp-stat"><div className="cmp-stat-label">CUSTO ESTIMADO</div><div className="cmp-stat-val" style={{ color: C.coral }}>{brl(totalEstimado)}</div></div>
@@ -357,13 +372,13 @@ function Cotacao({ produtos, fornecedores, onSaveProd, onDelProd, ingsComp = [],
               <tbody>
                 {ingsCF.map(ig => { const mn = menor(ig); return <tr key={ig.id} style={{ borderBottom: `1px solid ${C.cinzaF}` }}>
                   <td style={{ padding: "8px 12px", fontWeight: 600 }}>{ig.nome}</td>
-                  {fornsCP.map(f => { const v = precoDe(ig.id, f.id); const eh = v != null && mn != null && Math.abs(v - mn) < 0.005; return <td key={f.id} style={{ padding: "8px 8px", textAlign: "right", fontWeight: eh ? 700 : 400, color: eh ? C.verde : C.preto, background: eh ? "#F0F7E6" : "transparent" }}>{v != null ? brl(v) : "—"}</td>; })}
+                  {fornsCP.map(f => { const v = precoDe(ig.id, f.id); const eh = v != null && mn != null && Math.abs(v - mn) < 0.005; return <td key={f.id} style={{ padding: "6px 6px", textAlign: "right", background: eh ? "#F0F7E6" : "transparent" }}><NumBR value={v != null ? v : ""} onBlur={val => { if ((+val||0) !== (v||0)) gravarPreco(ig.id, f.id, val); }} placeholder="—" style={{ width: 64, border: `1px solid ${eh ? C.verde : C.cinzaM}`, borderRadius: 5, padding: "4px 6px", textAlign: "right", fontSize: 12, background: eh ? "#F0F7E6" : "#fff", fontWeight: eh ? 700 : 400, color: eh ? C.verde : C.preto }} /></td>; })}
                   <td style={{ padding: "8px 8px", textAlign: "right", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, color: C.verde }}>{mn != null ? brl(mn) : "—"}</td>
                 </tr>; })}
               </tbody>
             </table>
           </div>
-          <div style={{ padding: "10px 16px", fontSize: 11, color: C.cinzaE, fontStyle: "italic" }}>💡 Puxado automático dos fornecedores cadastrados nos ingredientes — o menor preço em verde. (Em breve: editar aqui e salvar de volta.)</div>
+          <div style={{ padding: "10px 16px", fontSize: 11, color: C.cinzaE, fontStyle: "italic" }}>💡 Edite qualquer preço aqui — ele é salvo no fornecedor e o menor valor fica em verde. O CMV dos pratos usa o preço marcado como atual.</div>
         </div>;
       })()}
       <div className="cmp-card">
@@ -481,6 +496,7 @@ function ImportarNFe({ token, clienteId, ingsComp, precosComp, fornsComp, onApli
     const dataNota = (nota && nota.dhEmi) ? nota.dhEmi.slice(0, 10) : new Date().toISOString().slice(0, 10);
     const cliMov = clienteId && clienteId !== "zeste" ? clienteId : "zeste";
     const movs = [];
+    const eventosPreco = [];
     for (const lin of aplicaveis) {
       const ing = ingsComp.find(i => i.id === lin.ingId); if (!ing) continue;
       const pb = precoBaseNFe(lin, ing, lin.pesoG); if (pb.preco == null) continue;
@@ -492,7 +508,13 @@ function ImportarNFe({ token, clienteId, ingsComp, precosComp, fornsComp, onApli
       }
       const r2 = await precoUpsertComp({ id: existente ? existente.id : uid(), cliente_id: cliRow, ingrediente_id: ing.id, fornecedor_id: fornId, preco: pb.preco, unidade: (ing.un || "KG"), atual: marcarAtual ? true : (existente ? !!existente.atual : false), atualizado_em: new Date().toISOString() }, token);
       if (r2 && r2.ok) okc++;
-      if (marcarAtual) { const ok = await saveIngPrecoComp(ing, pb.preco, token); if (ok) ings++; }
+      if (marcarAtual) {
+        const precoAntigo = +ing.p || 0;
+        const ok = await saveIngPrecoComp(ing, pb.preco, token); if (ok) ings++;
+        // evento de mudança de preço (só se havia preço antes e mudou de verdade)
+        const pv = variacaoPct(precoAntigo, pb.preco);
+        if (pv != null && Math.abs(pv) >= 0.5) eventosPreco.push(novoEventoPreco({ ingId: ing.id, ingNome: ing.nome, de: precoAntigo, para: pb.preco, origem: "nfe", origemRef: refNota, data: dataNota }));
+      }
       // entrada de estoque: quantidade na unidade-base = valor da linha ÷ preço/base (consistente com o custo calculado)
       const valorLinha = lin.vProd > 0 ? lin.vProd : (lin.qCom || 0) * (lin.vUnCom || 0);
       const qtdBase = pb.preco > 0 ? valorLinha / pb.preco : 0;
@@ -500,8 +522,9 @@ function ImportarNFe({ token, clienteId, ingsComp, precosComp, fornsComp, onApli
     }
     // grava as entradas no razão (reaplicar a mesma nota substitui, não duplica)
     if (movs.length) { await apagarMovimentosPorRef(cliMov, token, "nfe", refNota); await gravarMovimentos(movs, cliMov, token); }
+    if (eventosPreco.length) await gravarEventosPreco(eventosPreco, cliMov, token);
     setAplicando(false);
-    setResultado({ precos: okc, ings, estoque: movs.length });
+    setResultado({ precos: okc, ings, estoque: movs.length, precoMudou: eventosPreco.length });
     toast(`✓ ${okc} preço(s) atualizado(s)` + (movs.length ? ` · ${movs.length} entrada(s) no estoque` : ""));
     onAplicado && onAplicado();
   }
@@ -660,7 +683,7 @@ export default function Compras({ onBack, token, clienteId }) {
       </div>
       {loading ? <div style={{ padding: 40, textAlign: "center", color: C.cinzaE }}>Carregando…</div> : <>
         {aba === "fornecedores" && <Fornecedores fornecedores={fornecedores} onSave={saveForn} onDelete={delForn} />}
-        {aba === "cotacao" && <Cotacao produtos={produtos} fornecedores={fornecedores} onSaveProd={saveProd} onDelProd={delProd} ingsComp={ingsComp} precosComp={precosComp} fornsComp={fornsComp} />}
+        {aba === "cotacao" && <Cotacao produtos={produtos} fornecedores={fornecedores} onSaveProd={saveProd} onDelProd={delProd} ingsComp={ingsComp} precosComp={precosComp} fornsComp={fornsComp} token={token} clienteId={clienteId} onReloadPrecos={refreshCusto} />}
         {aba === "pedidos" && <Pedidos pedidos={pedidos} fornecedores={fornecedores} onSave={savePed} onDelete={delPed} />}
         {aba === "nfe" && <ImportarNFe token={token} clienteId={clienteId} ingsComp={ingsComp} precosComp={precosComp} fornsComp={fornsComp} onAplicado={refreshCusto} />}
       </>}
