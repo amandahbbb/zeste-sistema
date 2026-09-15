@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { calcAllFichas, calcPrato } from "./cmv.js";
 import Fichas from "./Fichas.jsx";
 import Compras from "./Compras.jsx";
 import FluxoCaixa from "./FluxoCaixa.jsx";
@@ -387,8 +388,12 @@ function Cockpit({ clienteInfo, token, projeto, etapas, ir }) {
       sbLoad("est_movimentos", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=dados`),
       sbLoad("fin_cliente_fluxo", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=dados`),
       sbLoad("fin_ingredientes", token, `or=(cliente_id.eq.${cid},cliente_id.like.${cid}-*)&deleted_at=is.null&select=dados`),
-    ]).then(([peds, conts, movs, fluxo, ings]) => {
+      sbLoad("preco_historico", token, `cliente_id=eq.${cid}&deleted_at=is.null&select=dados`),
+      sbLoad("fin_fichas", token, `or=(cliente_id.eq.${cid},cliente_id.like.${cid}-*)&deleted_at=is.null&select=dados`),
+      sbLoad("fin_pratos", token, `or=(cliente_id.eq.${cid},cliente_id.like.${cid}-*)&deleted_at=is.null&select=dados`),
+    ]).then(([peds, conts, movs, fluxo, ings, hist, fichas, pratos]) => {
       const P = peds.map(x => x.dados || {}), Cn = conts.map(x => x.dados || {}), M = movs.map(x => x.dados || {}), F = fluxo.map(x => x.dados || {}).filter(l => l.tipo === "entrada" || l.tipo === "saida"), I = ings.map(x => x.dados || {});
+      const H = hist.map(x => x.dados || {}), FIC = fichas.map(x => x.dados || {}), PR = pratos.map(x => x.dados || {});
       // pedidos
       const aProduzir = P.filter(p => p.status === "aberto").length, prontos = P.filter(p => p.status === "pronto").length;
       const atrasados = P.filter(p => (p.status === "aberto" || p.status === "pronto") && p.entrega && p.entrega < hj).length;
@@ -396,20 +401,33 @@ function Cockpit({ clienteInfo, token, projeto, etapas, ir }) {
       const fech = Cn.filter(c => c.status === "fechada").sort((a, b) => (b.fechadaEm || b.data || "").localeCompare(a.fechadaEm || a.data || ""));
       const ultima = fech[0]; const diasCont = ultima ? Math.round((Date.now() - new Date(ultima.fechadaEm || ultima.data).getTime()) / 864e5) : null;
       const aberta = Cn.find(c => c.status === "aberta");
-      // estoque: valor = saldo derivado × preço (simplificado: último contado + movs posteriores)
-      const preco = {}; I.forEach(i => { preco[i.id] = +i.p || 0; });
+      // estoque: saldo derivado
+      const preco = {}, minimo = {}, nomeIng = {}; I.forEach(i => { preco[i.id] = +i.p || 0; minimo[i.id] = +i.estoqueMin || 0; nomeIng[i.id] = i.nome; });
       const saldo = {}; const anc = {}; if (ultima) Object.entries(ultima.itensFechados || {}).forEach(([id, it]) => { anc[id] = { q: +it.contadoBase || 0, d: (ultima.fechadaEm || ultima.data || "").slice(0, 10) }; saldo[id] = anc[id].q; });
       const sinal = { entrada_nfe: 1, entrada_manual: 1, consumo_teorico: -1, perda: -1, saida_manual: -1 };
       M.forEach(m => { const sg = sinal[m.tipo]; if (!sg) return; if (anc[m.ingId] && (m.data || "") < anc[m.ingId].d) return; saldo[m.ingId] = (saldo[m.ingId] || 0) + sg * (+m.qtdBase || 0); });
       const valorEstoque = Object.entries(saldo).reduce((a, [id, q]) => a + Math.max(0, q) * (preco[id] || 0), 0);
       const negativos = Object.values(saldo).filter(q => q < -0.01).length;
+      // abaixo do mínimo (usa estoqueMin + saldo derivado; se sem contagem, usa i.estoque)
+      let abaixoMin = 0;
+      I.forEach(i => { const min = minimo[i.id]; if (min <= 0) return; const s = (saldo[i.id] != null) ? saldo[i.id] : (+i.estoque || 0); if (s < min) abaixoMin++; });
+      // preço subiu no mês
+      const precoMes = H.filter(e => (e.data || "").slice(0, 7) === mk && e.pct != null);
+      const precoSubiu = precoMes.filter(e => e.pct > 0.5).length;
+      // pratos acima da meta de CMV
+      const metaCmv = (+clienteInfo.cmv_meta > 0 ? +clienteInfo.cmv_meta : 0.30);
+      let acimaMeta = 0, temPratosComPreco = false;
+      try {
+        const fc = calcAllFichas(FIC, I, cid);
+        PR.forEach(p => { const r = calcPrato(p, I, fc, cid); const pv = +p.precoVenda || 0; if (pv > 0) { temPratosComPreco = true; const cmv = r.custoTotal / pv; if (cmv > metaCmv) acimaMeta++; } });
+      } catch (e) { }
       // financeiro do mês
       const doMes = F.filter(l => (l.competencia || (l.data || "").slice(0, 7)) === mk);
       const ent = doMes.filter(l => l.tipo === "entrada").reduce((a, l) => a + (+l.valor || 0), 0);
       const sai = doMes.filter(l => l.tipo === "saida").reduce((a, l) => a + (+l.valor || 0), 0);
       const vencidos = F.filter(l => !l.pago && l.previsto && l.previsto < hj).length;
       const temFluxoMes = doMes.length > 0;
-      setD({ aProduzir, prontos, atrasados, temPedidos: P.length > 0, ultima, diasCont, aberta, valorEstoque, negativos, temEstoque: M.length > 0 || fech.length > 0, ent, sai, vencidos, temFluxoMes });
+      setD({ aProduzir, prontos, atrasados, temPedidos: P.length > 0, ultima, diasCont, aberta, valorEstoque, negativos, abaixoMin, precoSubiu, acimaMeta, temPratosComPreco, temEstoque: M.length > 0 || fech.length > 0, ent, sai, vencidos, temFluxoMes });
     });
   }, [cid]);
 
@@ -435,6 +453,9 @@ function Cockpit({ clienteInfo, token, projeto, etapas, ir }) {
           if (d.aberta) itens.push(<button key="c1" className="ck-alert warn" onClick={() => ir("estoque")}><span style={{ fontSize: 22 }}>📦</span><div><div className="t">Contagem de estoque em andamento</div><div className="d">Retome de onde parou e feche</div></div><span className="go">Retomar →</span></button>);
           else if (d.temEstoque && d.diasCont != null && d.diasCont >= 30) itens.push(<button key="c2" className="ck-alert warn" onClick={() => ir("estoque")}><span style={{ fontSize: 22 }}>📦</span><div><div className="t">Última contagem há {d.diasCont} dias</div><div className="d">Sem contagem recente o CMV real fica desatualizado</div></div><span className="go">Contar →</span></button>);
           if (d.negativos > 0) itens.push(<button key="c3" className="ck-alert" onClick={() => ir("estoque")}><span style={{ fontSize: 22 }}>📦</span><div><div className="t">{d.negativos} insumo(s) com saldo negativo</div><div className="d">Consumo maior que o estoque registrado — revisar compras ou contagem</div></div><span className="go">Ver →</span></button>);
+          if (d.precoSubiu > 0) itens.push(<button key="pr" className="ck-alert warn" onClick={() => ir("fichas")}><span style={{ fontSize: 22 }}>🏷️</span><div><div className="t">{d.precoSubiu} insumo(s) subiram de preço</div><div className="d">Custo dos pratos que usam esses insumos foi recalculado</div></div><span className="go">Ver →</span></button>);
+          if (d.abaixoMin > 0) itens.push(<button key="mn" className="ck-alert warn" onClick={() => ir("estoque")}><span style={{ fontSize: 22 }}>📦</span><div><div className="t">{d.abaixoMin} insumo(s) abaixo do mínimo</div><div className="d">Estoque baixo — pode precisar repor</div></div><span className="go">Ver →</span></button>);
+          if (d.acimaMeta > 0) itens.push(<button key="mt" className="ck-alert" onClick={() => ir("fichas")}><span style={{ fontSize: 22 }}>📉</span><div><div className="t">{d.acimaMeta} prato(s) acima da meta de CMV</div><div className="d">O custo passou da meta — revisar preço ou ficha</div></div><span className="go">Ver →</span></button>);
           if (!itens.length) itens.push(<div key="ok" className="ck-alert ok" style={{ cursor: "default" }}><span style={{ fontSize: 22 }}>✓</span><div><div className="t">Nada pendente por hoje</div><div className="d">Sem pedidos atrasados, contas vencidas ou contagem aberta</div></div></div>);
           return itens;
         })()}
@@ -444,7 +465,7 @@ function Cockpit({ clienteInfo, token, projeto, etapas, ir }) {
         <div className="pcl-grid">
           <button className="ck-kpi" style={{ textAlign: "left", cursor: "pointer", borderTop: "3px solid var(--verde)" }} onClick={() => ir("fluxo")}><div className="l">Faturamento</div><div className="v" style={{ color: "var(--verde)" }}>{d.temFluxoMes ? _brl(d.ent) : "—"}</div><div className="s">entradas lançadas</div></button>
           <button className="ck-kpi" style={{ textAlign: "left", cursor: "pointer", borderTop: `3px solid ${d.ent - d.sai >= 0 ? "var(--azul)" : "var(--coral)"}` }} onClick={() => ir("dre")}><div className="l">Resultado</div><div className="v" style={{ color: d.ent - d.sai >= 0 ? "var(--azul)" : "var(--coral)" }}>{d.temFluxoMes ? _brl(d.ent - d.sai) : "—"}</div><div className="s">entradas − saídas · ver DRE</div></button>
-          <button className="ck-kpi" style={{ textAlign: "left", cursor: "pointer", borderTop: "3px solid var(--coral)" }} onClick={() => ir("cmv")}><div className="l">CMV</div><div className="v" style={{ color: "var(--coral)" }}>{d.temFluxoMes && d.ent > 0 ? "ver →" : "—"}</div><div className="s">real × teórico</div></button>
+          <button className="ck-kpi" style={{ textAlign: "left", cursor: "pointer", borderTop: "3px solid var(--coral)" }} onClick={() => ir("fichas")}><div className="l">Pratos acima da meta</div><div className="v" style={{ color: d.acimaMeta > 0 ? "var(--coral)" : "var(--verde)" }}>{d.temPratosComPreco ? d.acimaMeta : "—"}</div><div className="s">{d.temPratosComPreco ? (d.acimaMeta > 0 ? "custo alto — revisar" : "tudo dentro da meta") : "cadastre preços"}</div></button>
           <button className="ck-kpi" style={{ textAlign: "left", cursor: "pointer", borderTop: "3px solid #B8860B" }} onClick={() => ir("estoque")}><div className="l">Em estoque</div><div className="v" style={{ color: "#B8860B" }}>{d.temEstoque ? _brl(d.valorEstoque) : "—"}</div><div className="s">{d.ultima ? `contado há ${d.diasCont}d` : "sem contagem ainda"}</div></button>
         </div>
 
