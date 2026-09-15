@@ -1,4 +1,5 @@
 import Inventario from './Inventario.jsx';
+import { carregarHistPreco, pratosAfetados, variacaoPct } from './precoHist.js';
 import { saldoEsperado, resumoPeriodo, novoMov, gravarMovimentos, carregarMovimentos, carregarContagens, TIPOS_MOV } from './estoque.js';
 import { useState, useEffect, useCallback, useRef } from "react";
 import Documentos from "./Documentos.jsx";
@@ -99,8 +100,12 @@ function calcProducao(producao,pratosCalc,fichasCalc,ingredientes,meuCli){
   return{lista,totalCusto:lista.reduce((s,i)=>s+i.custo,0),custoFalta:lista.reduce((s,i)=>s+((i.faltaComprar??i.qtdBruta)*i.preco),0)};
 }
 
-const cmvColor=c=>c<.30?'#2D6E47':c<.35?'#B8860B':c<.40?'#E8914B':'#E8614B';
-const cmvLabel=c=>c<.30?'Excelente':c<.35?'Bom':c<.40?'Atenção':'Alto';
+const CATEGORIAS_INSUMO=['Açougue','Hortifruti e verduras','Laticínios','Estoque seco','Peixaria','Temperos','Bebidas / Vinhos / Cervejas','Frios / Congelados','Embutidos','Enlatados','Para revenda','Embalagens','Outros'];
+let CMV_META=0.30; // meta do cliente (editável) — fração
+const setCmvMeta=m=>{CMV_META=(+m>0&&+m<1)?+m:0.30;};
+const cmvColor=(c,meta=CMV_META)=>c<=meta?'#2D6E47':c<=meta+.05?'#B8860B':c<=meta+.10?'#E8914B':'#E8614B';
+const cmvLabel=(c,meta=CMV_META)=>c<=meta?'Dentro da meta':c<=meta+.05?'Levemente acima':c<=meta+.10?'Atenção':'Acima da meta';
+const cmvSelo=(c,meta=CMV_META)=>c<=meta?{t:'✅ Dentro da meta',cor:'#2D6E47',bg:'#E6F2EA'}:{t:'⚠ Acima da meta',cor:'#B54A2B',bg:'#FBE9E3'};
 
 // ── SEED DATA ─────────────────────────────────────────────────────
 const SEED_ING=[{"nome":"COXAO MOLE","un":"KG","p":48.9,"fc":1.12,"fk":0.72,"id":"ing_000"},{"nome":"MIOLO DA PALETA","un":"KG","p":48.9,"fc":1.2,"fk":0.7,"id":"ing_001"},{"nome":"OSSO PARA FUNDO","un":"KG","p":12.9,"fc":1.0,"fk":0.5,"id":"ing_002"},{"nome":"PEITO DE FRANGO","un":"KG","p":15.9,"fc":1.15,"fk":0.8,"id":"ing_003"},{"nome":"SOBRECOXA DESOSSADA COM PELE","un":"KG","p":18.9,"fc":1.7,"fk":0.9,"id":"ing_004"},{"nome":"FRANGO INTEIRO","un":"KG","p":13.9,"fc":1.3,"fk":0.68,"id":"ing_005"},{"nome":"CARCACA DE FRANGO","un":"KG","p":5.9,"fc":1.0,"fk":0.35,"id":"ing_006"},{"nome":"FILE DE TILAPIA","un":"KG","p":45.9,"fc":1.1,"fk":0.75,"id":"ing_007"},{"nome":"FILE DE ROBALO","un":"KG","p":169.0,"fc":1.14,"fk":0.75,"id":"ing_008"},{"nome":"SALMAO FRESCO","un":"KG","p":99.9,"fc":1.18,"fk":0.78,"id":"ing_009"},{"nome":"CAMARAO MEDIO LIMPO","un":"KG","p":89.9,"fc":1.0,"fk":1.0,"id":"ing_010"},{"nome":"BANHA DE PORCO","un":"KG","p":12.9,"fc":1.0,"fk":1.0,"id":"ing_011"},{"nome":"PRESUNTO PARMA","un":"KG","p":139.9,"fc":1.0,"fk":1.0,"id":"ing_012"},{"nome":"BACON","un":"KG","p":34.9,"fc":1.0,"fk":0.5,"id":"ing_013"},{"nome":"PANCETTA","un":"KG","p":69.9,"fc":1.0,"fk":0.9,"id":"ing_014"},{"nome":"MANTEIGA SEM SAL","un":"KG","p":52.9,"fc":1.0,"fk":1.0,"id":"ing_015"},{"nome":"MANTEIGA","un":"KG","p":42.9,"fc":1.0,"fk":1.0,"id":"ing_016"},{"nome":"CREME DE LEITE FRESCO","un":"L","p":52.9,"fc":1.0,"fk":0.9,"id":"ing_017"},{"nome":"CREME DE LEITE","un":"KG","p":18.9,"fc":1.0,"fk":1.0,"id":"ing_018"},{"nome":"LEITE INTEGRAL","un":"L","p":5.9,"fc":1.0,"fk":1.0,"id":"ing_019"},{"nome":"LEITE","un":"L","p":4.9,"fc":1.0,"fk":1.0,"id":"ing_020"},{"nome":"QUEIJO PARMESAO","un":"KG","p":119.9,"fc":1.0,"fk":1.0,"id":"ing_021"},{"nome":"QUEIJO GORGONZOLA","un":"KG","p":89.9,"fc":1.0,"fk":0.98,"id":"ing_022"},{"nome":"QUEIJO MINAS","un":"KG","p":54.9,"fc":1.0,"fk":1.0,"id":"ing_023"},{"nome":"MUSSARELA","un":"KG","p":42.9,"fc":1.0,"fk":0.98,"id":"ing_024"},{"nome":"MUSSARELA DE BUFALA","un":"KG","p":109.9,"fc":1.0,"fk":1.0,"id":"ing_025"},{"nome":"RICOTA","un":"KG","p":24.9,"fc":1.0,"fk":1.0,"id":"ing_026"},{"nome":"CREAM CHEESE","un":"KG","p":44.9,"fc":1.0,"fk":1.0,"id":"ing_027"},{"nome":"IOGURTE GREGO","un":"KG","p":32.9,"fc":1.0,"fk":1.0,"id":"ing_028"},{"nome":"COALHADA SECA","un":"KG","p":32.9,"fc":1.0,"fk":1.0,"id":"ing_029"},{"nome":"OVOS","un":"KG","p":15.9,"fc":1.0,"fk":1.0,"id":"ing_030"},{"nome":"FARINHA DE TRIGO","un":"KG","p":5.9,"fc":1.0,"fk":1.0,"id":"ing_031"},{"nome":"FARINHA DE MANDIOCA","un":"KG","p":5.9,"fc":1.0,"fk":1.0,"id":"ing_032"},{"nome":"FUBA MIMOSO","un":"KG","p":8.9,"fc":1.0,"fk":1.0,"id":"ing_033"},{"nome":"POLVILHO AZEDO","un":"KG","p":12.9,"fc":1.0,"fk":1.0,"id":"ing_034"},{"nome":"ARROZ ARBORIO","un":"KG","p":22.9,"fc":1.0,"fk":2.8,"id":"ing_035"},{"nome":"ARROZ BRANCO","un":"KG","p":8.9,"fc":1.0,"fk":2.2,"id":"ing_036"},{"nome":"ESPAGUETE GRANO DURO","un":"KG","p":28.9,"fc":1.0,"fk":1.9,"id":"ing_037"},{"nome":"FEIJAO PRETO","un":"KG","p":7.9,"fc":1.0,"fk":1.8,"id":"ing_038"},{"nome":"AZEITE DE OLIVA EXTRA VIRGEM","un":"L","p":79.9,"fc":1.0,"fk":1.0,"id":"ing_039"},{"nome":"AZEITE DE OLIVA","un":"L","p":42.9,"fc":1.0,"fk":1.0,"id":"ing_040"},{"nome":"OLEO DE SOJA","un":"L","p":7.9,"fc":1.0,"fk":1.0,"id":"ing_041"},{"nome":"OLEO DE GIRASSOL","un":"L","p":12.9,"fc":1.0,"fk":1.0,"id":"ing_042"},{"nome":"VINHO BRANCO SECO","un":"L","p":35.9,"fc":1.0,"fk":0.1,"id":"ing_043"},{"nome":"VINHO TINTO SECO","un":"L","p":32.9,"fc":1.0,"fk":0.1,"id":"ing_044"},{"nome":"VINAGRE BALSAMICO","un":"L","p":39.9,"fc":1.0,"fk":0.5,"id":"ing_045"},{"nome":"VINAGRE DE VINHO BRANCO","un":"L","p":14.9,"fc":1.0,"fk":1.0,"id":"ing_046"},{"nome":"VINAGRE DE VINHO TINTO","un":"L","p":14.9,"fc":1.0,"fk":1.0,"id":"ing_047"},{"nome":"CEBOLA","un":"KG","p":3.9,"fc":1.15,"fk":0.7,"id":"ing_048"},{"nome":"CEBOLA PEROLA","un":"KG","p":12.9,"fc":1.05,"fk":0.9,"id":"ing_049"},{"nome":"ALHO","un":"KG","p":22.9,"fc":1.09,"fk":0.9,"id":"ing_050"},{"nome":"ALHO PORO","un":"KG","p":24.9,"fc":1.1,"fk":0.85,"id":"ing_051"},{"nome":"CENOURA","un":"KG","p":4.9,"fc":1.09,"fk":0.8,"id":"ing_052"},{"nome":"SALSAO","un":"KG","p":15.9,"fc":1.7,"fk":0.85,"id":"ing_053"},{"nome":"SALSINHA","un":"KG","p":18.9,"fc":1.0,"fk":0.5,"id":"ing_054"},{"nome":"CEBOLINHA","un":"KG","p":14.9,"fc":1.0,"fk":0.5,"id":"ing_055"},{"nome":"CEBOLETE","un":"KG","p":34.9,"fc":1.0,"fk":1.0,"id":"ing_056"},{"nome":"MANJERICAO FRESCO","un":"KG","p":28.9,"fc":1.7,"fk":1.0,"id":"ing_057"},{"nome":"TOMILHO FRESCO","un":"KG","p":38.9,"fc":1.0,"fk":0.3,"id":"ing_058"},{"nome":"ALECRIM","un":"KG","p":28.9,"fc":1.5,"fk":1.0,"id":"ing_059"},{"nome":"LOURO","un":"KG","p":89.9,"fc":1.0,"fk":1.0,"id":"ing_060"},{"nome":"GENGIBRE","un":"KG","p":14.9,"fc":1.09,"fk":1.0,"id":"ing_061"},{"nome":"SAL REFINADO","un":"KG","p":2.9,"fc":1.0,"fk":1.0,"id":"ing_062"},{"nome":"PIMENTA DO REINO PRETA","un":"KG","p":99.9,"fc":1.0,"fk":1.0,"id":"ing_063"},{"nome":"PIMENTA DEDO DE MOCA","un":"KG","p":6.9,"fc":1.12,"fk":1.0,"id":"ing_064"},{"nome":"PIMENTA CALABRESA","un":"KG","p":29.9,"fc":1.0,"fk":1.0,"id":"ing_065"},{"nome":"COLORAU","un":"KG","p":12.9,"fc":1.0,"fk":1.0,"id":"ing_066"},{"nome":"COMINHO","un":"KG","p":29.9,"fc":1.0,"fk":1.0,"id":"ing_067"},{"nome":"CANELA EM PO","un":"KG","p":49.9,"fc":1.0,"fk":1.0,"id":"ing_068"},{"nome":"NUEZ MOSCADA","un":"KG","p":129.9,"fc":1.0,"fk":1.0,"id":"ing_069"},{"nome":"PAPRICA DEFUMADA","un":"KG","p":39.9,"fc":1.0,"fk":1.0,"id":"ing_070"},{"nome":"MOSTARDA DIJON","un":"KG","p":39.9,"fc":1.0,"fk":1.0,"id":"ing_071"},{"nome":"MOLHO INGLES","un":"L","p":39.9,"fc":1.0,"fk":1.0,"id":"ing_072"},{"nome":"EXTRATO DE TOMATE","un":"KG","p":18.9,"fc":1.0,"fk":0.85,"id":"ing_073"},{"nome":"PASSATA DE TOMATE","un":"KG","p":14.9,"fc":1.0,"fk":0.9,"id":"ing_074"},{"nome":"MEL","un":"KG","p":48.9,"fc":1.0,"fk":1.0,"id":"ing_075"},{"nome":"A\u00c7UCAR REFINADO","un":"KG","p":5.9,"fc":1.0,"fk":1.0,"id":"ing_076"},{"nome":"A\u00c7UCAR MASCAVO","un":"KG","p":18.9,"fc":1.0,"fk":1.0,"id":"ing_077"},{"nome":"DOCE DE LEITE","un":"KG","p":28.9,"fc":1.0,"fk":1.0,"id":"ing_078"},{"nome":"FERMENTO EM PO","un":"KG","p":22.9,"fc":1.0,"fk":1.0,"id":"ing_079"},{"nome":"GELATINA SEM SABOR","un":"KG","p":79.9,"fc":1.0,"fk":1.0,"id":"ing_080"},{"nome":"TOMATE ITALIANO","un":"KG","p":6.9,"fc":1.09,"fk":0.7,"id":"ing_081"},{"nome":"TOMATE FRESCO","un":"KG","p":5.9,"fc":1.09,"fk":1.0,"id":"ing_082"},{"nome":"TOMATE CEREJA","un":"KG","p":14.9,"fc":1.0,"fk":1.0,"id":"ing_083"},{"nome":"BERINJELA","un":"KG","p":6.9,"fc":1.05,"fk":0.85,"id":"ing_084"},{"nome":"ABOBRINHA","un":"KG","p":6.9,"fc":1.1,"fk":0.76,"id":"ing_085"},{"nome":"BATATA INGLESA","un":"KG","p":5.9,"fc":1.09,"fk":0.75,"id":"ing_086"},{"nome":"BATATA DOCE","un":"KG","p":5.9,"fc":1.16,"fk":0.8,"id":"ing_087"},{"nome":"BATATA BOLINHA","un":"KG","p":4.9,"fc":1.0,"fk":0.85,"id":"ing_088"},{"nome":"PIMENTAO VERMELHO","un":"KG","p":8.9,"fc":1.15,"fk":0.7,"id":"ing_089"},{"nome":"PIMENTAO VERDE","un":"KG","p":5.9,"fc":1.15,"fk":0.4,"id":"ing_090"},{"nome":"ESPINAFRE","un":"KG","p":8.9,"fc":1.4,"fk":0.3,"id":"ing_091"},{"nome":"RUCULA","un":"KG","p":28.9,"fc":1.1,"fk":1.0,"id":"ing_092"},{"nome":"BROTOS DECORATIVOS","un":"KG","p":99.9,"fc":1.0,"fk":1.0,"id":"ing_093"},{"nome":"AZEITONAS PRETAS","un":"KG","p":48.9,"fc":1.0,"fk":1.0,"id":"ing_094"},{"nome":"ALCAPARRAS","un":"KG","p":99.9,"fc":1.0,"fk":1.0,"id":"ing_095"},{"nome":"COGUMELOS PARIS","un":"KG","p":29.9,"fc":1.05,"fk":0.9,"id":"ing_096"},{"nome":"COGUMELO FUNGHI SECO","un":"KG","p":219.9,"fc":1.0,"fk":3.0,"id":"ing_097"},{"nome":"COGUMELO SHITAKE","un":"KG","p":69.9,"fc":1.05,"fk":0.85,"id":"ing_098"},{"nome":"ASPARGO","un":"KG","p":49.9,"fc":1.2,"fk":0.75,"id":"ing_099"},{"nome":"LIMAO TAHITI","un":"KG","p":6.9,"fc":1.0,"fk":1.0,"id":"ing_100"},{"nome":"LIMAO SICILIANO","un":"KG","p":14.9,"fc":1.0,"fk":1.0,"id":"ing_101"},{"nome":"BANANA","un":"KG","p":5.9,"fc":1.66,"fk":0.7,"id":"ing_102"},{"nome":"MORANGO","un":"KG","p":22.9,"fc":1.05,"fk":0.95,"id":"ing_103"},{"nome":"ABACATE","un":"KG","p":8.9,"fc":1.7,"fk":1.0,"id":"ing_104"},{"nome":"MANGA","un":"KG","p":8.9,"fc":1.3,"fk":0.75,"id":"ing_105"},{"nome":"MARACUJA","un":"KG","p":10.9,"fc":1.3,"fk":0.4,"id":"ing_106"},{"nome":"UVA","un":"KG","p":15.9,"fc":1.05,"fk":1.0,"id":"ing_107"},{"nome":"FIGO FRESCO","un":"KG","p":34.9,"fc":1.0,"fk":1.0,"id":"ing_108"},{"nome":"DAMASCO SECO","un":"KG","p":89.9,"fc":1.0,"fk":1.0,"id":"ing_109"},{"nome":"CHOCOLATE MEIO AMARGO 70","un":"KG","p":89.9,"fc":1.0,"fk":1.0,"id":"ing_110"},{"nome":"CACAU EM PO","un":"KG","p":49.9,"fc":1.0,"fk":1.0,"id":"ing_111"},{"nome":"PASTA DE AMENDOIM","un":"KG","p":44.9,"fc":1.0,"fk":1.0,"id":"ing_112"},{"nome":"CASTANHA DE CAJU","un":"KG","p":99.9,"fc":1.0,"fk":1.0,"id":"ing_113"},{"nome":"NOZES","un":"KG","p":84.9,"fc":1.0,"fk":1.0,"id":"ing_114"},{"nome":"QUINOA BRANCA","un":"KG","p":44.9,"fc":1.0,"fk":2.7,"id":"ing_115"},{"nome":"AGUA","un":"L","p":0.0,"fc":1.0,"fk":1.0,"id":"ing_116"},{"nome":"CALDO DE FRANGO","un":"L","p":8.9,"fc":1.0,"fk":1.0,"id":"ing_117"},{"nome":"CALDO DE LEGUMES","un":"L","p":6.9,"fc":1.0,"fk":1.0,"id":"ing_118"},{"nome":"LEITE DE COCO","un":"L","p":16.9,"fc":1.0,"fk":1.0,"id":"ing_119"},{"nome":"MASSA FILO","un":"KG","p":49.9,"fc":1.0,"fk":1.0,"id":"ing_120"},{"nome":"LEMON PEPPER","un":"KG","p":39.9,"fc":1.0,"fk":1.0,"id":"ing_121"},{"nome":"SOUR CREAM","un":"KG","p":34.9,"fc":1.0,"fk":1.0,"id":"ing_122"}];
@@ -129,6 +134,18 @@ button{cursor:pointer;border:none;background:none}
 .ft-kpi{background:var(--preto);border-radius:12px;padding:14px 16px;border-left:4px solid var(--lima);flex:1 1 140px;min-width:130px}
 .ft-kpi-l{font-family:var(--ff);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
 .ft-kpi-v{font-family:var(--ff);font-size:21px;font-weight:700;line-height:1}
+.ft-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding:4px 0}
+.ft-card{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:border-color .15s,transform .1s}
+.ft-card:active{transform:scale(.99)}.ft-card:hover{border-color:var(--lima)}
+.ft-card-foto{width:100%;aspect-ratio:16/9;overflow:hidden;background:#F0EEE8}.ft-card-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.ft-card-ini{width:100%;aspect-ratio:16/5;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-size:34px;font-weight:800;color:#fff;opacity:.85}
+.ft-card-body{padding:12px 14px 14px}
+.ft-selo{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.02em;border-radius:14px;padding:3px 10px;margin-bottom:6px}
+.ft-card-nome{font-size:15px;font-weight:700;color:var(--preto);line-height:1.2;margin-bottom:10px}
+.ft-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.ft-card-l{font-size:10px;font-weight:700;letter-spacing:.06em;color:#4A4A42;text-transform:uppercase}
+.ft-card-v{font-family:var(--ff);font-size:17px;font-weight:800;color:var(--preto)}
+.ft-card-cmv{font-size:22px}
 .ft-row{padding:13px 15px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--cinzaF);min-height:56px}
 .ft-row:hover{background:#F7F7F3}.ft-row:active{background:var(--cinzaF)}
 .ft-tag{display:inline-block;padding:3px 8px;border-radius:4px;font-family:var(--ff);font-size:11px;font-weight:700;letter-spacing:.05em}
@@ -469,14 +486,19 @@ function PratoForm({open,prato,onClose,onSave,onDelete,ingredientes,fichasCalc,s
 }
 
 // ── INGREDIENTES TAB ──────────────────────────────────────────────
-function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLixeira,onRestaurar,token,ehAdmin}){
+function TabIngredientes({ingredientes,fichasRaw,pratosRaw,onSave,onDelete,clienteFilter,carregarLixeira,onRestaurar,token,ehAdmin,clienteId}){
+  const[histPreco,setHistPreco]=useState([]);
+  useEffect(()=>{const cid=clienteId||clienteFilter;if(cid&&cid!=='zeste')carregarHistPreco(cid,token).then(setHistPreco);},[clienteId,clienteFilter,token]);
   const tokenIng=token; const clienteFilterAtivo=clienteFilter&&clienteFilter!=='zeste'?clienteFilter:null;
   const[q,setQ]=useState('');const[edit,setEdit]=useState(null);
   const[lixeira,setLixeira]=useState(null);
+  const[catF,setCatF]=useState('');const[soSemPreco,setSoSemPreco]=useState(false);
   const abrirLixeira=async()=>{setLixeira([]);setLixeira(await carregarLixeira());};
-  const filtered=ingredientes.filter(i=>(!q||normNome(i.nome).includes(normNome(q)))&&(!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente||_subPraca(i._cliente,clienteFilter)));
+  const filtered=ingredientes.filter(i=>(!q||normNome(i.nome).includes(normNome(q)))&&(!clienteFilter||i._cliente===clienteFilter||i._cliente==='zeste'||!i._cliente||_subPraca(i._cliente,clienteFilter))&&(!catF||(catF==='__sem'?!i.categoria:(i.categoria===catF)))&&(!soSemPreco||!(+i.p>0)));
   return(<div className="ft-page">
-    <div className="ft-search"><input placeholder="🔍 Buscar ingrediente…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/>
+    <div className="ft-search" style={{flexWrap:'wrap'}}><input placeholder="🔍 Buscar ingrediente…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:'1 1 160px'}}/>
+      <select value={catF} onChange={e=>setCatF(e.target.value)} style={{border:'1.5px solid var(--cinzaM)',borderRadius:8,padding:'8px 10px',fontSize:13,background:'#fff'}}><option value="">Todas as categorias</option>{CATEGORIAS_INSUMO.map(c=><option key={c} value={c}>{c}</option>)}<option value="__sem">Sem categoria</option></select>
+      <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12.5,fontWeight:600,color:'#4A4A42',cursor:'pointer',whiteSpace:'nowrap'}}><input type="checkbox" checked={soSemPreco} onChange={e=>setSoSemPreco(e.target.checked)} style={{width:16,height:16,flexShrink:0}}/> só sem preço</label>
       {carregarLixeira&&<button className="ft-btn" style={{padding:'10px 12px',fontSize:13,border:'1.5px solid var(--cinzaM)',background:'transparent',color:'var(--cinzaE)'}} onClick={abrirLixeira} title="Ingredientes excluídos">🗑</button>}
       <button className="ft-btn ft-btn-p" style={{padding:'10px 14px',fontSize:13}} onClick={()=>setEdit({id:uid(),nome:'',un:'KG',p:0,fc:1,fk:1})}>+ Novo</button></div>
     <div className="ft-pc"><div className="ft-card">
@@ -500,6 +522,20 @@ function TabIngredientes({ingredientes,onSave,onDelete,clienteFilter,carregarLix
     {edit&&<Modal title={edit.nome?'Editar Ingrediente':'Novo Ingrediente'} onClose={()=>setEdit(null)}>
       <div className="ft-fg">
         <div className="ft-fld"><label className="ft-flbl">Nome</label><input value={edit.nome} onChange={e=>setEdit(f=>({...f,nome:e.target.value.toUpperCase()}))}/></div>
+        {(()=>{const evs=histPreco.filter(e=>e.ingId===edit.id&&e.pct!=null).sort((a,b)=>(b.data||'').localeCompare(a.data||''));const ult=evs[0];if(!ult)return null;const sobe=ult.pct>0;const afet=pratosAfetados(edit.nome,pratosRaw||[],fichasRaw||[]);return(
+          <div style={{background:sobe?'#FBE9E3':'#E6F2EA',border:`1px solid ${sobe?'#E8B4A3':'#B5D9C2'}`,borderRadius:10,padding:'11px 13px',marginBottom:10}}>
+            <div style={{fontSize:10,fontWeight:800,letterSpacing:'.06em',color:'#4A4A42'}}>{sobe?'PREÇO SUBIU':'PREÇO CAIU'} · {(ult.data||'').split('-').reverse().join('/')}{ult.origem==='nfe'?' · NF-e':''}</div>
+            <div style={{display:'flex',alignItems:'baseline',gap:8,marginTop:4,flexWrap:'wrap'}}>
+              <span style={{fontSize:15,color:'#4A4A42',textDecoration:'line-through'}}>{brl(ult.de)}</span>
+              <span style={{fontSize:15,color:'#4A4A42'}}>→</span>
+              <span style={{fontFamily:'var(--ff)',fontSize:22,fontWeight:800,color:sobe?'#B54A2B':'#2D6E47'}}>{brl(ult.para)}</span>
+              <span style={{fontSize:14,fontWeight:800,color:sobe?'#B54A2B':'#2D6E47'}}>{sobe?'+':''}{ult.pct.toFixed(1).replace('.',',')}%</span>
+            </div>
+            {afet.length>0&&<div style={{fontSize:12.5,color:'#4A4A42',marginTop:6}}><b>{afet.length} prato(s) afetado(s):</b> {afet.slice(0,5).join(' · ')}{afet.length>5?` +${afet.length-5}`:''}</div>}
+            {evs.length>1&&<div style={{fontSize:11,color:'#4A4A42',marginTop:4,opacity:.8}}>{evs.length} mudanças registradas</div>}
+          </div>
+        );})()}
+        <div className="ft-fld h"><label className="ft-flbl">Categoria</label><select value={edit.categoria||''} onChange={e=>setEdit(f=>({...f,categoria:e.target.value}))}><option value="">—</option>{CATEGORIAS_INSUMO.map(c=><option key={c}>{c}</option>)}</select></div>
         <div className="ft-fld h"><label className="ft-flbl">Unidade</label><select value={edit.un} onChange={e=>setEdit(f=>({...f,un:e.target.value}))}><option>KG</option><option>L</option><option>UN</option></select></div>
         <div className="ft-fld h"><label className="ft-flbl">Preço/KG (R$)</label><NumInput step="0.01" value={edit.p} onChange={v=>setEdit(f=>({...f,p:v}))}/></div>
         <div className="ft-fld h"><label className="ft-flbl">Fator Correção</label><NumInput step="0.01" value={edit.fc} onChange={v=>setEdit(f=>({...f,fc:v}))}/></div>
@@ -700,21 +736,25 @@ function TabPratos({pratosCalc,ingredientes,fichasCalc,onSave,onDelete,clienteFi
       {categorias.map(cat=>{const pratos=filtered.filter(p=>(p.categoria||'Sem categoria')===cat);return(<div key={cat}>
         <SH>{cat}</SH>
         <div className="ft-card" style={{marginBottom:16}}>
-          {pratos.map((p,i)=>{const cmvC=cmvColor(p.cmv);return(<div key={p.id} className="ft-row" onClick={()=>setDetail(p)} style={{borderLeft:`4px solid ${cmvC}`}}>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:14,fontWeight:700}}>{p.nome}</div>
-              <div style={{display:'flex',gap:6,marginTop:3,flexWrap:'wrap',alignItems:'center'}}>
-                <span style={{fontSize:11,color:'var(--cinzaE)'}}>{(p.componentes||[]).length} componentes</span>
-                {p.precoVenda>0&&<span style={{fontSize:11,color:'var(--cinzaE)'}}>· Venda {brl(p.precoVenda)}</span>}
+          <div className="ft-cards">
+          {pratos.map((p,i)=>{const cmvC=cmvColor(p.cmv);const temPreco=p.precoVenda>0;const selo=temPreco?cmvSelo(p.cmv):null;const margem=temPreco?(p.precoVenda-p.custoTotal):0;const ini=(p.nome||'?').trim().charAt(0).toUpperCase();
+          return(<div key={p.id} className="ft-card" onClick={()=>setDetail(p)}>
+            {p.foto?<div className="ft-card-foto"><img src={p.foto} alt="" loading="lazy" onError={e=>{e.target.parentNode.style.display='none';}}/></div>
+                   :<div className="ft-card-ini" style={{background:temPreco?cmvC:'var(--cinzaM)'}}>{ini}</div>}
+            <div className="ft-card-body">
+              {selo?<span className="ft-selo" style={{color:selo.cor,background:selo.bg}}>{selo.t}</span>
+                   :<span className="ft-selo" style={{color:'#7a5a00',background:'#FBF3E0'}}>sem preço de venda</span>}
+              <div className="ft-card-nome">{p.nome}</div>
+              <div className="ft-card-grid">
+                <div><div className="ft-card-l">Custo</div><div className="ft-card-v" style={{color:'var(--coral)'}}>{brl(p.custoTotal)}</div></div>
+                <div><div className="ft-card-l">Venda</div><div className="ft-card-v">{temPreco?brl(p.precoVenda):'—'}</div></div>
+                <div><div className="ft-card-l">CMV</div><div className="ft-card-v ft-card-cmv" style={{color:temPreco?cmvC:'var(--cinzaM)'}}>{temPreco?pct(p.cmv):'—'}</div></div>
+                <div><div className="ft-card-l">Margem</div><div className="ft-card-v" style={{color:temPreco?'var(--verde)':'var(--cinzaM)'}}>{temPreco?brl(margem):'—'}</div></div>
               </div>
-            </div>
-            <div style={{textAlign:'right',flexShrink:0}}>
-              <div style={{fontFamily:'var(--ff)',fontSize:15,fontWeight:700,color:'var(--coral)'}}>{brl(p.custoTotal)}</div>
-              {p.precoVenda>0&&<div style={{fontSize:11,fontWeight:700,color:cmvC}}>CMV {pct(p.cmv)}</div>}
-              {p.custoIncompleto&&<div style={{fontSize:10,fontWeight:700,color:'var(--coral)'}} title="Ingrediente sem preço">⚠ custo incompleto</div>}
-              {!(p.precoVenda>0)&&<div style={{fontSize:10,fontWeight:700,color:'#B8860B'}}>sem preço</div>}
+              {p.custoIncompleto&&<div style={{fontSize:11,fontWeight:700,color:'var(--coral)',marginTop:6}}>⚠ custo incompleto (ingrediente sem preço)</div>}
             </div>
           </div>);})}
+          </div>
         </div>
       </div>);})}
     </div>
@@ -1063,14 +1103,43 @@ function SaldoRazao({ingredientes,clienteFilter,token,clienteId}){
   const chip=(tipo)=>{const t=TIPOS_MOV[tipo]||{rot:tipo,cor:'#6B6B5E'};return <span style={{fontSize:10,fontWeight:700,color:t.cor,border:`1px solid ${t.cor}`,borderRadius:10,padding:'1px 7px',whiteSpace:'nowrap'}}>{t.rot}</span>;};
   const card={border:'1px solid var(--border)',borderRadius:10,background:'#fff',padding:14,marginBottom:12};
 
-  if(loading)return <div style={{padding:30,textAlign:'center',color:'var(--cinzaE)'}}>Carregando o razão…</div>;
+  if(loading)return <div style={{padding:30,textAlign:'center',color:'var(--cinzaE)'}}>Carregando o estoque…</div>;
+
+  // saldo por insumo (id → kg) para os alertas de mínimo/negativo
+  const saldoDe={};linhas.forEach(l=>{saldoDe[l.id]=l.saldo;});
+  const abaixoMin=(ingredientes||[]).filter(i=>{const min=+i.estoqueMin||0;if(min<=0)return false;const s=saldoDe[i.id];return s!=null&&s<min;}).map(i=>({nome:i.nome,saldo:saldoDe[i.id],min:+i.estoqueMin}));
+  const negativos=linhas.filter(l=>l.saldo<-0.01);
+  const entrouV=(resumo.entrada_nfe?.valor||0)+(resumo.entrada_manual?.valor||0);
+  const consumoV=(resumo.consumo_teorico?.valor||0)+(resumo.saida_manual?.valor||0);
+  const perdasV=(resumo.perda?.valor||0)+Math.abs(resumo.ajuste_contagem?.valor||0);
+  const bloco=(lbl,val,cor,sub)=>(<div style={{...card,flex:'1 1 130px',marginBottom:0,borderTop:`3px solid ${cor}`}}><div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:800,letterSpacing:'.04em'}}>{lbl}</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:21,fontWeight:800,color:cor}}>{val}</div>{sub&&<div style={{fontSize:11,color:'var(--cinzaE)'}}>{sub}</div>}</div>);
 
   return(<div className="ft-page">
-    <div style={{display:'flex',flexWrap:'wrap',gap:10,marginBottom:12}}>
-      <div style={{...card,flex:'1 1 150px',marginBottom:0,borderTop:'3px solid var(--azul)'}}><div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700}}>VALOR EM ESTOQUE</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:800,color:'var(--azul)'}}>{brl(totalEstoque)}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>{linhas.length} insumo(s) com histórico</div></div>
-      <div style={{...card,flex:'1 1 150px',marginBottom:0,borderTop:'3px solid var(--verde)'}}><div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700}}>ENTRADAS DO MÊS</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:800,color:'var(--verde)'}}>{brl((resumo.entrada_nfe?.valor||0)+(resumo.entrada_manual?.valor||0))}</div><div style={{fontSize:11,color:'var(--cinzaE)'}}>NF-e + manuais</div></div>
-      {(resumo.ajuste_contagem||resumo.perda)&&<div style={{...card,flex:'1 1 150px',marginBottom:0,borderTop:'3px solid var(--coral)'}}><div style={{fontSize:10,color:'var(--cinzaE)',fontWeight:700}}>PERDAS/AJUSTES DO MÊS</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:800,color:'var(--coral)'}}>{brl((resumo.perda?.valor||0)+(resumo.ajuste_contagem?.valor||0))}</div></div>}
+    {/* A PERGUNTA que a tela responde */}
+    <div style={{marginBottom:12}}>
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:800,color:'var(--preto)'}}>O que entrou, saiu, perdi e ainda tenho?</div>
+      <div style={{fontSize:12.5,color:'#4A4A42'}}>Movimentos deste mês e o saldo atual de cada insumo.</div>
     </div>
+
+    {/* O FLUXO: Entrou → Consumo → Perdas → Saldo */}
+    <div style={{display:'flex',flexWrap:'wrap',gap:10,marginBottom:12,alignItems:'stretch'}}>
+      {bloco('ENTROU',brl(entrouV),'var(--verde)','compras + entradas')}
+      {bloco('CONSUMO',brl(consumoV),'var(--azul)','vendas + saídas')}
+      {bloco('PERDAS',brl(perdasV),'var(--coral)','desperdício + ajustes')}
+      {bloco('EM ESTOQUE',brl(totalEstoque),'#B8860B',`${linhas.length} insumo(s)`)}
+    </div>
+
+    {/* O QUE PRECISA DE ATENÇÃO */}
+    {(abaixoMin.length>0||negativos.length>0)&&<div style={{marginBottom:12}}>
+      {abaixoMin.length>0&&<div style={{background:'#FBF3E0',border:'1px solid #E8D9A8',borderLeft:'4px solid #B8860B',borderRadius:10,padding:'11px 13px',marginBottom:8}}>
+        <div style={{fontSize:14,fontWeight:700,color:'#7a5a00'}}>⚠ {abaixoMin.length} insumo(s) abaixo do estoque mínimo</div>
+        <div style={{fontSize:12.5,color:'#4A4A42',marginTop:3}}>{abaixoMin.slice(0,6).map(a=>`${a.nome} (${nkg(a.saldo)}/${nkg(a.min)})`).join(' · ')}{abaixoMin.length>6?` +${abaixoMin.length-6}`:''}</div>
+      </div>}
+      {negativos.length>0&&<div style={{background:'#FBE9E3',border:'1px solid #E8B4A3',borderLeft:'4px solid var(--coral)',borderRadius:10,padding:'11px 13px'}}>
+        <div style={{fontSize:14,fontWeight:700,color:'#B54A2B'}}>⚠ {negativos.length} insumo(s) com saldo negativo</div>
+        <div style={{fontSize:12.5,color:'#4A4A42',marginTop:3}}>Consumo maior que o registrado — revise compras ou faça uma contagem. {negativos.slice(0,5).map(n=>n.nome).join(' · ')}</div>
+      </div>}
+    </div>}
 
     <div className="ft-search" style={{flexWrap:'wrap'}}>
       <input placeholder="🔍 Buscar insumo…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:'1 1 150px'}}/>
@@ -1100,7 +1169,7 @@ function SaldoRazao({ingredientes,clienteFilter,token,clienteId}){
 
     {/* SALDO por insumo */}
     <div style={{...card,padding:0}}>
-      <div style={{padding:'11px 14px',borderBottom:'1px solid var(--border)',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>Saldo atual (derivado do razão)</div>
+      <div style={{padding:'11px 14px',borderBottom:'1px solid var(--border)',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>O que ainda tenho (saldo por insumo)</div>
       {linhas.length===0?<div style={{padding:24,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Sem movimentos ainda. Importe uma NF-e (vira entrada), feche uma contagem, ou registre um movimento manual.</div>:
         linhas.map((l,i)=>(<div key={l.id} style={{display:'flex',gap:8,alignItems:'center',padding:'8px 14px',borderBottom:i<linhas.length-1?'1px solid var(--cinzaF)':'none'}}>
           <span style={{flex:1,fontSize:13,fontWeight:600}}>{l.nome}</span>
@@ -1111,7 +1180,7 @@ function SaldoRazao({ingredientes,clienteFilter,token,clienteId}){
 
     {/* EXTRATO */}
     <div style={{...card,padding:0}}>
-      <div style={{padding:'11px 14px',borderBottom:'1px solid var(--border)',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>Extrato de movimentos</div>
+      <div style={{padding:'11px 14px',borderBottom:'1px solid var(--border)',fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>Tudo que mexeu no estoque</div>
       {extrato.length===0?<div style={{padding:24,textAlign:'center',color:'var(--cinzaE)',fontStyle:'italic'}}>Nenhum movimento registrado.</div>:
         extrato.map((m,i)=>{const sinal=(TIPOS_MOV[m.tipo]||{}).sinal||0;return(<div key={m._row||i} style={{display:'flex',gap:8,alignItems:'center',padding:'8px 14px',borderBottom:i<extrato.length-1?'1px solid var(--cinzaF)':'none'}}>
           <span style={{width:44,fontSize:11,color:'var(--cinzaE)'}}>{(m.data||'').slice(8,10)}/{(m.data||'').slice(5,7)}</span>
@@ -1338,6 +1407,8 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
   useEffect(()=>{loadAll();},[]);
 
   async function loadAll(){
+    // meta de CMV do cliente (coluna cmv_meta em fin_portal_clientes; default 30%)
+    try{const cid=clienteIdProp||clienteFilter;if(cid&&cid!=='zeste'){const r=await fetch(`${SB_URL}/rest/v1/fin_portal_clientes?cliente_id=eq.${cid}&select=cmv_meta`,{headers:sbH(token)});const d=await r.json();if(Array.isArray(d)&&d[0]&&d[0].cmv_meta>0)setCmvMeta(+d[0].cmv_meta);else setCmvMeta(0.30);}else setCmvMeta(0.30);}catch{setCmvMeta(0.30);}
     setLoading(true);
     let[ings,fics,prts]=await Promise.all([sbLoad('fin_ingredientes',token),sbLoad('fin_fichas',token),sbLoad('fin_pratos',token)]);
     // Erro de rede/sessão NÃO é banco vazio: avisa e não semeia nada
@@ -1468,7 +1539,7 @@ export default function Fichas({onBack,token,clienteId:clienteIdProp,clienteNome
       <nav className="ft-nav">{(ehAdmin?TABS_ADMIN:TABS).map((t,i)=>(<span key={t.id}>{i>0&&<div style={{width:1,background:'#252525',margin:'10px 0',flexShrink:0}}/>}<div className={`ft-tab${aba===t.id?' on':''}`} onClick={()=>setAba(t.id)}>{t.l}</div></span>))}</nav>
     </div>
     {aba==='resumo'&&<><Dica id="resumo">Esta é a visão geral da operação. O fluxo do sistema é sempre: <b>Ingredientes → Fichas → Pratos → Cadernos</b>. Cada etapa alimenta a seguinte — o custo você nunca digita, ele é calculado.</Dica><TabResumo ingredientes={ingredientes} fichasCalc={fichasCalc} pratosCalc={pratosCalc} clienteFilter={clienteFilter}/></>}
-    {aba==='ingredientes'&&<><Dica id="ingredientes">Tudo começa aqui: cadastre cada ingrediente com <b>preço por kg/L e fator de correção</b> (quanto se perde na limpeza). É desse preço que nascem todos os custos do sistema — mantenha atualizado.</Dica><TabIngredientes ingredientes={ingredientes} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter} carregarLixeira={carregarLixeira} onRestaurar={restaurarIngrediente} token={token} ehAdmin={ehAdmin}/></>}
+    {aba==='ingredientes'&&<><Dica id="ingredientes">Tudo começa aqui: cadastre cada ingrediente com <b>preço por kg/L e fator de correção</b> (quanto se perde na limpeza). É desse preço que nascem todos os custos do sistema — mantenha atualizado.</Dica><TabIngredientes ingredientes={ingredientes} fichasRaw={fichasRaw} pratosRaw={pratosRaw} onSave={saveIngrediente} onDelete={delIngrediente} clienteFilter={clienteFilter} carregarLixeira={carregarLixeira} onRestaurar={restaurarIngrediente} token={token} ehAdmin={ehAdmin} clienteId={clienteIdProp}/></>}
     {aba==='fichas'&&<><Dica id="fichas">Fichas são as <b>receitas base e pré-preparos</b> (um molho, uma polenta). Monte com os ingredientes e as quantidades — o custo por kg da receita pronta sai sozinho. Uma ficha pode entrar em vários pratos.</Dica><TabFichas fichasCalc={fichasCalc} ingredientes={ingredientes} fichasRaw={fichasRaw} onSave={saveFicha} onDelete={delFicha} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin} token={token}/></>}
     {aba==='pratos'&&<><Dica id="pratos">Pratos são o que vai <b>pro cardápio</b>: combine fichas e ingredientes com as gramaturas do empratamento. Preencha o <b>preço de venda</b> (vira CMV e matriz) e o <b>modo de preparo</b> (vira o caderno da cozinha — linhas começando com ⚠ viram alerta).</Dica><TabPratos pratosCalc={pratosCalc} ingredientes={ingredientes} fichasCalc={fichasCalc} onSave={savePrato} onDelete={delPrato} clienteFilter={clienteFilter} souCli={meuCli} ehAdmin={ehAdmin} token={token}/></>}
     {aba==='producao'&&<><Dica id="producao">Planeje aqui <b>quanto produzir de cada receita</b>. Os rendimentos e quantidades vêm das fichas — sem redigitar nada.</Dica><TabProducao pratosCalc={pratosCalc} fichasCalc={fichasCalc} ingredientes={ingredientes} meuCli={meuCli} token={token} clienteAtivo={clienteFilter&&clienteFilter!=='zeste'?clienteFilter:meuCli}/></>}
